@@ -1,0 +1,4 @@
+  File "/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py", line 103
+    else:
+    ^^^^
+SyntaxError: invalid syntax

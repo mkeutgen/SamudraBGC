@@ -1,0 +1,227 @@
+482025-10-23 09:57:31,846 - INFO - ============================================================
+2025-10-23 09:57:31,846 - INFO - MOM6-COBALT DATA PREPROCESSOR
+2025-10-23 09:57:31,846 - INFO - ============================================================
+2025-10-23 09:57:31,846 - INFO - Input directory: /scratch/cimes/maximek/INMOS/original_data
+2025-10-23 09:57:31,846 - INFO - Output directory: /scratch/cimes/maximek/INMOS/clim_data_proc
+2025-10-23 09:57:31,846 - INFO - Years to process: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+2025-10-23 09:57:31,846 - INFO - Months to process: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+2025-10-23 09:57:31,846 - INFO - First year (offset): 2016
+2025-10-23 09:57:31,846 - INFO - Processing year 2016
+2025-10-23 09:57:31,846 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_01.nc
+2025-10-23 09:57:32,016 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_01.nc
+2025-10-23 09:57:32,042 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_01.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 09:57:32,090 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 09:58:12,118 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_02.nc
+2025-10-23 09:58:12,152 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_02.nc
+2025-10-23 09:58:12,168 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_02.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 09:58:12,218 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 09:58:47,322 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_03.nc
+2025-10-23 09:58:47,346 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_03.nc
+2025-10-23 09:58:47,366 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_03.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 09:58:47,406 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 09:59:25,857 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_04.nc
+2025-10-23 09:59:25,880 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_04.nc
+2025-10-23 09:59:25,901 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_04.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 09:59:25,939 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:00:03,384 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_05.nc
+2025-10-23 10:00:03,410 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_05.nc
+2025-10-23 10:00:03,433 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_05.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:00:03,468 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:00:41,833 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_06.nc
+2025-10-23 10:00:41,856 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_06.nc
+2025-10-23 10:00:41,877 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_06.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:00:41,910 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:01:18,537 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_07.nc
+2025-10-23 10:01:18,564 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_07.nc
+2025-10-23 10:01:18,584 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_07.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:01:18,623 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:01:57,493 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_08.nc
+2025-10-23 10:01:57,517 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_08.nc
+2025-10-23 10:01:57,536 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_08.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:01:57,576 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:02:36,820 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_09.nc
+2025-10-23 10:02:36,846 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_09.nc
+2025-10-23 10:02:36,872 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_09.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:02:36,918 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:03:14,815 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_10.nc
+2025-10-23 10:03:14,840 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_10.nc
+2025-10-23 10:03:14,859 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_10.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:03:14,898 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:03:54,429 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_11.nc
+2025-10-23 10:03:54,449 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_11.nc
+2025-10-23 10:03:54,465 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_11.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:03:54,493 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:04:33,089 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2016_12.nc
+2025-10-23 10:04:33,116 - INFO - Loading physics: hist_control_dynamics3d_yearly__2016_12.nc
+2025-10-23 10:04:33,137 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2016_12.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:04:33,173 - INFO - Interpolating staggered variables to tracer grid...
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:264: FutureWarning: In a future version of xarray the default value for data_vars will change from data_vars='all' to data_vars=None. This is likely to lead to different results when multiple datasets have matching variables with overlapping values. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set data_vars explicitly.
+  ds_year = xr.concat(yearly_datasets, dim="time", combine_attrs="drop_conflicts")
+/home/mk0964/.conda/envs/preprocess_env/lib/python3.11/site-packages/xarray/core/nputils.py:242: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  result = getattr(npmodule, name)(values, axis=axis, **kwargs)
+/home/mk0964/.conda/envs/preprocess_env/lib/python3.11/site-packages/xarray/core/nputils.py:242: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  result = getattr(npmodule, name)(values, axis=axis, **kwargs)
+/home/mk0964/.conda/envs/preprocess_env/lib/python3.11/site-packages/xarray/core/nputils.py:242: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  result = getattr(npmodule, name)(values, axis=axis, **kwargs)
+/home/mk0964/.conda/envs/preprocess_env/lib/python3.11/site-packages/xarray/core/nputils.py:242: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  result = getattr(npmodule, name)(values, axis=axis, **kwargs)
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:285: FutureWarning: zarr_version is deprecated, use zarr_format
+  ds_year.astype("float32").to_zarr(yearly_path, mode="w",
+2025-10-23 10:32:21,622 - INFO - Wrote /scratch/cimes/maximek/INMOS/clim_data_proc/bgc_data_2016.zarr
+2025-10-23 10:32:21,622 - INFO - Processing year 2017
+2025-10-23 10:32:21,822 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2017_01.nc
+2025-10-23 10:32:21,858 - INFO - Loading physics: hist_control_dynamics3d_yearly__2017_01.nc
+2025-10-23 10:32:21,892 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2017_01.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:32:21,972 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:33:01,178 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2017_02.nc
+2025-10-23 10:33:01,206 - INFO - Loading physics: hist_control_dynamics3d_yearly__2017_02.nc
+2025-10-23 10:33:01,228 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2017_02.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:33:01,274 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:33:36,824 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2017_03.nc
+2025-10-23 10:33:36,860 - INFO - Loading physics: hist_control_dynamics3d_yearly__2017_03.nc
+2025-10-23 10:33:36,889 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2017_03.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:33:36,945 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:34:15,309 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2017_04.nc
+2025-10-23 10:34:15,344 - INFO - Loading physics: hist_control_dynamics3d_yearly__2017_04.nc
+2025-10-23 10:34:15,372 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2017_04.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:34:15,417 - INFO - Interpolating staggered variables to tracer grid...
+2025-10-23 10:34:52,044 - INFO - Loading biogeochemistry: hist_control_cobalt_3d_yearly__2017_05.nc
+2025-10-23 10:34:52,086 - INFO - Loading physics: hist_control_dynamics3d_yearly__2017_05.nc
+2025-10-23 10:34:52,119 - INFO - Loading boundary: hist_control_dynamics2d_yearly__2017_05.nc
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+/scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/preprocess_mom6dg_data.py:121: FutureWarning: In a future version of xarray the default value for compat will change from compat='no_conflicts' to compat='override'. This is likely to lead to different results when combining overlapping variables with the same name. To opt in to new defaults and get rid of these warnings now use `set_options(use_new_combine_kwarg_defaults=True) or set compat explicitly.
+  ds = xr.merge(datasets, join="outer")
+2025-10-23 10:34:52,163 - INFO - Interpolating staggered variables to tracer grid...
