@@ -189,3 +189,18 @@ uv.lock
 .idea
 # Notebook folder
 notebooks/
+
+# SLURM and preprocessing logs
+src/preprocess/logs/
+*.out
+*.err
+
+# Scratch / generated files
+*.zarr/
+*.nc
+*.npz
+*.h5
+scratch/
+tmp/
+output/
+outputs/
