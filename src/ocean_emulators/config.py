@@ -79,6 +79,23 @@ DateConfig = Annotated[
 ]
 
 
+class NoLeapDate:
+    """Represents a noleap date as a cftime.datetime.
+    
+    MOM6-DG uses noleap calendar (365 days/year, no leap years).
+    Data format: "days since 1900-01-01 00:00:00" with calendar="noleap"
+    """
+    datetime: cftime.datetime
+
+    def __init__(self, s: str):
+        datetime = cftime.datetime.strptime(s, "%Y-%m-%d", calendar="noleap")
+        datetime = datetime.replace(hour=0, minute=0, second=0)
+        self.datetime = datetime
+
+    def __str__(self) -> str:
+        return self.datetime.strftime("%Y-%m-%d")
+
+
 class TimeConfig(BaseConfig):
     """Represents a time slice of the data.
 

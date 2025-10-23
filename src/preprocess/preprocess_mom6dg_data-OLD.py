@@ -51,20 +51,12 @@ def parse_arguments():
                         help="Width of impermeable boundary (0 for open boundaries)")
     parser.add_argument("--compression", type=int, default=1,
                         help="Zarr compression level (1=fast, 9=best)")
-    parser.add_argument("--chunk-time", type=int, default=365,
+    parser.add_argument("--chunk-time", type=int, default=30,
                         help="Chunk size for time dimension")
-    parser.add_argument("--chunk-lev", type=int, default=50,
-                        help="Chunk size for vertical levels")
-    parser.add_argument("--chunk-y", type=int, default=68,
-                        help="Chunk size for y dimension")
-    parser.add_argument("--chunk-x", type=int, default=45,
-                        help="Chunk size for x dimension")
     parser.add_argument("--validate-only", action="store_true",
                         help="Only validate existing processed data")
     parser.add_argument("--first-year", type=int, default=1,
                         help="Base calendar year corresponding to year=1 in simulation (e.g. 2016)")
-    parser.add_argument("--keep-yearly", action="store_true",
-                        help="Keep individual yearly zarr files in addition to consolidated file")
 
     return parser.parse_args()
 
@@ -196,22 +188,23 @@ def create_masks(ds: xr.Dataset, boundary_width: int = 1) -> xr.Dataset:
     return ds
 
 
-def drop_time_metadata_vars(ds: xr.Dataset) -> xr.Dataset:
-    """Drop datetime/timedelta variables that cause encoding issues (except main 'time')."""
-    vars_to_drop = []
-    
-    for var in list(ds.variables):
-        if var == 'time':  # Keep main time coordinate
-            continue
-        if np.issubdtype(ds[var].dtype, np.datetime64) or \
-           np.issubdtype(ds[var].dtype, np.timedelta64):
-            vars_to_drop.append(var)
-            logger.info(f"Dropping time metadata variable: {var}")
-    
-    if vars_to_drop:
-        ds = ds.drop_vars(vars_to_drop, errors='ignore')
-    
-    return ds
+def compute_global_statistics(ds: xr.Dataset) -> Tuple[xr.Dataset, xr.Dataset]:
+    logger.info("Computing global statistics...")
+    vars_to_compute = [v for v in ds.data_vars if not v.startswith("mask")]
+    ds_for_stats = ds[vars_to_compute]
+    means = ds_for_stats.mean()
+    stds = ds_for_stats.std(ddof=0)
+    for var in stds.data_vars:
+        stds[var] = xr.where(stds[var] == 0, 1.0, stds[var])
+    return means, stds
+
+
+def write_zarr(ds: xr.Dataset, output_path: Path, compression: int = 1):
+    compressor = Blosc(cname="zstd", clevel=compression, shuffle=Blosc.BITSHUFFLE)
+    encoding = {v: {"compressor": compressor, "dtype": "float32"} for v in ds.data_vars}
+    ds.astype("float32").to_zarr(output_path, mode="w", consolidated=False,
+                                 zarr_version=2, encoding=encoding)
+    zarr.consolidate_metadata(str(output_path))
 
 
 def validate_processed_data(output_dir: Path) -> bool:
@@ -232,35 +225,22 @@ def process_mom6_cobalt_data(
     spatial_bounds=None,
     boundary_width=1,
     compression=1,
-    chunk_sizes=None,
-    first_year: int = 1,
-    keep_yearly: bool = False
+    chunk_time=30,
+    first_year: int = 1
 ) -> Dict[str, Path]:
-    """
-    Process MOM6-COBALT data with incremental writes to single consolidated zarr file.
-    
-    This approach:
-    1. Processes data year-by-year to manage memory
-    2. Writes directly to a single bgc_data.zarr file using append mode
-    3. Computes global statistics incrementally using Welford's method
-    4. Optionally keeps individual yearly files
-    """
+    """High-level orchestration of MOM6-COBALT preprocessing with streaming stats."""
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Set default chunk sizes if not provided
-    if chunk_sizes is None:
-        chunk_sizes = {'time': 365, 'lev': 50, 'y': 68, 'x': 45}
 
     total_count = 0
     global_mean = None
     global_M2 = None  # for variance accumulation
 
     compressor = Blosc(cname="zstd", clevel=compression, shuffle=Blosc.BITSHUFFLE)
-    consolidated_path = output_dir / "bgc_data.zarr"
-    
-    for year_idx, y in enumerate(years):
+    encoding = {}
+
+    for y in years:
         actual_year = first_year + (y - years[0])
-        logger.info(f"Processing year {actual_year} ({year_idx + 1}/{len(years)})")
+        logger.info(f"Processing year {actual_year}")
         yearly_datasets = []
 
         for m in months:
@@ -273,10 +253,8 @@ def process_mom6_cobalt_data(
                 ds = select_depth_levels(ds, DEPTH_LEVELS)
                 ds = apply_spatial_subset(ds, spatial_bounds)
                 ds = create_masks(ds, boundary_width)
-                ds = drop_time_metadata_vars(ds)  # Drop problematic time metadata
                 yearly_datasets.append(ds)
-            except FileNotFoundError as e:
-                logger.warning(f"Skipping {actual_year}-{m:02d}: {e}")
+            except FileNotFoundError:
                 continue
 
         if not yearly_datasets:
@@ -301,83 +279,27 @@ def process_mom6_cobalt_data(
             global_M2 = global_M2 + var_i * n_i + (delta ** 2) * (total_count * n_i / total_count_new)
             total_count = total_count_new
 
-        # --- Optionally write individual yearly file ---
-        if keep_yearly:
-            yearly_path = output_dir / f"bgc_data_{actual_year}.zarr"
-            encoding = {v: {"compressor": compressor, "dtype": "float32"} 
-                       for v in ds_year.data_vars}
-            ds_year.astype("float32").to_zarr(
-                yearly_path, mode="w",
-                consolidated=False, zarr_version=2, encoding=encoding
-            )
-            zarr.consolidate_metadata(str(yearly_path))
-            logger.info(f"Wrote yearly file: {yearly_path}")
+        # --- Write per-year data incrementally ---
+        yearly_path = output_dir / f"bgc_data_{actual_year}.zarr"
+        encoding = {v: {"compressor": compressor, "dtype": "float32"} for v in ds_year.data_vars}
+        ds_year.astype("float32").to_zarr(yearly_path, mode="w",
+                                          consolidated=False, zarr_version=2, encoding=encoding)
+        zarr.consolidate_metadata(str(yearly_path))
+        logger.info(f"Wrote {yearly_path}")
 
-        # --- Rechunk for uniform chunk sizes (required by zarr) ---
-        actual_chunks = {}
-        for dim in chunk_sizes:
-            if dim in ds_year.dims:
-                actual_chunks[dim] = min(chunk_sizes[dim], ds_year.sizes[dim])
-        
-        logger.info(f"Rechunking with: {actual_chunks}")
-        ds_year = ds_year.chunk(actual_chunks)
-
-        # --- Write to consolidated zarr file ---
-        encoding = {v: {"compressor": compressor, "dtype": "float32"} 
-                   for v in ds_year.data_vars}
-        
-        if year_idx == 0:
-            # First year: create new zarr file
-            logger.info(f"Creating consolidated file: {consolidated_path}")
-            ds_year.astype("float32").to_zarr(
-                consolidated_path, 
-                mode="w",
-                consolidated=False, 
-                zarr_version=2, 
-                encoding=encoding
-            )
-            logger.info(f"Created {consolidated_path} with year {actual_year}")
-        else:
-            # Subsequent years: append along time dimension
-            logger.info(f"Appending year {actual_year} to {consolidated_path}")
-            ds_year.astype("float32").to_zarr(
-                consolidated_path,
-                mode="a",
-                append_dim="time",
-                consolidated=False
-            )
-            logger.info(f"Successfully appended year {actual_year}")
-
-    # --- Consolidate metadata at the end ---
-    logger.info("Consolidating metadata for bgc_data.zarr...")
-    zarr.consolidate_metadata(str(consolidated_path))
-    
     # --- Finalize global mean/std ---
-    logger.info("Computing final global statistics...")
     global_var = global_M2 / total_count
     global_std = xr.where(global_var == 0, 1.0, np.sqrt(global_var))
 
     output_means = output_dir / "bgc_means.zarr"
     output_stds = output_dir / "bgc_stds.zarr"
-    
-    logger.info("Writing global means...")
     global_mean.to_zarr(output_means, mode="w")
-    zarr.consolidate_metadata(str(output_means))
-    
-    logger.info("Writing global stds...")
     global_std.to_zarr(output_stds, mode="w")
+    zarr.consolidate_metadata(str(output_means))
     zarr.consolidate_metadata(str(output_stds))
 
-    logger.info("=" * 60)
-    logger.info("Processing completed successfully!")
-    logger.info(f"Consolidated data: {consolidated_path}")
-    logger.info(f"Global means: {output_means}")
-    logger.info(f"Global stds: {output_stds}")
-    logger.info(f"Total timesteps: {total_count}")
-    logger.info("=" * 60)
-    
-    return {"data": consolidated_path, "means": output_means, "stds": output_stds}
-
+    logger.info("All years processed successfully.")
+    return {"data": output_dir, "means": output_means, "stds": output_stds}
 
 def main():
     args = parse_arguments()
@@ -391,13 +313,6 @@ def main():
     years = parse_year_range(args.years)
     months = parse_month_range(args.months)
 
-    chunk_sizes = {
-        'time': args.chunk_time,
-        'lev': args.chunk_lev,
-        'y': args.chunk_y,
-        'x': args.chunk_x
-    }
-
     logger.info("=" * 60)
     logger.info("MOM6-COBALT DATA PREPROCESSOR")
     logger.info("=" * 60)
@@ -406,9 +321,6 @@ def main():
     logger.info(f"Years to process: {years}")
     logger.info(f"Months to process: {months}")
     logger.info(f"First year (offset): {args.first_year}")
-    logger.info(f"Chunk sizes: {chunk_sizes}")
-    logger.info(f"Keep yearly files: {args.keep_yearly}")
-    logger.info("=" * 60)
 
     try:
         output_paths = process_mom6_cobalt_data(
@@ -419,11 +331,10 @@ def main():
             spatial_bounds=args.spatial_subset,
             boundary_width=args.boundary_width,
             compression=args.compression,
-            chunk_sizes=chunk_sizes,
-            first_year=args.first_year,
-            keep_yearly=args.keep_yearly
+            chunk_time=args.chunk_time,
+            first_year=args.first_year
         )
-        logger.info("Validating processed data...")
+        logger.info("Processing completed successfully.")
         validate_processed_data(output_dir)
     except Exception as e:
         logger.error(f"Processing failed: {e}", exc_info=True)

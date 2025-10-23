@@ -97,53 +97,6 @@ DEPTH_THICKNESS = [
     1000.0,
 ]
 
-# ============================================================================
-# MOM6-DG: Add 50-level configurations (append to existing PROGNOSTIC_VARS)
-# ============================================================================
-
-# MOM6-DG has 50 vertical levels
-MOM6DG_DEPTH_I_LEVELS = [str(i) for i in range(50)]
-
-# Add to existing PROGNOSTIC_VARS dictionary:
-PROGNOSTIC_VARS["temp_1_mom6dg"] = [f"temp_{MOM6DG_DEPTH_I_LEVELS[0]}"]
-
-PROGNOSTIC_VARS["temp_salt_all_mom6dg"] = (
-    [f"temp_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"salt_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    ["ssh"]
-)
-
-PROGNOSTIC_VARS["thermo_dynamic_all_mom6dg"] = (
-    [f"uo_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"vo_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"temp_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"salt_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    ["ssh"]
-)
-
-PROGNOSTIC_VARS["bgc_thermo_all_mom6dg"] = (
-    [f"temp_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"salt_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"dic_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"o2_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"no3_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"po4_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    ["ssh"]
-)
-
-# Add to existing BOUNDARY_VARS dictionary:
-BOUNDARY_VARS["mom6dg_forcing"] = ["tauuo", "tauvo", "Qnet", "PRCmE"]
-
-# Add to existing DEFAULT_METADATA dictionary:
-DEFAULT_METADATA["PRCmE"] = {"long_name": "Precipitation minus Evaporation", "units": "kg/m^2/s"}
-DEFAULT_METADATA["pp"] = {"long_name": "Primary Production", "units": "mol/m^3/s"}
-DEFAULT_METADATA["chl"] = {"long_name": "Chlorophyll", "units": "mg/m^3"}
-
-# ============================================================================
-#   prognostic_vars_key: temp_1_mom6dg
-#   boundary_vars_key: mom6dg_forcing
-# ============================================================================
-
 DEPTH_I_LEVELS = [
     "0",
     "1",
