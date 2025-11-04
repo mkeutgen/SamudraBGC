@@ -4,7 +4,6 @@ from typing import TypeAlias, TypeVar
 
 logger = logging.getLogger(__name__)
 
-import numpy as np
 import torch
 import xarray as xr
 from jaxtyping import Bool, Float
@@ -54,26 +53,110 @@ MAX_TRAIN_MODEL_STEPS_FORWARD = 200
 
 # These represent depth centers for MOM6-Cobalt (50 levels)
 DEPTH_LEVELS = [
-    1.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0,
-    15.005, 17.015, 19.03, 21.055, 23.095, 25.16, 27.255,
-    29.385, 31.565, 33.81, 36.135, 38.56, 41.105, 43.795,
-    46.655, 49.715, 53.015, 56.6, 60.515, 64.805, 69.525,
-    74.74, 80.515, 86.92, 94.04, 101.96, 110.77, 120.575,
-    131.485, 143.615, 157.095, 172.06, 188.655, 207.035,
-    227.365, 249.82, 274.585, 301.86, 400.915,
-    483.69, 582.335, 699.24, 998.605
+    1.0,
+    3.0,
+    5.0,
+    7.0,
+    9.0,
+    11.0,
+    13.0,
+    15.005,
+    17.015,
+    19.03,
+    21.055,
+    23.095,
+    25.16,
+    27.255,
+    29.385,
+    31.565,
+    33.81,
+    36.135,
+    38.56,
+    41.105,
+    43.795,
+    46.655,
+    49.715,
+    53.015,
+    56.6,
+    60.515,
+    64.805,
+    69.525,
+    74.74,
+    80.515,
+    86.92,
+    94.04,
+    101.96,
+    110.77,
+    120.575,
+    131.485,
+    143.615,
+    157.095,
+    172.06,
+    188.655,
+    207.035,
+    227.365,
+    249.82,
+    274.585,
+    301.86,
+    400.915,
+    483.69,
+    582.335,
+    699.24,
+    998.605,
 ]
 
 # Depth thicknesses - computed from level interfaces
 DEPTH_THICKNESS = [
-    2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
-    2.01, 2.01, 2.02, 2.03, 2.05, 2.08, 2.11,
-    2.15, 2.21, 2.28, 2.37, 2.48, 2.61, 2.77,
-    2.95, 3.17, 3.43, 3.74, 4.09, 4.49, 4.95,
-    5.48, 6.07, 6.74, 7.5, 8.34, 9.28, 10.33,
-    11.49, 12.77, 14.19, 15.74, 17.45, 19.31,
-    21.35, 23.56, 25.97, 28.58, 31.41,
-    34.47, 37.77, 41.32, 45.14
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.0,
+    2.01,
+    2.01,
+    2.02,
+    2.03,
+    2.05,
+    2.08,
+    2.11,
+    2.15,
+    2.21,
+    2.28,
+    2.37,
+    2.48,
+    2.61,
+    2.77,
+    2.95,
+    3.17,
+    3.43,
+    3.74,
+    4.09,
+    4.49,
+    4.95,
+    5.48,
+    6.07,
+    6.74,
+    7.5,
+    8.34,
+    9.28,
+    10.33,
+    11.49,
+    12.77,
+    14.19,
+    15.74,
+    17.45,
+    19.31,
+    21.35,
+    23.56,
+    25.97,
+    28.58,
+    31.41,
+    34.47,
+    37.77,
+    41.32,
+    45.14,
 ]
 
 # Generate depth index levels for 50 levels
@@ -91,33 +174,41 @@ PrognosticVarNames = list[str]
 PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
     # Full state including dynamics
     "full_state": [
-        k + str(j) for k in ["dic_", "o2_", "no3_", "pp_", "chl_",  # Biogeochem
-                            "temp_", "salt_",                            # Thermo
-                            "uo_", "vo_"]                            # Dynamic
+        k + str(j)
+        for k in [
+            "dic_",
+            "o2_",
+            "no3_",
+            "pp_",
+            "chl_",  # Biogeochem
+            "temp_",
+            "salt_",  # Thermo
+            "uo_",
+            "vo_",
+        ]  # Dynamic
         for j in DEPTH_I_LEVELS
-    ] + ["SSH"],  # Using SSH
-    
+    ]
+    + ["SSH"],  # Using SSH
     # Without dynamics
     "bgc_thermo_all": [
-        k + str(j) for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_"]
+        k + str(j)
+        for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_"]
         for j in DEPTH_I_LEVELS
-    ] + ["SSH"],
-    
+    ]
+    + ["SSH"],
     # Minimal for testing
     "minimal_all": [
-        k + str(j) for k in ["temp_", "salt_", "o2_", "dic_"]
-        for j in DEPTH_I_LEVELS
-    ] + ["SSH"],
+        k + str(j) for k in ["temp_", "salt_", "o2_", "dic_"] for j in DEPTH_I_LEVELS
+    ]
+    + ["SSH"],
 }
 
 BoundaryVarNames = list[str]
 BOUNDARY_VARS: dict[str, BoundaryVarNames] = {
     # Full forcing with surface chl for satellite assimilation
     "full_forcing": ["Qnet", "tauuo", "tauvo", "chl_surface", "PRCmE"],
-    
     # Standard forcing
     "standard_forcing": ["Qnet", "tauuo", "tauvo", "PRCmE"],
-    
     # Minimal
     "minimal_forcing": ["Qnet", "tauuo", "tauvo"],
 }
@@ -184,6 +275,7 @@ DEFAULT_METADATA = {
         "units": "mg/m3",
     },
 }
+
 
 def construct_metadata(data: xr.Dataset) -> dict[str, dict[str, str]]:
     metadata = {}

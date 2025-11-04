@@ -355,6 +355,8 @@ class Trainer:
         self.data_stride: list[int] = cfg.data_stride
         self.batch_size: int = cfg.batch_size
         self.num_workers: int = cfg.data.num_workers
+        self.persistent_workers: bool = cfg.data.persistent_workers
+        self.prefetch_factor: int | None = cfg.data.prefetch_factor
         self.pin_mem: bool = cfg.pin_mem
         self.train_time: config.TimeConfig = cfg.train_time
         self.val_time = cfg.val_time
@@ -427,15 +429,25 @@ class Trainer:
             self.inference_sampler = RandomSampler(inference_data_combined)
 
         # Create data loaders
+        inference_kwargs = {
+            "batch_size": 1,
+            "num_workers": self.num_workers,
+            "pin_memory": False,
+            "multiprocessing_context": self.mp_context,
+        }
+        # Add persistent_workers if num_workers > 0
+        if self.num_workers > 0 and self.persistent_workers:
+            inference_kwargs["persistent_workers"] = True
+        # Add prefetch_factor if specified and num_workers > 0
+        if self.num_workers > 0 and self.prefetch_factor is not None:
+            inference_kwargs["prefetch_factor"] = self.prefetch_factor
+
         self.inference_loader = DataLoader(
             inference_data_combined,
-            batch_size=1,
             sampler=self.inference_sampler,
-            num_workers=self.num_workers,
-            pin_memory=False,
             drop_last=False,
             collate_fn=collate_inference_data,
-            multiprocessing_context=self.mp_context,
+            **inference_kwargs,
         )
 
     def run(self) -> None:
@@ -835,26 +847,34 @@ class Trainer:
                 )
 
         # Create data loaders
+        # Build kwargs dict for DataLoader with optional parameters
+        loader_kwargs = {
+            "batch_size": self.batch_size,
+            "num_workers": self.num_workers,
+            "pin_memory": self.pin_mem,
+            "multiprocessing_context": self.mp_context,
+        }
+        # Add persistent_workers if num_workers > 0
+        if self.num_workers > 0 and self.persistent_workers:
+            loader_kwargs["persistent_workers"] = True
+        # Add prefetch_factor if specified and num_workers > 0
+        if self.num_workers > 0 and self.prefetch_factor is not None:
+            loader_kwargs["prefetch_factor"] = self.prefetch_factor
+
         self.train_loader = DataLoader(
             train_data,
-            batch_size=self.batch_size,
             sampler=self.train_sampler,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_mem,
             drop_last=True,
             collate_fn=collate_fn,
-            multiprocessing_context=self.mp_context,
+            **loader_kwargs,
         )
 
         self.val_loader = DataLoader(
             val_data,
-            batch_size=self.batch_size,
             sampler=self.val_sampler,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_mem,
             drop_last=False,
             collate_fn=collate_fn,
-            multiprocessing_context=self.mp_context,
+            **loader_kwargs,
         )
 
     def save_all_checkpoints(self, epoch: int, v_loss: float, inf_loss: float):

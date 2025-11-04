@@ -93,7 +93,7 @@ The adapter expects MOM6-DG data with the following structure:
 Dimensions:
 - time: Time dimension
 - xh: Longitude (Arakawa-C grid)
-- yh: Latitude (Arakawa-C grid)  
+- yh: Latitude (Arakawa-C grid)
 - zl: Depth levels
 
 Variables:

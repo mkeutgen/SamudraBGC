@@ -4,13 +4,14 @@ Drop specified dimensions from an existing MOM6-DG Zarr dataset.
 Use with caution — this modifies the dataset in place.
 """
 
-import xarray as xr
 import logging
+
+import xarray as xr
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 path = "/scratch/cimes/maximek/INMOS/clim_data_proc/bgc_data.zarr"
-drop_dims = ["xq","yq"]  # dimensions to drop
+drop_dims = ["xq", "yq"]  # dimensions to drop
 
 logging.info(f"Opening dataset lazily from {path}")
 ds = xr.open_zarr(path, consolidated=False)
