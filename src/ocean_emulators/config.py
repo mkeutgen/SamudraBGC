@@ -44,7 +44,7 @@ class WandBConfig(BaseConfig):
     notes: str | None = None
 
 
-#class JulianDate:
+# class JulianDate:
 #    """Represents a Julian date as a cftime.datetime at noon on the relevant day.
 #
 #    This is the format the OM4 data uses, so we match that here.
@@ -62,7 +62,7 @@ class WandBConfig(BaseConfig):
 #        return self.datetime.strftime("%Y-%m-%d")
 #
 #
-#def _julian_date_validator(value: str | JulianDate) -> JulianDate:
+# def _julian_date_validator(value: str | JulianDate) -> JulianDate:
 #    """Pydantic validator which must handle strings or JulianDate objects."""
 #    if isinstance(value, str):
 #        return JulianDate(value)
@@ -70,21 +70,17 @@ class WandBConfig(BaseConfig):
 #        return value
 
 
-
-
-
-
-#"""Represents a Julian date as a string."""
-#DateConfig = Annotated[
+# """Represents a Julian date as a string."""
+# DateConfig = Annotated[
 #    JulianDate,
 #    PlainValidator(_julian_date_validator),
 #    PlainSerializer(JulianDate.__str__),
 #    WithJsonSchema({"type": "string", "format": "date"}),
-#]
+# ]
 #
 #
 #
-#class TimeConfig(BaseConfig):
+# class TimeConfig(BaseConfig):
 #    """Represents a time slice of the data.
 #
 #    Endpoints are Julian dates (not times) but cftime stores them in datetimes.
@@ -117,12 +113,13 @@ class WandBConfig(BaseConfig):
 #
 #
 
+
 class NoLeapDate:
     """
     Represents a noleap calendar date.
     MOM6-Cobalt uses noleap calendar (365 days/year, no leap years).
     """
-    
+
     datetime: cftime.datetime
 
     def __init__(self, s: str):
@@ -177,8 +174,6 @@ class TimeConfig(BaseConfig):
         return f"{self.start} to {self.end}"
 
 
-
-
 LOCATION_DOCS = (
     "Use a string relative to the `data_root` or use a structured location "
     "see location.py for possible types."
@@ -201,6 +196,8 @@ class DataConfig(BaseConfig):
     )
     static_data_vars: list[str] | None = None
     num_workers: int = 4
+    persistent_workers: bool = False
+    prefetch_factor: int | None = None
     hist: int = 1
     loader_version: str = str(LoaderVersion.OM4_TORCH.value)
     normalize_before_mask: bool = True

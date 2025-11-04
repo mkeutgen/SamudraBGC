@@ -130,7 +130,7 @@ class LocalLocation(ResolvedLocation, BaseModel):
             )
         return self
 
-    # MKDG : modified the function so it decode time, trying that to see if it solves error: 
+    # MKDG : modified the function so it decode time, trying that to see if it solves error:
     #  time.start.datetime > data_time_max or time.end.datetime < data_time_min
     def open(self, chunks: dict[str, int] | None = None) -> xr.Dataset:
         """Open local dataset, handling both NetCDF and Zarr formats safely."""
@@ -152,8 +152,7 @@ class LocalLocation(ResolvedLocation, BaseModel):
                 use_cftime=True,
             )
 
-
-    #def open(self, chunks: dict[str, int] | None = None) -> xr.Dataset:
+    # def open(self, chunks: dict[str, int] | None = None) -> xr.Dataset:
     #    engine = "netcdf4" if self.path.suffix == ".nc" else "zarr"
     #    return xr.open_dataset(self.path, engine=engine, chunks=chunks)
 

@@ -14,7 +14,7 @@
 
 module purge
 module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator 
+conda activate /scratch/cimes/maximek/envs/ocean-emulator
 cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
 

@@ -52,14 +52,18 @@ data:
   data_means_location: bgc_means_oneyear.zarr
   data_stds_location: bgc_stds_oneyear.zarr
   scaling_residuals_file: null
-  num_workers: 12 # 1
+  # For Zarr data: num_workers=0 is often fastest due to I/O overhead
+  # Try 0 first, then 1 with persistent_workers if needed
+  num_workers: 0
+  persistent_workers: false  # Only applies if num_workers > 0
+  prefetch_factor: 2  # Only applies if num_workers > 0
   hist: 0
 
 model:
   pred_residuals: false
   last_kernel_size: 3
   pad: "circular"
-  
+
   # UNet architecture adjusted for 50 depth levels
   # Input channels: 357 (prog) + 4 (bound) = 361
   unet:
