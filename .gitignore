@@ -51,9 +51,8 @@ upload_huggingface.ipynb
 outputs
 *.png
 .LOCAL
-train
+
 rollout*
-train*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
