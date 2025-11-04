@@ -295,6 +295,119 @@ def compute_derived_fields(ds: xr.Dataset) -> xr.Dataset:
         ds["Qnet"] = ds["sfc_hflux"]
     return ds
 
+def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
+    """
+    Compute conservative temperature (CT) and absolute salinity (SA) using GSW.
+    Replaces temp and salt with CT and SA.
+    """
+    try:
+        import gsw
+    except ImportError:
+        logger.error("gsw package not found. Install with: pip install gsw")
+        raise
+    
+    logger.info("Computing conservative temperature and absolute salinity...")
+    
+    # Check required variables exist
+    if "temp" not in ds or "salt" not in ds:
+        logger.warning("temp or salt not found - skipping GSW conversions")
+        return ds
+    
+    # Determine dimension names (before or after renaming)
+    z_dim = "lev" if "lev" in ds.dims else "z_l"
+    y_dim = "lat" if "lat" in ds.dims else "yh"
+    x_dim = "lon" if "lon" in ds.dims else "xh"
+    
+    # Get coordinates
+    if y_dim in ds.coords:
+        lat = ds[y_dim]
+    else:
+        if "geolat" in ds:
+            lat = ds["geolat"]
+        else:
+            logger.error("Cannot find latitude coordinate for GSW")
+            return ds
+    
+    if x_dim in ds.coords:
+        lon = ds[x_dim]
+    else:
+        if "geolon" in ds:
+            lon = ds["geolon"]
+        else:
+            logger.error("Cannot find longitude coordinate for GSW")
+            return ds
+    
+    if z_dim in ds.coords:
+        depth = ds[z_dim]
+    else:
+        logger.error(f"Cannot find depth coordinate {z_dim} for GSW")
+        return ds
+    
+    # Compute pressure from depth (approximate: p ≈ depth in dbar)
+    # For more accurate conversion, use: p = gsw.p_from_z(-depth, lat)
+    pressure = depth  # Simple approximation
+    
+    # Broadcast coordinates to 3D if needed
+    if len(lat.dims) == 1:
+        # Need to broadcast lat, lon to match salt/temp dims
+        logger.info("  Broadcasting coordinates to 3D...")
+        lat_3d = lat
+        lon_3d = lon
+        pressure_3d = pressure
+    else:
+        # Already 2D/3D
+        lat_3d = lat
+        lon_3d = lon
+        pressure_3d = pressure
+    
+    # Compute Absolute Salinity from Practical Salinity
+    logger.info("  Computing Absolute Salinity (SA)...")
+    SA = xr.apply_ufunc(
+        gsw.SA_from_SP,
+        ds["salt"],
+        pressure_3d,
+        lon_3d,
+        lat_3d,
+        input_core_dims=[[z_dim, y_dim, x_dim]] * 4,
+        output_core_dims=[[z_dim, y_dim, x_dim]],
+        vectorize=True,
+        dask="parallelized",
+        output_dtypes=[float],
+    )
+    SA.attrs = {
+        "long_name": "Absolute Salinity",
+        "units": "g/kg",
+        "standard_name": "sea_water_absolute_salinity"
+    }
+    
+    # Compute Conservative Temperature from in-situ temperature
+    logger.info("  Computing Conservative Temperature (CT)...")
+    CT = xr.apply_ufunc(
+        gsw.CT_from_t,
+        SA,
+        ds["temp"],
+        pressure_3d,
+        input_core_dims=[[z_dim, y_dim, x_dim]] * 3,
+        output_core_dims=[[z_dim, y_dim, x_dim]],
+        vectorize=True,
+        dask="parallelized",
+        output_dtypes=[float],
+    )
+    CT.attrs = {
+        "long_name": "Conservative Temperature",
+        "units": "°C",
+        "standard_name": "sea_water_conservative_temperature"
+    }
+    
+    # Replace temp and salt with CT and SA
+    ds["temp"] = CT
+    ds["salt"] = SA
+    
+    logger.info("  ✓ Replaced temp→CT and salt→SA")
+    
+    return ds
+
+
 
 def rename_variables(ds: xr.Dataset) -> xr.Dataset:
     rename_map = {"u": "uo", "v": "vo", "taux": "tauuo", "tauy": "tauvo"}
@@ -527,6 +640,7 @@ def process_mom6_cobalt_data(
                 ds = load_mom6_monthly_files(input_dir, actual_year, m)
                 ds = interp_to_tracer_grid(ds)  # This now drops xq, yq coords
                 ds = compute_derived_fields(ds)
+                ds = compute_gsw_variables(ds)
                 ds = apply_spatial_subset(ds, spatial_bounds)
                 ds = ds[vars_keep]
                 ds = rename_variables(ds)
