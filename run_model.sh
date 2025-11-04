@@ -4,10 +4,10 @@
 #SBATCH --error=logs/%x-%j.err
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
-#SBATCH --gres=gpu:h200:2
-#SBATCH --nodes=1
-#SBATCH --ntasks=1 # One task per GPU
-#SBATCH --cpus-per-task=8 # 8 CPUs per GPU (32 total)
+#SBATCH --gres=gpu:l40s:1
+#SBATCH --nodes=8
+#SBATCH --ntasks=8 # One task per GPU
+#SBATCH --cpus-per-task=16 # 16 CPUs per GPU (16*8 total)
 #SBATCH --mem=512G
 #SBATCH --time=10:00:00
 

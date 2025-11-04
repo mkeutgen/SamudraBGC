@@ -6,8 +6,8 @@ debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 70
-batch_size: 3  # Reduced for 50 depth levels (more memory required)
+epochs: 10
+batch_size: 1  # Reduced for 50 depth levels (more memory required)
 learning_rate: 0.0002
 scheduler: { type: cosine }
 loss: mse
@@ -52,7 +52,7 @@ data:
   data_means_location: bgc_means_oneyear.zarr
   data_stds_location: bgc_stds_oneyear.zarr
   scaling_residuals_file: null
-  num_workers: 0 # 1
+  num_workers: 12 # 1
   hist: 0
 
 model:
