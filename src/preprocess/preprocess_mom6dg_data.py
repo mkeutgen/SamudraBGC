@@ -21,6 +21,7 @@ import xarray as xr
 from typing import Optional, List, Dict, Tuple
 import zarr
 from numcodecs import Blosc
+from dask.distributed import Client, LocalCluster
 
 # Configure logging
 logging.basicConfig(
@@ -78,6 +79,17 @@ DEPTH_LEVELS = np.array([
     483.69, 582.335, 699.24, 998.605
 ])
 
+vars_keep = [
+    # Biogeochemical state
+    "o2", "dic", "chl", "pp", "no3",
+
+    # Physics
+    "temp", "salt", "u", "v", "thkcello", "SSH",
+
+    # Forcing
+    "taux", "tauy", "Qnet", "PRCmE",
+]
+
 
 def parse_year_range(year_str: str) -> List[int]:
     if '-' in year_str:
@@ -134,12 +146,45 @@ def load_mom6_monthly_files(data_dir: Path, year: int, month: int) -> xr.Dataset
 
 
 def interp_to_tracer_grid(ds: xr.Dataset) -> xr.Dataset:
+    """Interpolate staggered variables to tracer grid and drop staggered coords."""
     logger.info("Interpolating staggered variables to tracer grid...")
-    if "u" in ds and "xq" in ds.u.dims:
-        ds["u"] = ds["u"].interp(xq=ds["xh"], method="linear")
-    if "v" in ds and "yq" in ds.v.dims:
-        ds["v"] = ds["v"].interp(yq=ds["yh"], method="linear")
+
+    # Interpolate ALL variables that have xq dimension to xh
+    if "xq" in ds.dims:
+        vars_with_xq = [v for v in ds.data_vars if "xq" in ds[v].dims]
+        logger.info(f"  Variables with xq dimension: {vars_with_xq}")
+        for var in vars_with_xq:
+            logger.info(f"    Interpolating {var}: xq -> xh")
+            ds[var] = ds[var].interp(xq=ds["xh"], method="linear")
+    
+    # Interpolate ALL variables that have yq dimension to yh
+    if "yq" in ds.dims:
+        vars_with_yq = [v for v in ds.data_vars if "yq" in ds[v].dims]
+        logger.info(f"  Variables with yq dimension: {vars_with_yq}")
+        for var in vars_with_yq:
+            logger.info(f"    Interpolating {var}: yq -> yh")
+            ds[var] = ds[var].interp(yq=ds["yh"], method="linear")
+    
+    # Verify no data variables still use xq/yq
+    remaining_xq = [v for v in ds.data_vars if "xq" in ds[v].dims]
+    remaining_yq = [v for v in ds.data_vars if "yq" in ds[v].dims]
+    
+    if remaining_xq or remaining_yq:
+        logger.warning(f"  WARNING: Variables still have staggered dims after interpolation!")
+        logger.warning(f"    xq: {remaining_xq}")
+        logger.warning(f"    yq: {remaining_yq}")
+    else:
+        logger.info("  ✓ All variables successfully interpolated")
+    
+    # Now safe to drop coordinate variables and dimensions
+    coords_to_drop = [c for c in ["xq", "yq"] if c in ds.coords]
+    if coords_to_drop:
+        logger.info(f"  Dropping staggered coordinates: {coords_to_drop}")
+        ds = ds.drop_vars(coords_to_drop)
+    
+    logger.info(f"  Final dimensions: {list(ds.dims.keys())}")
     return ds
+
 
 
 def compute_derived_fields(ds: xr.Dataset) -> xr.Dataset:
@@ -157,14 +202,20 @@ def rename_variables(ds: xr.Dataset) -> xr.Dataset:
 
 
 def rename_dimensions(ds: xr.Dataset) -> xr.Dataset:
+    """Rename dimensions to standard names."""
     dim_rename = {}
     if "yh" in ds.dims:
-        dim_rename["yh"] = "y"
+        dim_rename["yh"] = "lat"
     if "xh" in ds.dims:
-        dim_rename["xh"] = "x"
+        dim_rename["xh"] = "lon"
     if "z_l" in ds.dims:
         dim_rename["z_l"] = "lev"
-    return ds.rename(dim_rename)
+    
+    if dim_rename:
+        logger.info(f"Renaming dimensions: {dim_rename}")
+        ds = ds.rename(dim_rename)
+    
+    return ds
 
 
 def select_depth_levels(ds: xr.Dataset, target_depths: np.ndarray) -> xr.Dataset:
@@ -178,21 +229,53 @@ def apply_spatial_subset(ds: xr.Dataset, bounds: Optional[List[float]]) -> xr.Da
     if bounds is None:
         return ds
     lat_min, lat_max, lon_min, lon_max = bounds
-    y_dim = "y" if "y" in ds.dims else "yh"
-    x_dim = "x" if "x" in ds.dims else "xh"
+    y_dim = "lat" if "lat" in ds.dims else ("y" if "y" in ds.dims else "yh")
+    x_dim = "lon" if "lon" in ds.dims else ("x" if "x" in ds.dims else "xh")
     return ds.sel({y_dim: slice(lat_min, lat_max), x_dim: slice(lon_min, lon_max)})
 
 
 def create_masks(ds: xr.Dataset, boundary_width: int = 1) -> xr.Dataset:
-    y_dim = "y" if "y" in ds.dims else "yh"
-    x_dim = "x" if "x" in ds.dims else "xh"
-    mask = np.ones((ds.sizes[y_dim], ds.sizes[x_dim]), dtype=np.float32)
+    """Create 2D mask and 3D wetmask after dimensions have been renamed."""
+    # Use renamed dimensions (should be lat/lon/lev at this point)
+    y_dim = "lat" if "lat" in ds.dims else ("y" if "y" in ds.dims else "yh")
+    x_dim = "lon" if "lon" in ds.dims else ("x" if "x" in ds.dims else "xh")
+    lev_dim = "lev" if "lev" in ds.dims else "z_l"
+
+    # base 2-D mask (surface)
+    mask2d = np.ones((ds.sizes[y_dim], ds.sizes[x_dim]), dtype=np.float32)
     if boundary_width > 0:
-        mask[:boundary_width, :] = 0
-        mask[-boundary_width:, :] = 0
-        mask[:, :boundary_width] = 0
-        mask[:, -boundary_width:] = 0
-    ds["mask"] = (("y", "x"), mask)
+        mask2d[:boundary_width, :] = 0
+        mask2d[-boundary_width:, :] = 0
+        mask2d[:, :boundary_width] = 0
+        mask2d[:, -boundary_width:] = 0
+    ds["mask"] = ((y_dim, x_dim), mask2d)
+
+    # 3-D wetmask (everywhere wet) - only if lev dimension exists
+    if lev_dim in ds.dims:
+        Nz = ds.sizes[lev_dim]
+        wetmask = np.broadcast_to(mask2d, (Nz, *mask2d.shape))
+        ds["wetmask"] = ((lev_dim, y_dim, x_dim), wetmask.astype(np.float32))
+        logger.info(f"Created wetmask with shape ({Nz}, {ds.sizes[y_dim]}, {ds.sizes[x_dim]})")
+    else:
+        logger.warning("No vertical dimension found - skipping wetmask creation")
+
+    return ds
+
+
+def drop_unused_dimensions(ds: xr.Dataset) -> xr.Dataset:
+    """Drop any remaining unused staggered dimensions."""
+    dims_to_drop = []
+    for dim in ["xq", "yq"]:
+        if dim in ds.dims:
+            # Check if dimension is actually used by any variables
+            used = any(dim in ds[var].dims for var in ds.data_vars)
+            if not used:
+                dims_to_drop.append(dim)
+    
+    if dims_to_drop:
+        logger.info(f"Dropping unused dimensions: {dims_to_drop}")
+        ds = ds.drop_dims(dims_to_drop, errors='ignore')
+    
     return ds
 
 
@@ -220,8 +303,73 @@ def validate_processed_data(output_dir: Path) -> bool:
         if not (output_dir / f).exists():
             logger.error(f"Missing required file: {f}")
             return False
+    
+    # Validate wetmask presence
+    try:
+        ds = xr.open_zarr(output_dir / "bgc_data.zarr", consolidated=True)
+        if "wetmask" not in ds:
+            logger.error("wetmask not found in bgc_data.zarr")
+            return False
+        logger.info(f"✓ wetmask found with shape {ds['wetmask'].shape}")
+        
+        # Check for unwanted dimensions
+        unwanted_dims = [d for d in ["xq", "yq"] if d in ds.dims]
+        if unwanted_dims:
+            logger.warning(f"Found unwanted dimensions: {unwanted_dims}")
+        
+    except Exception as e:
+        logger.error(f"Error validating data: {e}")
+        return False
+    
     logger.info("Validation passed!")
     return True
+
+
+def split_3d(ds: xr.Dataset, var: str, zdim: str | None = None) -> xr.Dataset:
+    """
+    Split a 3D variable var(time, z, y, x) into per-level channels var_0..var_{Nz-1},
+    then drop the original var. Does nothing if var missing or not 3D.
+    """
+    if var not in ds:
+        return ds
+
+    if zdim is None:
+        zdim = "lev" if "lev" in ds.dims else ("z_l" if "z_l" in ds.dims else None)
+    if zdim is None or zdim not in ds[var].dims:
+        return ds
+
+    Nz = ds.sizes[zdim]
+    # create per-level variables lazily (works with dask-backed arrays too)
+    for k in range(Nz):
+        ds[f"{var}_{k}"] = ds[var].isel({zdim: k})
+    ds = ds.drop_vars(var)
+    return ds
+
+
+def split_all_3d_vars(ds: xr.Dataset, zdim: str | None = None) -> xr.Dataset:
+    """
+    Find all variables that have the vertical dimension and split them.
+    Skips obvious coords/aux vars and masks.
+    """
+    if zdim is None:
+        zdim = "lev" if "lev" in ds.dims else ("z_l" if "z_l" in ds.dims else None)
+    if zdim is None:
+        return ds  # nothing to do
+
+    # variables to skip explicitly (including wetmask!)
+    skip = {"time", "mask", "wetmask"}
+    # also skip coords
+    skip |= set(ds.coords)
+
+    vars_3d = [v for v in ds.data_vars
+               if v not in skip and zdim in ds[v].dims]
+
+    logger.info(f"Splitting 3D variables into per-level channels: {vars_3d}")
+    for v in vars_3d:
+        ds = split_3d(ds, v, zdim=zdim)
+
+    # Keep the lev dimension even if no data variables use it (wetmask needs it)
+    return ds
 
 
 def process_mom6_cobalt_data(
@@ -246,10 +394,17 @@ def process_mom6_cobalt_data(
     4. Optionally keeps individual yearly files
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Use available CPUs
+    n_workers = chunk_sizes.get('n_workers', 4)  # Or read from environment
+    cluster = LocalCluster(n_workers=n_workers, threads_per_worker=2, memory_limit='100GB')
+    client = Client(cluster)
+    logger.info(f"Dask cluster started: {client.dashboard_link}")
+
 
     # Set default chunk sizes if not provided
     if chunk_sizes is None:
-        chunk_sizes = {'time': 365, 'lev': 50, 'y': 68, 'x': 45}
+        chunk_sizes = {'time': 365, 'lev': 50, 'lat': 68, 'lon': 45}
 
     total_count = 0
     global_mean = None
@@ -266,14 +421,17 @@ def process_mom6_cobalt_data(
         for m in months:
             try:
                 ds = load_mom6_monthly_files(input_dir, actual_year, m)
-                ds = interp_to_tracer_grid(ds)
+                ds = interp_to_tracer_grid(ds)  # This now drops xq, yq coords
                 ds = compute_derived_fields(ds)
-                ds = rename_variables(ds)
-                ds = rename_dimensions(ds)
-                ds = select_depth_levels(ds, DEPTH_LEVELS)
                 ds = apply_spatial_subset(ds, spatial_bounds)
-                ds = create_masks(ds, boundary_width)
-                ds = drop_time_metadata_vars(ds)  # Drop problematic time metadata
+                ds = ds[vars_keep]                            
+                ds = rename_variables(ds)
+                ds = select_depth_levels(ds, DEPTH_LEVELS)
+                ds = rename_dimensions(ds)  # Rename BEFORE splitting & masking
+                ds = split_all_3d_vars(ds)  
+                ds = create_masks(ds, boundary_width)  # Create masks AFTER dimension renaming
+                ds = drop_unused_dimensions(ds)  # Final cleanup
+                ds = drop_time_metadata_vars(ds)
                 yearly_datasets.append(ds)
             except FileNotFoundError as e:
                 logger.warning(f"Skipping {actual_year}-{m:02d}: {e}")
@@ -286,9 +444,13 @@ def process_mom6_cobalt_data(
         ds_year = xr.concat(yearly_datasets, dim="time", combine_attrs="drop_conflicts")
 
         # --- Incremental statistics (Welford method) ---
-        n_i = ds_year.sizes.get("time", 1)
-        mean_i = ds_year.mean(dim="time")
-        var_i = ds_year.var(dim="time", ddof=0)
+        # Exclude mask and wetmask from statistics
+        stat_vars = [v for v in ds_year.data_vars if v not in ["mask", "wetmask"]]
+        ds_year_stats = ds_year[stat_vars]
+        
+        n_i = ds_year_stats.sizes.get("time", 1)
+        mean_i = ds_year_stats.mean(dim="time")
+        var_i = ds_year_stats.var(dim="time", ddof=0)
 
         if global_mean is None:
             global_mean = mean_i
@@ -357,15 +519,25 @@ def process_mom6_cobalt_data(
     global_var = global_M2 / total_count
     global_std = xr.where(global_var == 0, 1.0, np.sqrt(global_var))
 
+    # --- Flatten stats to scalars per variable (drop lat/lon/time) ---
+    def flatten_stats(ds: xr.Dataset) -> xr.Dataset:
+        dims_to_reduce = [d for d in ds.dims if d in ("time", "lat", "lon")]
+        if dims_to_reduce:
+            ds = ds.mean(dim=dims_to_reduce, skipna=True, keep_attrs=True)
+        return ds
+
+    global_mean_flat = flatten_stats(global_mean)
+    global_std_flat = flatten_stats(global_std)
+
     output_means = output_dir / "bgc_means.zarr"
     output_stds = output_dir / "bgc_stds.zarr"
-    
-    logger.info("Writing global means...")
-    global_mean.to_zarr(output_means, mode="w")
+
+    logger.info("Writing flattened global means...")
+    global_mean_flat.to_zarr(output_means, mode="w")
     zarr.consolidate_metadata(str(output_means))
-    
-    logger.info("Writing global stds...")
-    global_std.to_zarr(output_stds, mode="w")
+
+    logger.info("Writing flattened global stds...")
+    global_std_flat.to_zarr(output_stds, mode="w")
     zarr.consolidate_metadata(str(output_stds))
 
     logger.info("=" * 60)
@@ -394,8 +566,8 @@ def main():
     chunk_sizes = {
         'time': args.chunk_time,
         'lev': args.chunk_lev,
-        'y': args.chunk_y,
-        'x': args.chunk_x
+        'lat': args.chunk_y,
+        'lon': args.chunk_x
     }
 
     logger.info("=" * 60)

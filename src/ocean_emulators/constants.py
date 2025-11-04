@@ -4,6 +4,7 @@ from typing import TypeAlias, TypeVar
 
 logger = logging.getLogger(__name__)
 
+import numpy as np
 import torch
 import xarray as xr
 from jaxtyping import Bool, Float
@@ -51,177 +52,84 @@ MAX_TRAIN_MODEL_STEPS_FORWARD = 200
 # Assumption that all 3D variables are appended with depth_i_levels
 # and all 2D variables do not have any digits / underscores in their names
 
-# These represent depth centers
+# These represent depth centers for MOM6-Cobalt (50 levels)
 DEPTH_LEVELS = [
-    2.5,
-    10.0,
-    22.5,
-    40.0,
-    65.0,
-    105.0,
-    165.0,
-    250.0,
-    375.0,
-    550.0,
-    775.0,
-    1050.0,
-    1400.0,
-    1850.0,
-    2400.0,
-    3100.0,
-    4000.0,
-    5000.0,
-    6000.0,
+    1.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0,
+    15.005, 17.015, 19.03, 21.055, 23.095, 25.16, 27.255,
+    29.385, 31.565, 33.81, 36.135, 38.56, 41.105, 43.795,
+    46.655, 49.715, 53.015, 56.6, 60.515, 64.805, 69.525,
+    74.74, 80.515, 86.92, 94.04, 101.96, 110.77, 120.575,
+    131.485, 143.615, 157.095, 172.06, 188.655, 207.035,
+    227.365, 249.82, 274.585, 301.86, 400.915,
+    483.69, 582.335, 699.24, 998.605
 ]
 
-# Depth thicknesses
+# Depth thicknesses - computed from level interfaces
 DEPTH_THICKNESS = [
-    5.0,
-    10.0,
-    15.0,
-    20.0,
-    30.0,
-    50.0,
-    70.0,
-    100.0,
-    150.0,
-    200.0,
-    250.0,
-    300.0,
-    400.0,
-    500.0,
-    600.0,
-    800.0,
-    1000.0,
-    1000.0,
-    1000.0,
+    2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+    2.01, 2.01, 2.02, 2.03, 2.05, 2.08, 2.11,
+    2.15, 2.21, 2.28, 2.37, 2.48, 2.61, 2.77,
+    2.95, 3.17, 3.43, 3.74, 4.09, 4.49, 4.95,
+    5.48, 6.07, 6.74, 7.5, 8.34, 9.28, 10.33,
+    11.49, 12.77, 14.19, 15.74, 17.45, 19.31,
+    21.35, 23.56, 25.97, 28.58, 31.41,
+    34.47, 37.77, 41.32, 45.14
 ]
 
-# ============================================================================
-# MOM6-DG: Add 50-level configurations (append to existing PROGNOSTIC_VARS)
-# ============================================================================
+# Generate depth index levels for 50 levels
+DEPTH_I_LEVELS = [str(i) for i in range(50)]
 
-# MOM6-DG has 50 vertical levels
-MOM6DG_DEPTH_I_LEVELS = [str(i) for i in range(50)]
+# Mask variables for 50 levels
+MASK_VARS = [f"mask_{i}" for i in range(50)]
 
-# Add to existing PROGNOSTIC_VARS dictionary:
-PROGNOSTIC_VARS["temp_1_mom6dg"] = [f"temp_{MOM6DG_DEPTH_I_LEVELS[0]}"]
-
-PROGNOSTIC_VARS["temp_salt_all_mom6dg"] = (
-    [f"temp_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"salt_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    ["ssh"]
-)
-
-PROGNOSTIC_VARS["thermo_dynamic_all_mom6dg"] = (
-    [f"uo_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"vo_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"temp_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"salt_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    ["ssh"]
-)
-
-PROGNOSTIC_VARS["bgc_thermo_all_mom6dg"] = (
-    [f"temp_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"salt_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"dic_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"o2_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"no3_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    [f"po4_{i}" for i in MOM6DG_DEPTH_I_LEVELS] +
-    ["ssh"]
-)
-
-# Add to existing BOUNDARY_VARS dictionary:
-BOUNDARY_VARS["mom6dg_forcing"] = ["tauuo", "tauvo", "Qnet", "PRCmE"]
-
-# Add to existing DEFAULT_METADATA dictionary:
-DEFAULT_METADATA["PRCmE"] = {"long_name": "Precipitation minus Evaporation", "units": "kg/m^2/s"}
-DEFAULT_METADATA["pp"] = {"long_name": "Primary Production", "units": "mol/m^3/s"}
-DEFAULT_METADATA["chl"] = {"long_name": "Chlorophyll", "units": "mg/m^3"}
-
-# ============================================================================
-#   prognostic_vars_key: temp_1_mom6dg
-#   boundary_vars_key: mom6dg_forcing
-# ============================================================================
-
-DEPTH_I_LEVELS = [
-    "0",
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "10",
-    "11",
-    "12",
-    "13",
-    "14",
-    "15",
-    "16",
-    "17",
-    "18",
-]
-
-MASK_VARS = [
-    "mask_0",
-    "mask_1",
-    "mask_2",
-    "mask_3",
-    "mask_4",
-    "mask_5",
-    "mask_6",
-    "mask_7",
-    "mask_8",
-    "mask_9",
-    "mask_10",
-    "mask_11",
-    "mask_12",
-    "mask_13",
-    "mask_14",
-    "mask_15",
-    "mask_16",
-    "mask_17",
-    "mask_18",
-]
-
-RHO_0 = 1035.0  # DENSITY_OF_WATER_CM4 kg/m^3
-CP_SW = 3992.0  # SPECIFIC_HEAT_OF_WATER_CM4 J/kg/K
+RHO_0 = 1035.0  # DENSITY_OF_WATER kg/m^3
+CP_SW = 3992.0  # SPECIFIC_HEAT_OF_WATER J/kg/K
 SECONDS_PER_5DAY = 5 * 24 * 60 * 60  # 5 day average
 TIME_DELTA = 5  # Time delta in days
 
 PrognosticVarNames = list[str]
 PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
-    "thetao_1": [f"thetao_{DEPTH_I_LEVELS[0]}"],
-    "thermo_dynamic_5": [
-        k + str(j) for k in ["uo_", "vo_", "thetao_", "so_"] for j in DEPTH_I_LEVELS[:5]
-    ]
-    + ["zos"],
-    "thermo_dynamic_all": [
-        k + str(j) for k in ["uo_", "vo_", "thetao_", "so_"] for j in DEPTH_I_LEVELS
-    ]
-    + ["zos"],
-    "thermo_all": [k + str(j) for k in ["thetao_", "so_"] for j in DEPTH_I_LEVELS]
-    + ["zos"],
+    # Full state including dynamics
+    "full_state": [
+        k + str(j) for k in ["dic_", "o2_", "no3_", "pp_", "chl_",  # Biogeochem
+                            "temp_", "salt_",                            # Thermo
+                            "uo_", "vo_"]                            # Dynamic
+        for j in DEPTH_I_LEVELS
+    ] + ["SSH"],  # Using SSH
+    
+    # Without dynamics
+    "bgc_thermo_all": [
+        k + str(j) for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_"]
+        for j in DEPTH_I_LEVELS
+    ] + ["SSH"],
+    
+    # Minimal for testing
+    "minimal_all": [
+        k + str(j) for k in ["temp_", "salt_", "o2_", "dic_"]
+        for j in DEPTH_I_LEVELS
+    ] + ["SSH"],
 }
+
 BoundaryVarNames = list[str]
 BOUNDARY_VARS: dict[str, BoundaryVarNames] = {
-    "hfds": ["hfds"],
-    "tau_hfds": ["tauuo", "tauvo", "hfds"],
-    "tau_hfds_hfds_anom": ["tauuo", "tauvo", "hfds", "hfds_anomalies"],
+    # Full forcing with surface chl for satellite assimilation
+    "full_forcing": ["Qnet", "tauuo", "tauvo", "chl_surface", "PRCmE"],
+    
+    # Standard forcing
+    "standard_forcing": ["Qnet", "tauuo", "tauvo", "PRCmE"],
+    
+    # Minimal
+    "minimal_forcing": ["Qnet", "tauuo", "tauvo"],
 }
 
 DEFAULT_METADATA = {
-    "thetao": {
-        "long_name": "Sea Water Potential Temperature",
-        "units": r"\degree C",
+    "CT": {
+        "long_name": "Conservative Temperature",
+        "units": "°C",
     },
-    "so": {
-        "long_name": "Sea Water Salinity",
-        "units": "psu",
+    "SA": {
+        "long_name": "Absolute Salinity",
+        "units": "g/kg",
     },
     "uo": {
         "long_name": "Sea Water X Velocity",
@@ -231,13 +139,29 @@ DEFAULT_METADATA = {
         "long_name": "Sea Water Y Velocity",
         "units": "m/s",
     },
-    "zos": {
+    "SSH": {
         "long_name": "Sea surface height above geoid",
         "units": "m",
     },
-    "tos": {
-        "long_name": "Sea surface temperature",
-        "units": r"\degree C",
+    "o2": {
+        "long_name": "Dissolved Oxygen",
+        "units": "mol/kg",
+    },
+    "dic": {
+        "long_name": "Dissolved Inorganic Carbon",
+        "units": "mol/kg",
+    },
+    "no3": {
+        "long_name": "Nitrate",
+        "units": "mol/kg",
+    },
+    "chl": {
+        "long_name": "Chlorophyll Concentration",
+        "units": "mg/m3",
+    },
+    "pp": {
+        "long_name": "Primary Production",
+        "units": "mol C/m3/day",
     },
     "tauuo": {
         "long_name": "Surface Downward X Stress",
@@ -247,17 +171,19 @@ DEFAULT_METADATA = {
         "long_name": "Surface Downward Y Stress",
         "units": "N/m^2",
     },
-    "hfds": {
-        "long_name": "Surface ocean heat flux from "
-        "SW+LW+latent+sensible+masstransfer+frazil+seaice_melt_heat",
+    "Qnet": {
+        "long_name": "Net Surface Heat Flux",
         "units": "W/m^2",
     },
-    "hfds_anomalies": {
-        "long_name": "hfds anomalies",
-        "units": "W/m^2",
+    "PRCmE": {
+        "long_name": "Precipitation minus Evaporation",
+        "units": "kg m-2 s-1",
+    },
+    "chl_surface": {
+        "long_name": "Surface Chlorophyll (satellite)",
+        "units": "mg/m3",
     },
 }
-
 
 def construct_metadata(data: xr.Dataset) -> dict[str, dict[str, str]]:
     metadata = {}

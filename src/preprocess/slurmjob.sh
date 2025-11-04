@@ -6,7 +6,7 @@
 #SBATCH --account=cimes3
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=16
 #SBATCH --mem=512G
 #SBATCH --time=48:00:00
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -29,7 +29,7 @@ export NUMEXPR_MAX_THREADS=$SLURM_CPUS_PER_TASK
 srun python preprocess_mom6dg_data.py \
   --input /scratch/cimes/maximek/INMOS/original_data \
   --output /scratch/cimes/maximek/INMOS/clim_data_proc \
-  --years "1-10" \
+  --years "1" \
   --months "1-12" \
   --spatial-subset 25.0 55.0 -45.0 -25.0 \
   --boundary-width 1 \

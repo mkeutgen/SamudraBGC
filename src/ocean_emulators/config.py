@@ -44,50 +44,89 @@ class WandBConfig(BaseConfig):
     notes: str | None = None
 
 
-class JulianDate:
-    """Represents a Julian date as a cftime.datetime at noon on the relevant day.
+#class JulianDate:
+#    """Represents a Julian date as a cftime.datetime at noon on the relevant day.
+#
+#    This is the format the OM4 data uses, so we match that here.
+#    TODO(jder): probably worth asserting the date format when opening the data.
+#    """
+#
+#    datetime: cftime.datetime
+#
+#    def __init__(self, s: str):
+#        datetime = cftime.datetime.strptime(s, "%Y-%m-%d", calendar="julian")
+#        datetime = datetime.replace(hour=12)
+#        self.datetime = datetime
+#
+#    def __str__(self) -> str:
+#        return self.datetime.strftime("%Y-%m-%d")
+#
+#
+#def _julian_date_validator(value: str | JulianDate) -> JulianDate:
+#    """Pydantic validator which must handle strings or JulianDate objects."""
+#    if isinstance(value, str):
+#        return JulianDate(value)
+#    else:
+#        return value
 
-    This is the format the OM4 data uses, so we match that here.
-    TODO(jder): probably worth asserting the date format when opening the data.
-    """
-
-    datetime: cftime.datetime
-
-    def __init__(self, s: str):
-        datetime = cftime.datetime.strptime(s, "%Y-%m-%d", calendar="julian")
-        datetime = datetime.replace(hour=12)
-        self.datetime = datetime
-
-    def __str__(self) -> str:
-        return self.datetime.strftime("%Y-%m-%d")
 
 
-def _julian_date_validator(value: str | JulianDate) -> JulianDate:
-    """Pydantic validator which must handle strings or JulianDate objects."""
-    if isinstance(value, str):
-        return JulianDate(value)
-    else:
-        return value
 
 
-"""Represents a Julian date as a string."""
-DateConfig = Annotated[
-    JulianDate,
-    PlainValidator(_julian_date_validator),
-    PlainSerializer(JulianDate.__str__),
-    WithJsonSchema({"type": "string", "format": "date"}),
-]
 
+#"""Represents a Julian date as a string."""
+#DateConfig = Annotated[
+#    JulianDate,
+#    PlainValidator(_julian_date_validator),
+#    PlainSerializer(JulianDate.__str__),
+#    WithJsonSchema({"type": "string", "format": "date"}),
+#]
+#
+#
+#
+#class TimeConfig(BaseConfig):
+#    """Represents a time slice of the data.
+#
+#    Endpoints are Julian dates (not times) but cftime stores them in datetimes.
+#    The final endpoint is exclusive.
+#    """
+#
+#    start: DateConfig
+#    end: DateConfig
+#
+#    @property
+#    def time_slice(self) -> slice:
+#        return slice(self.start.datetime, self.end.datetime)
+#
+#    def overlaps(self, other: Self) -> bool:
+#        """Check if this time range overlaps with another time range.
+#
+#        Args:
+#            other: Another TimeConfig to check for overlap
+#
+#        Returns:
+#            True if the time ranges overlap, False otherwise
+#        """
+#        return (
+#            self.start.datetime < other.end.datetime
+#            and self.end.datetime > other.start.datetime
+#        )
+#
+#    def __str__(self) -> str:
+#        return f"{self.start} to {self.end}"
+#
+#
 
 class NoLeapDate:
-    """Represents a noleap date as a cftime.datetime.
-    
-    MOM6-DG uses noleap calendar (365 days/year, no leap years).
-    Data format: "days since 1900-01-01 00:00:00" with calendar="noleap"
     """
+    Represents a noleap calendar date.
+    MOM6-Cobalt uses noleap calendar (365 days/year, no leap years).
+    """
+    
     datetime: cftime.datetime
 
     def __init__(self, s: str):
+        """Initialize a NoLeapDate from a string in YYYY-MM-DD format."""
         datetime = cftime.datetime.strptime(s, "%Y-%m-%d", calendar="noleap")
         datetime = datetime.replace(hour=0, minute=0, second=0)
         self.datetime = datetime
@@ -96,11 +135,28 @@ class NoLeapDate:
         return self.datetime.strftime("%Y-%m-%d")
 
 
-class TimeConfig(BaseConfig):
-    """Represents a time slice of the data.
+def _noleap_date_validator(value: str | NoLeapDate) -> NoLeapDate:
+    """Pydantic validator which must handle strings or NoLeapDate objects."""
+    if isinstance(value, str):
+        return NoLeapDate(value)
+    else:
+        return value
 
-    Endpoints are Julian dates (not times) but cftime stores them in datetimes.
-    The final endpoint is exclusive.
+
+# Replace the original DateConfig with this one for noleap calendar
+DateConfig = Annotated[
+    NoLeapDate,
+    PlainValidator(_noleap_date_validator),
+    PlainSerializer(NoLeapDate.__str__),
+    WithJsonSchema({"type": "string", "format": "date"}),
+]
+
+
+# The TimeConfig class remains the same but now uses NoLeapDate internally
+class TimeConfig(BaseConfig):
+    """
+    Represents a time slice of the data using noleap calendar.
+    Endpoints are noleap dates. The final endpoint is exclusive.
     """
 
     start: DateConfig
@@ -111,14 +167,7 @@ class TimeConfig(BaseConfig):
         return slice(self.start.datetime, self.end.datetime)
 
     def overlaps(self, other: Self) -> bool:
-        """Check if this time range overlaps with another time range.
-
-        Args:
-            other: Another TimeConfig to check for overlap
-
-        Returns:
-            True if the time ranges overlap, False otherwise
-        """
+        """Check if this time range overlaps with another time range."""
         return (
             self.start.datetime < other.end.datetime
             and self.end.datetime > other.start.datetime
@@ -126,6 +175,8 @@ class TimeConfig(BaseConfig):
 
     def __str__(self) -> str:
         return f"{self.start} to {self.end}"
+
+
 
 
 LOCATION_DOCS = (
@@ -608,10 +659,10 @@ class TrainConfig(TopLevelConfig):
     step_transition: list[int] = []
     inference_epochs: list[int] = [-1]
     train_time: TimeConfig = TimeConfig(
-        start=JulianDate("0151-01-06"), end=JulianDate("0306-01-01")
+        start=NoLeapDate("2016-01-01"), end=NoLeapDate("2022-12-31")
     )
     val_time: TimeConfig = TimeConfig(
-        start=JulianDate("0306-01-01"), end=JulianDate("0311-01-01")
+        start=NoLeapDate("2023-01-01"), end=NoLeapDate("2023-12-31")
     )
     inference_times: list[TimeConfig] = []
 
@@ -642,7 +693,7 @@ class EvalConfig(TopLevelConfig):
 
     # Config components
     inference_time: TimeConfig = TimeConfig(
-        start=JulianDate("0311-01-01"), end=JulianDate("0351-01-01")
+        start=NoLeapDate("2023-01-01"), end=NoLeapDate("2023-12-31")
     )
     experiment: ExperimentConfig
     data: DataConfig

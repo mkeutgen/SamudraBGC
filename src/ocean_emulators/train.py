@@ -1,29 +1,6 @@
 # TODO:
 # - better stepper module and a cleaner model module
 # - cleaner dataset modules
-
-
-# Maxime :  Patch the calendar BEFORE importing anything else
-import ocean_emulators.config as config_module
-import cftime
-
-class NoLeapDate:
-    """Noleap calendar for MOM6-DG data."""
-    datetime: cftime.datetime
-
-    def __init__(self, s: str):
-        datetime = cftime.datetime.strptime(s, "%Y-%m-%d", calendar="noleap")
-        datetime = datetime.replace(hour=12)
-        self.datetime = datetime
-
-    def __str__(self) -> str:
-        return self.datetime.strftime("%Y-%m-%d")
-
-# Replace JulianDate with NoLeapDate
-config_module.JulianDate = NoLeapDate
-
-
-
 import contextlib
 import datetime
 import logging
@@ -119,8 +96,6 @@ from ocean_emulators.utils.wandb import WandBLogger
 logger = logging.getLogger(__name__)
 
 
-
-
 class Trainer:
     model: BaseModel | nn.parallel.DistributedDataParallel
 
@@ -153,7 +128,7 @@ class Trainer:
 
         levels = cfg.experiment.prognostic_vars_key.split("_")[-1]
         if "all" in levels:
-            self.levels = 19
+            self.levels = 50
         else:
             self.levels = int(levels)
 
