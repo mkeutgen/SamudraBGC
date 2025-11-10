@@ -107,56 +107,56 @@ DEPTH_LEVELS = [
 
 # Depth thicknesses - computed from level interfaces
 DEPTH_THICKNESS = [
-    2.0,
-    2.0,
-    2.0,
-    2.0,
-    2.0,
-    2.0,
-    2.0,
-    2.01,
-    2.01,
-    2.02,
-    2.03,
-    2.05,
-    2.08,
-    2.11,
-    2.15,
-    2.21,
-    2.28,
-    2.37,
-    2.48,
-    2.61,
-    2.77,
-    2.95,
-    3.17,
-    3.43,
-    3.74,
-    4.09,
-    4.49,
-    4.95,
-    5.48,
-    6.07,
-    6.74,
-    7.5,
-    8.34,
-    9.28,
-    10.33,
-    11.49,
-    12.77,
-    14.19,
-    15.74,
-    17.45,
-    19.31,
-    21.35,
-    23.56,
-    25.97,
-    28.58,
-    31.41,
-    34.47,
-    37.77,
-    41.32,
-    45.14,
+    2.000,  # Level 0: center at 1.000m
+    2.000,  # Level 1: center at 3.000m
+    2.000,  # Level 2: center at 5.000m
+    2.000,  # Level 3: center at 7.000m
+    2.000,  # Level 4: center at 9.000m
+    2.000,  # Level 5: center at 11.000m
+    2.002,  # Level 6: center at 13.000m
+    2.007,  # Level 7: center at 15.005m
+    2.012,  # Level 8: center at 17.015m
+    2.020,  # Level 9: center at 19.030m
+    2.032,  # Level 10: center at 21.055m
+    2.053,  # Level 11: center at 23.095m
+    2.080,  # Level 12: center at 25.160m
+    2.112,  # Level 13: center at 27.255m
+    2.155,  # Level 14: center at 29.385m
+    2.212,  # Level 15: center at 31.565m
+    2.285,  # Level 16: center at 33.810m
+    2.375,  # Level 17: center at 36.135m
+    2.485,  # Level 18: center at 38.560m
+    2.617,  # Level 19: center at 41.105m
+    2.775,  # Level 20: center at 43.795m
+    2.960,  # Level 21: center at 46.655m
+    3.180,  # Level 22: center at 49.715m
+    3.443,  # Level 23: center at 53.015m
+    3.750,  # Level 24: center at 56.600m
+    4.103,  # Level 25: center at 60.515m
+    4.505,  # Level 26: center at 64.805m
+    4.968,  # Level 27: center at 69.525m
+    5.495,  # Level 28: center at 74.740m
+    6.090,  # Level 29: center at 80.515m
+    6.763,  # Level 30: center at 86.920m
+    7.520,  # Level 31: center at 94.040m
+    8.365,  # Level 32: center at 101.960m
+    9.308,  # Level 33: center at 110.770m
+    10.358,  # Level 34: center at 120.575m
+    11.520,  # Level 35: center at 131.485m
+    12.805,  # Level 36: center at 143.615m
+    14.223,  # Level 37: center at 157.095m
+    15.780,  # Level 38: center at 172.060m
+    17.488,  # Level 39: center at 188.655m
+    19.355,  # Level 40: center at 207.035m
+    21.393,  # Level 41: center at 227.365m
+    23.610,  # Level 42: center at 249.820m
+    26.020,  # Level 43: center at 274.585m
+    63.165,  # Level 44: center at 301.860m
+    90.915,  # Level 45: center at 400.915m
+    90.710,  # Level 46: center at 483.690m
+    107.775,  # Level 47: center at 582.335m
+    208.135,  # Level 48: center at 699.240m
+    299.365,  # Level 49: center at 998.605m
 ]
 
 # Generate depth index levels for 50 levels
@@ -337,7 +337,7 @@ class TensorMap(Multiton):
 
         levels_str = prognostic_vars_key.split("_")[-1]
         if "all" in levels_str:
-            levels = 19
+            levels = 50
         else:
             levels = int(levels_str)
 

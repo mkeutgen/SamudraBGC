@@ -156,3 +156,46 @@ class MseDynamic:
         """Load state from ``state_dict``."""
         if "per_channel_scale" in state:
             self._per_channel_scale = state["per_channel_scale"].to(self._wet.device)
+
+
+
+# MK : I still need to figure how to implement this loss function to better penalize lack of coherence of fronts 
+def gradient_structure_loss(field_true, field_pred, patch_size=5):
+	"""
+	Penalize loss of coherent gradient structures (fronts).
+    
+	Idea: In coherent fronts, neighboring gradients are aligned.
+	We normalize gradients to unit vectors, then measure how much
+	they cancel when averaged locally. High coherence = aligned gradients.
+	"""
+	from scipy.ndimage import uniform_filter
+    
+	gy_true, gx_true = np.gradient(field_true)
+	gy_pred, gx_pred = np.gradient(field_pred)
+    
+	# Normalize gradients to unit vectors (direction only, not magnitude)
+	mag_true = np.sqrt(gx_true**2 + gy_true**2) + 1e-10  # avoid division by zero
+	gx_true_norm = gx_true / mag_true
+	gy_true_norm = gy_true / mag_true
+    
+	mag_pred = np.sqrt(gx_pred**2 + gy_pred**2) + 1e-10
+	gx_pred_norm = gx_pred / mag_pred
+	gy_pred_norm = gy_pred / mag_pred
+    
+	# Average the normalized gradient components in local patches
+	# If gradients are aligned, components won't cancel
+	# If gradients are random, components cancel out
+	gx_avg_true = uniform_filter(gx_true_norm, size=patch_size)
+	gy_avg_true = uniform_filter(gy_true_norm, size=patch_size)
+	coherence_true = np.sqrt(gx_avg_true**2 + gy_avg_true**2)
+    
+	gx_avg_pred = uniform_filter(gx_pred_norm, size=patch_size)
+	gy_avg_pred = uniform_filter(gy_pred_norm, size=patch_size)
+	coherence_pred = np.sqrt(gx_avg_pred**2 + gy_avg_pred**2)
+    
+	# Loss: match local gradient coherence
+	# coherence near 1 = organized front, near 0 = incoherent/noisy
+	loss = np.mean((coherence_true - coherence_pred)**2)
+    
+	return loss
+

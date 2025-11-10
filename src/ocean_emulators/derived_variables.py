@@ -71,12 +71,19 @@ def add_derived_variables(tensor_out: torch.Tensor) -> dict[str, torch.Tensor]:
     """
     Add derived variables to the output.
     """
-    # Ocean heat content
     derived_vars = {}
     tensor_map = TensorMap.get_instance()
+    
+    # Handle both thetao (OM4) and temp (V2) variable names
+    temp_key = "thetao" if "thetao" in tensor_map.VAR_3D_IDX else "temp"
+    
+    if temp_key not in tensor_map.VAR_3D_IDX:
+        # No temperature variable available, return empty dict
+        return derived_vars
+    
     dz = tensor_map.dz.to(tensor_out.device)
-    thetao = tensor_out[:, :, tensor_map.VAR_3D_IDX["thetao"]]
-    ohct = compute_ocean_heat_content(thetao, dz)
+    temperature = tensor_out[:, :, tensor_map.VAR_3D_IDX[temp_key]]
+    ohct = compute_ocean_heat_content(temperature, dz)
     derived_vars["ocean_heat_content"] = ohct
 
     return derived_vars

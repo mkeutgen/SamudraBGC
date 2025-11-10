@@ -219,19 +219,19 @@ def load_mom6_monthly_files(data_dir: Path, year: int, month: int) -> xr.Dataset
     datasets = []
     if bio_path.exists():
         logger.info(f"Loading biogeochemistry: {bio_path.name}")
-        datasets.append(xr.open_dataset(bio_path, engine="netcdf4", decode_times=False))
+        datasets.append(xr.open_dataset(bio_path, engine="netcdf4", decode_times=True))
     else:
         logger.warning(f"Biogeochemistry file not found: {bio_path}")
 
     if phy_path.exists():
         logger.info(f"Loading physics: {phy_path.name}")
-        datasets.append(xr.open_dataset(phy_path, engine="netcdf4", decode_times=False))
+        datasets.append(xr.open_dataset(phy_path, engine="netcdf4", decode_times=True))
     else:
         logger.warning(f"Physics file not found: {phy_path}")
 
     if bc_path.exists():
         logger.info(f"Loading boundary: {bc_path.name}")
-        datasets.append(xr.open_dataset(bc_path, engine="netcdf4", decode_times=False))
+        datasets.append(xr.open_dataset(bc_path, engine="netcdf4", decode_times=True))
     else:
         logger.warning(f"Boundary file not found: {bc_path}")
 
@@ -239,7 +239,7 @@ def load_mom6_monthly_files(data_dir: Path, year: int, month: int) -> xr.Dataset
         raise FileNotFoundError(f"No MOM6 files found for {year:04d}-{month:02d}")
 
     ds = xr.merge(datasets, join="outer")
-    for coord in ["z_i", "z_l", "xq", "yq", "xh", "yh"]:
+    for coord in ["z_l", "xh", "yh"]:
         if coord in ds:
             ds = ds.set_coords(coord)
     return ds
@@ -277,12 +277,19 @@ def interp_to_tracer_grid(ds: xr.Dataset) -> xr.Dataset:
         logger.warning(f"    yq: {remaining_yq}")
     else:
         logger.info("  ✓ All variables successfully interpolated")
+    # drop vars no matter whether they are coords or data_vars
+    vars_to_drop = ["xq", "yq", "nv", "z_i", "time_bnds", "dzRegrid"]
+    present = [v for v in vars_to_drop if v in ds.variables]
+    if present:
+        logger.info(f"  Dropping staggered/useless variables: {present}")
+        ds = ds.drop_vars(present, errors="ignore")
 
-    # Now safe to drop coordinate variables and dimensions
-    coords_to_drop = [c for c in ["xq", "yq"] if c in ds.coords]
-    if coords_to_drop:
-        logger.info(f"  Dropping staggered coordinates: {coords_to_drop}")
-        ds = ds.drop_vars(coords_to_drop)
+    # now drop dims that became orphaned
+    for dim in ["xq", "yq", "nv", "z_i"]:
+        if dim in ds.dims:
+            used = any(dim in ds[v].dims for v in ds.data_vars)
+            if not used:
+                ds = ds.drop_dims(dim)
 
     logger.info(f"  Final dimensions: {list(ds.dims.keys())}")
     return ds
@@ -299,6 +306,7 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
     """
     Compute conservative temperature (CT) and absolute salinity (SA) using GSW.
     Replaces temp and salt with CT and SA.
+    Based on working monthly processing pipeline.
     """
     try:
         import gsw
@@ -313,61 +321,46 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
         logger.warning("temp or salt not found - skipping GSW conversions")
         return ds
     
-    # Determine dimension names (before or after renaming)
-    z_dim = "lev" if "lev" in ds.dims else "z_l"
-    y_dim = "lat" if "lat" in ds.dims else "yh"
-    x_dim = "lon" if "lon" in ds.dims else "xh"
+    # Determine dimension names (before renaming)
+    z_dim = "z_l"
+    y_dim = "yh" 
+    x_dim = "xh"
     
-    # Get coordinates
-    if y_dim in ds.coords:
-        lat = ds[y_dim]
-    else:
-        if "geolat" in ds:
-            lat = ds["geolat"]
-        else:
-            logger.error("Cannot find latitude coordinate for GSW")
-            return ds
-    
-    if x_dim in ds.coords:
-        lon = ds[x_dim]
-    else:
-        if "geolon" in ds:
-            lon = ds["geolon"]
-        else:
-            logger.error("Cannot find longitude coordinate for GSW")
-            return ds
-    
-    if z_dim in ds.coords:
-        depth = ds[z_dim]
-    else:
-        logger.error(f"Cannot find depth coordinate {z_dim} for GSW")
+    if z_dim not in ds.coords or y_dim not in ds.coords or x_dim not in ds.coords:
+        logger.error(f"Missing required coordinates: {z_dim}, {y_dim}, {x_dim}")
         return ds
     
-    # Compute pressure from depth (approximate: p ≈ depth in dbar)
-    # For more accurate conversion, use: p = gsw.p_from_z(-depth, lat)
-    pressure = depth  # Simple approximation
+    # Get coordinates
+    z = ds[z_dim]   # depth (positive down)
+    yh = ds[y_dim]  # latitude
+    xh = ds[x_dim]  # longitude
     
-    # Broadcast coordinates to 3D if needed
-    if len(lat.dims) == 1:
-        # Need to broadcast lat, lon to match salt/temp dims
-        logger.info("  Broadcasting coordinates to 3D...")
-        lat_3d = lat
-        lon_3d = lon
-        pressure_3d = pressure
-    else:
-        # Already 2D/3D
-        lat_3d = lat
-        lon_3d = lon
-        pressure_3d = pressure
+    logger.info("  Broadcasting coordinates to 3D...")
+    # Broadcast to 3D: (z_l, yh, xh)
+    Z3, Y3, X3 = xr.broadcast(z, yh, xh)
     
-    # Compute Absolute Salinity from Practical Salinity
+    logger.info("  Computing pressure from depth...")
+    # Pressure in dbar from depth: p = gsw.p_from_z(z_negative_up, lat)
+    # z_l is positive down, so negate it for GSW
+    P3 = xr.apply_ufunc(
+        gsw.p_from_z, 
+        -Z3,  # GSW expects negative up
+        Y3,   # latitude
+        input_core_dims=[[z_dim, y_dim, x_dim], [z_dim, y_dim, x_dim]],
+        output_core_dims=[[z_dim, y_dim, x_dim]],
+        vectorize=True, 
+        dask="parallelized", 
+        output_dtypes=[float]
+    )
+    
     logger.info("  Computing Absolute Salinity (SA)...")
+    # GSW expects (SP, p[dbar], lon[degE], lat[degN])
     SA = xr.apply_ufunc(
         gsw.SA_from_SP,
-        ds["salt"],
-        pressure_3d,
-        lon_3d,
-        lat_3d,
+        ds["salt"],  # Practical Salinity
+        P3,          # Pressure (dbar)
+        X3,          # Longitude
+        Y3,          # Latitude
         input_core_dims=[[z_dim, y_dim, x_dim]] * 4,
         output_core_dims=[[z_dim, y_dim, x_dim]],
         vectorize=True,
@@ -380,13 +373,13 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
         "standard_name": "sea_water_absolute_salinity"
     }
     
-    # Compute Conservative Temperature from in-situ temperature
     logger.info("  Computing Conservative Temperature (CT)...")
+    # GSW expects (SA, t, p)
     CT = xr.apply_ufunc(
         gsw.CT_from_t,
-        SA,
-        ds["temp"],
-        pressure_3d,
+        SA,          # Absolute Salinity
+        ds["temp"],  # In-situ temperature
+        P3,          # Pressure (dbar)
         input_core_dims=[[z_dim, y_dim, x_dim]] * 3,
         output_core_dims=[[z_dim, y_dim, x_dim]],
         vectorize=True,
@@ -406,7 +399,6 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
     logger.info("  ✓ Replaced temp→CT and salt→SA")
     
     return ds
-
 
 
 def rename_variables(ds: xr.Dataset) -> xr.Dataset:
@@ -513,6 +505,18 @@ def drop_time_metadata_vars(ds: xr.Dataset) -> xr.Dataset:
 
     return ds
 
+def filter_variables(ds: xr.Dataset, vars_to_keep: list[str]) -> xr.Dataset:
+    """Keep only specified variables. Coordinates are handled automatically."""
+    
+    # Keep only variables that exist in dataset
+    available = [v for v in vars_to_keep if v in ds]
+    
+    # Select them
+    ds_filtered = ds[available]
+    
+    logger.info(f"  Kept {len(available)}/{len(vars_to_keep)} variables")
+    
+    return ds_filtered
 
 def validate_processed_data(output_dir: Path) -> bool:
     required_files = ["bgc_data.zarr", "bgc_means.zarr", "bgc_stds.zarr"]
@@ -640,7 +644,7 @@ def process_mom6_cobalt_data(
                 ds = load_mom6_monthly_files(input_dir, actual_year, m)
                 ds = interp_to_tracer_grid(ds)  # This now drops xq, yq coords
                 ds = compute_derived_fields(ds)
-                ds = compute_gsw_variables(ds)
+                ds = compute_gsw_variables(ds)                
                 ds = apply_spatial_subset(ds, spatial_bounds)
                 ds = ds[vars_keep]
                 ds = rename_variables(ds)
@@ -651,7 +655,7 @@ def process_mom6_cobalt_data(
                     ds, boundary_width
                 )  # Create masks AFTER dimension renaming
                 ds = drop_unused_dimensions(ds)  # Final cleanup
-                ds = drop_time_metadata_vars(ds)
+                ds = drop_time_metadata_vars(ds) # check later if this is what's causing time dim
                 yearly_datasets.append(ds)
             except FileNotFoundError as e:
                 logger.warning(f"Skipping {actual_year}-{m:02d}: {e}")
