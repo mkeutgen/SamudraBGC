@@ -19,14 +19,15 @@ data_percent: 1.0
 # Time ranges using noleap calendar (YYYY-MM-DD format)
 train_time:
   start: "2016-01-01"
-  end: "2016-06-30"
+  end: "2024-06-30" # 8 years and a half
 val_time:
-  start: "2016-07-01"
-  end: "2016-11-30"
+  start: "2024-07-01"
+  end: "2025-06-30"
 inference_times:
-  - start: "2016-12-01"
-    end: "2016-12-31"
-
+  - start: "2024-07-01"  # Validation period
+    end: "2025-06-30"
+  - start: "2025-07-01"  # True Out of Sample Extrapolation test
+    end: "2025-12-31"
 
 data_stride: [1]
 steps: [4]
@@ -48,9 +49,9 @@ experiment:
   data_root: /scratch/cimes/maximek/INMOS/clim_data_proc  # UPDATE THIS PATH
 
 data:
-  data_location: bgc_data_oneyear.zarr
-  data_means_location: bgc_means_oneyear.zarr
-  data_stds_location: bgc_stds_oneyear.zarr
+  data_location: bgc_data_10years.zarr
+  data_means_location: bgc_means_10years.zarr
+  data_stds_location: bgc_stds_10years.zarr
   scaling_residuals_file: null
   # For Zarr data: num_workers=0 is often fastest due to I/O overhead
   # Try 0 first, then 1 with persistent_workers if needed
@@ -63,14 +64,14 @@ data:
 model:
   pred_residuals: false
   last_kernel_size: 3
-  pad: "circular"
+  pad: "constant" # Changed from original Samudra : "circular". For this MOM6 regional DG, coordinate is not periodic because here lon does not span -180 180
 
   # UNet architecture adjusted for 50 depth levels
   # Input channels: 357 (prog) + 4 (bound) = 361
   unet:
-    ch_width: [504, 256]  # Increased first layer for more variables
-    dilation: [1, 8]
-    n_layers: [1, 1]
+    ch_width: [400, 500, 600]  # 3 levels
+    dilation: [1, 2, 4]        # Smooth progression
+    n_layers: [1, 1, 1]
 
     core_block:
       block_type: "conv_next_block"
