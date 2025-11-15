@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 """
-Unified MOM6-DG COBALT Data Preprocessor for BGC Emulator
-==========================================================
-Streamlined script that directly processes MOM6-COBALT outputs to BGC emulator format.
+Unified MOM6-DG COBALT Data Preprocessor for BGC Emulator - Weekly Subsampling
+===============================================================================
+Streamlined script that processes MOM6-COBALT outputs with weekly subsampling
+to reduce data volume from ~30TB to manageable size.
 
 Usage:
-    python preprocess_mom6dg_data.py \
+    python preprocess_mom6dg_data_weekly.py \
         --input /path/to/mom6/data \
         --output /path/to/processed \
         --years 1-10 \
-        --first-year 2016
+        --first-year 2016 \
+        --weekly-day 1
 """
 
 import argparse
@@ -22,6 +24,7 @@ import xarray as xr
 import zarr
 from dask.distributed import Client, LocalCluster
 from numcodecs import Blosc
+import warnings 
 
 # Configure logging
 logging.basicConfig(
@@ -29,11 +32,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
+# suppress all FutureWarnings 
+warnings.filterwarnings('ignore', category=FutureWarning)
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Unified MOM6-DG COBALT data preprocessor for BGC emulator training"
+        description="Unified MOM6-DG COBALT data preprocessor with weekly subsampling"
     )
 
     parser.add_argument(
@@ -55,12 +59,25 @@ def parse_arguments():
         type=str,
         default="1-10",
         help="Years to process (e.g., '1-10' or '1,3,5')",
-    )
+    )  
     parser.add_argument(
         "--months",
         type=str,
         default="1-12",
         help="Months to process (e.g., '1-12' or '1,6,12')",
+    )
+    parser.add_argument(
+        "--weekly-day",
+        type=int,
+        default=1,
+        choices=[1, 7, 14, 21, 28],
+        help="Day of month to sample weekly (1, 7, 14, 21, 28). Default: 1",
+    )
+    parser.add_argument(
+        "--weekly-stride",
+        type=int,
+        default=7,
+        help="Stride in days for weekly sampling. Default: 7 (weekly)",
     )
     parser.add_argument(
         "--spatial-subset",
@@ -83,20 +100,17 @@ def parse_arguments():
         help="Zarr compression level (1=fast, 9=best)",
     )
     parser.add_argument(
-        "--chunk-time", type=int, default=365, help="Chunk size for time dimension"
+        "--chunk-time", type=int, default=1, help="Chunk size for time dimension (52 weeks/year)"
     )
     parser.add_argument(
         "--chunk-lev", type=int, default=50, help="Chunk size for vertical levels"
     )
     parser.add_argument(
-        "--chunk-y", type=int, default=68, help="Chunk size for y dimension"
+        "--chunk-y", type=int, default=90, help="Chunk size for y dimension"
     )
     parser.add_argument(
-        "--chunk-x", type=int, default=45, help="Chunk size for x dimension"
+        "--chunk-x", type=int, default=90, help="Chunk size for x dimension"
     )
-
-
-
     parser.add_argument(
         "--validate-only",
         action="store_true",
@@ -112,6 +126,24 @@ def parse_arguments():
         "--keep-yearly",
         action="store_true",
         help="Keep individual yearly zarr files in addition to consolidated file",
+    )
+    parser.add_argument(
+        "--n-workers",
+        type=int,
+        default=8,
+        help="Number of Dask workers. Default: 8",
+    )
+    parser.add_argument(
+        "--threads-per-worker",
+        type=int,
+        default=4,
+        help="Threads per Dask worker. Default: 4",
+    )
+    parser.add_argument(
+        "--memory-per-worker",
+        type=str,
+        default="64GB",
+        help="Memory limit per worker. Default: 64GB",
     )
 
     return parser.parse_args()
@@ -194,7 +226,6 @@ vars_keep = [
 ]
 
 
-
 def parse_year_range(year_str: str) -> list[int]:
     if "-" in year_str:
         start, end = map(int, year_str.split("-"))
@@ -211,10 +242,49 @@ def parse_month_range(month_str: str) -> list[int]:
         return [int(m) for m in month_str.split(",")]
 
 
+def subsample_weekly(ds: xr.Dataset, weekly_stride: int = 7, start_day: int = 0) -> xr.Dataset:
+    """
+    Subsample dataset to weekly snapshots.
+    
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Input dataset with time dimension
+    weekly_stride : int
+        Number of days between samples (default: 7 for weekly)
+    start_day : int
+        Starting day index (0-based) for subsampling
+    
+    Returns
+    -------
+    xr.Dataset
+        Subsampled dataset
+    """
+    if "time" not in ds.dims:
+        logger.warning("No time dimension found - skipping weekly subsampling")
+        return ds
+    
+    n_times = len(ds.time)
+    logger.info(f"  Original timesteps: {n_times}")
+    
+    # Create indices for weekly sampling: start_day, start_day+7, start_day+14, ...
+    weekly_indices = np.arange(start_day, n_times, weekly_stride)
+    logger.info(f"  Weekly subsampling: stride={weekly_stride}, start_day={start_day}")
+    logger.info(f"  Selected {len(weekly_indices)} timesteps")
+    
+    # Select weekly snapshots
+    ds_weekly = ds.isel(time=weekly_indices)
+    
+    # Update time coordinate to reflect actual sampling
+    logger.info(f"  Data reduction: {n_times} → {len(weekly_indices)} timesteps ({100*(1-len(weekly_indices)/n_times):.1f}% reduction)")
+    
+    return ds_weekly
+
+
 def load_mom6_monthly_files(data_dir: Path, year: int, month: int) -> xr.Dataset:
     """
-    Load MOM6 monthly files (biogeochem, physics, boundary) and optionally apply 5-day averaging.
-    Includes time decoding diagnostics.
+    Load MOM6 monthly files (biogeochem, physics, boundary).
+    Returns full monthly dataset - subsampling happens later.
     """
     bio_pattern = f"hist_control_cobalt_3d_yearly__{year:04d}_{month:02d}.nc"
     phy_pattern = f"hist_control_dynamics3d_yearly__{year:04d}_{month:02d}.nc"
@@ -245,7 +315,6 @@ def load_mom6_monthly_files(data_dir: Path, year: int, month: int) -> xr.Dataset
     # Log basic info
     if "time" in ds:
         logger.info(f"Loaded time axis: {len(ds.time)} entries, dtype={ds.time.dtype}")
-        logger.info(f"First few times: {ds.time.values[:min(3, len(ds.time))]}")
     else:
         logger.warning("No 'time' coordinate found in merged dataset.")
 
@@ -289,6 +358,7 @@ def interp_to_tracer_grid(ds: xr.Dataset) -> xr.Dataset:
         logger.warning(f"    yq: {remaining_yq}")
     else:
         logger.info("  ✓ All variables successfully interpolated")
+    
     # drop vars no matter whether they are coords or data_vars
     vars_to_drop = ["xq", "yq", "nv", "z_i", "time_bnds", "dzRegrid"]
     present = [v for v in vars_to_drop if v in ds.variables]
@@ -314,11 +384,11 @@ def compute_derived_fields(ds: xr.Dataset) -> xr.Dataset:
         ds["Qnet"] = ds["sfc_hflux"]
     return ds
 
+
 def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
     """
     Compute conservative temperature (CT) and absolute salinity (SA) using GSW.
     Replaces temp and salt with CT and SA.
-    Based on working monthly processing pipeline.
     """
     try:
         import gsw
@@ -328,12 +398,10 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
     
     logger.info("Computing conservative temperature and absolute salinity...")
     
-    # Check required variables exist
     if "temp" not in ds or "salt" not in ds:
         logger.warning("temp or salt not found - skipping GSW conversions")
         return ds
     
-    # Determine dimension names (before renaming)
     z_dim = "z_l"
     y_dim = "yh" 
     x_dim = "xh"
@@ -342,22 +410,18 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
         logger.error(f"Missing required coordinates: {z_dim}, {y_dim}, {x_dim}")
         return ds
     
-    # Get coordinates
-    z = ds[z_dim]   # depth (positive down)
-    yh = ds[y_dim]  # latitude
-    xh = ds[x_dim]  # longitude
+    z = ds[z_dim]
+    yh = ds[y_dim]
+    xh = ds[x_dim]
     
     logger.info("  Broadcasting coordinates to 3D...")
-    # Broadcast to 3D: (z_l, yh, xh)
     Z3, Y3, X3 = xr.broadcast(z, yh, xh)
     
     logger.info("  Computing pressure from depth...")
-    # Pressure in dbar from depth: p = gsw.p_from_z(z_negative_up, lat)
-    # z_l is positive down, so negate it for GSW
     P3 = xr.apply_ufunc(
         gsw.p_from_z, 
-        -Z3,  # GSW expects negative up
-        Y3,   # latitude
+        -Z3,
+        Y3,
         input_core_dims=[[z_dim, y_dim, x_dim], [z_dim, y_dim, x_dim]],
         output_core_dims=[[z_dim, y_dim, x_dim]],
         vectorize=True, 
@@ -366,13 +430,12 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
     )
     
     logger.info("  Computing Absolute Salinity (SA)...")
-    # GSW expects (SP, p[dbar], lon[degE], lat[degN])
     SA = xr.apply_ufunc(
         gsw.SA_from_SP,
-        ds["salt"],  # Practical Salinity
-        P3,          # Pressure (dbar)
-        X3,          # Longitude
-        Y3,          # Latitude
+        ds["salt"],
+        P3,
+        X3,
+        Y3,
         input_core_dims=[[z_dim, y_dim, x_dim]] * 4,
         output_core_dims=[[z_dim, y_dim, x_dim]],
         vectorize=True,
@@ -386,12 +449,11 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
     }
     
     logger.info("  Computing Conservative Temperature (CT)...")
-    # GSW expects (SA, t, p)
     CT = xr.apply_ufunc(
         gsw.CT_from_t,
-        SA,          # Absolute Salinity
-        ds["temp"],  # In-situ temperature
-        P3,          # Pressure (dbar)
+        SA,
+        ds["temp"],
+        P3,
         input_core_dims=[[z_dim, y_dim, x_dim]] * 3,
         output_core_dims=[[z_dim, y_dim, x_dim]],
         vectorize=True,
@@ -404,7 +466,6 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
         "standard_name": "sea_water_conservative_temperature"
     }
     
-    # Replace temp and salt with CT and SA
     ds["temp"] = CT
     ds["salt"] = SA
     
@@ -454,12 +515,10 @@ def apply_spatial_subset(ds: xr.Dataset, bounds: list[float] | None) -> xr.Datas
 
 def create_masks(ds: xr.Dataset, boundary_width: int = 1) -> xr.Dataset:
     """Create 2D mask and 3D wetmask after dimensions have been renamed."""
-    # Use renamed dimensions (should be lat/lon/lev at this point)
     y_dim = "lat" if "lat" in ds.dims else ("y" if "y" in ds.dims else "yh")
     x_dim = "lon" if "lon" in ds.dims else ("x" if "x" in ds.dims else "xh")
     lev_dim = "lev" if "lev" in ds.dims else "z_l"
 
-    # base 2-D mask (surface)
     mask2d = np.ones((ds.sizes[y_dim], ds.sizes[x_dim]), dtype=np.float32)
     if boundary_width > 0:
         mask2d[:boundary_width, :] = 0
@@ -468,7 +527,6 @@ def create_masks(ds: xr.Dataset, boundary_width: int = 1) -> xr.Dataset:
         mask2d[:, -boundary_width:] = 0
     ds["mask"] = ((y_dim, x_dim), mask2d)
 
-    # 3-D wetmask (everywhere wet) - only if lev dimension exists
     if lev_dim in ds.dims:
         Nz = ds.sizes[lev_dim]
         wetmask = np.broadcast_to(mask2d, (Nz, *mask2d.shape))
@@ -487,7 +545,6 @@ def drop_unused_dimensions(ds: xr.Dataset) -> xr.Dataset:
     dims_to_drop = []
     for dim in ["xq", "yq"]:
         if dim in ds.dims:
-            # Check if dimension is actually used by any variables
             used = any(dim in ds[var].dims for var in ds.data_vars)
             if not used:
                 dims_to_drop.append(dim)
@@ -504,9 +561,8 @@ def drop_time_metadata_vars(ds: xr.Dataset) -> xr.Dataset:
     vars_to_drop = []
 
     for var in list(ds.variables):
-        if var == "time":  # Keep main time coordinate - CRITICAL!
+        if var == "time":
             continue
-        # Also skip if it's a dimension coordinate
         if var in ds.dims:
             continue
         if np.issubdtype(ds[var].dtype, np.datetime64) or np.issubdtype(
@@ -522,17 +578,12 @@ def drop_time_metadata_vars(ds: xr.Dataset) -> xr.Dataset:
 
 
 def filter_variables(ds: xr.Dataset, vars_to_keep: list[str]) -> xr.Dataset:
-    """Keep only specified variables. Coordinates are handled automatically."""
-    
-    # Keep only variables that exist in dataset
+    """Keep only specified variables."""
     available = [v for v in vars_to_keep if v in ds]
-    
-    # Select them
     ds_filtered = ds[available]
-    
     logger.info(f"  Kept {len(available)}/{len(vars_to_keep)} variables")
-    
     return ds_filtered
+
 
 def validate_processed_data(output_dir: Path) -> bool:
     required_files = ["bgc_data.zarr", "bgc_means.zarr", "bgc_stds.zarr"]
@@ -549,7 +600,6 @@ def validate_processed_data(output_dir: Path) -> bool:
             return False
         logger.info(f"✓ wetmask found with shape {ds['wetmask'].shape}")
 
-        # Check for unwanted dimensions
         unwanted_dims = [d for d in ["xq", "yq"] if d in ds.dims]
         if unwanted_dims:
             logger.warning(f"Found unwanted dimensions: {unwanted_dims}")
@@ -563,10 +613,7 @@ def validate_processed_data(output_dir: Path) -> bool:
 
 
 def split_3d(ds: xr.Dataset, var: str, zdim: str | None = None) -> xr.Dataset:
-    """
-    Split a 3D variable var(time, z, y, x) into per-level channels var_0..var_{Nz-1},
-    then drop the original var. Does nothing if var missing or not 3D.
-    """
+    """Split 3D variable into per-level channels."""
     if var not in ds:
         return ds
 
@@ -576,7 +623,6 @@ def split_3d(ds: xr.Dataset, var: str, zdim: str | None = None) -> xr.Dataset:
         return ds
 
     Nz = ds.sizes[zdim]
-    # create per-level variables lazily (works with dask-backed arrays too)
     for k in range(Nz):
         ds[f"{var}_{k}"] = ds[var].isel({zdim: k})
     ds = ds.drop_vars(var)
@@ -584,14 +630,11 @@ def split_3d(ds: xr.Dataset, var: str, zdim: str | None = None) -> xr.Dataset:
 
 
 def split_all_3d_vars(ds: xr.Dataset, zdim: str | None = None) -> xr.Dataset:
-    """
-    Find all variables that have the vertical dimension and split them.
-    Skips obvious coords/aux vars and masks.
-    """
+    """Split all 3D variables into per-level channels."""
     if zdim is None:
         zdim = "lev" if "lev" in ds.dims else ("z_l" if "z_l" in ds.dims else None)
     if zdim is None:
-        return ds  # nothing to do
+        return ds
 
     # variables to skip explicitly (including wetmask!)
     skip = {"time", "mask", "wetmask"}
@@ -618,35 +661,33 @@ def process_mom6_cobalt_data(
     compression=1,
     chunk_sizes=None,
     first_year: int = 1,
-    keep_yearly: bool = False) -> dict[str, Path]:
+    keep_yearly: bool = False,
+    weekly_stride: int = 7,
+    weekly_day: int = 1,
+    n_workers: int = 8,
+    threads_per_worker: int = 4,
+    memory_per_worker: str = "64GB") -> dict[str, Path]:
     """
-    Process MOM6-COBALT data with incremental writes to single consolidated zarr file.
-
-    This approach:
-    1. Processes data year-by-year to manage memory
-    2. Writes directly to a single bgc_data.zarr file using append mode
-    3. Computes global statistics incrementally using Welford's method
-    4. Optionally keeps individual yearly files
+    Process MOM6-COBALT data with weekly subsampling on yearly concatenated data.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Use available CPUs
-    n_workers = chunk_sizes.get("n_workers", 4)  # Or read from environment
+    # Start Dask cluster
     cluster = LocalCluster(
-        n_workers=8,               # 8 independent workers
-        threads_per_worker=4,      # 4 threads each
-        memory_limit="64GB"        # each worker gets 64 GB (8×64 = 512 GB total)
+        n_workers=n_workers,
+        threads_per_worker=threads_per_worker,
+        memory_limit=memory_per_worker
     )    
     client = Client(cluster)
     logger.info(f"Dask cluster started: {client.dashboard_link}")
 
     # Set default chunk sizes if not provided
     if chunk_sizes is None:
-        chunk_sizes = {"time": 365, "lev": 50, "lat": 68, "lon": 45}
+        chunk_sizes = {"time": 52, "lev": 50, "lat": 68, "lon": 45}
 
     total_count = 0
     global_mean = None
-    global_M2 = None  # for variance accumulation
+    global_M2 = None
 
     compressor = Blosc(cname="zstd", clevel=compression, shuffle=Blosc.BITSHUFFLE)
     consolidated_path = output_dir / "bgc_data.zarr"
@@ -654,40 +695,54 @@ def process_mom6_cobalt_data(
     for year_idx, y in enumerate(years):
         actual_year = first_year + (y - years[0])
         logger.info(f"Processing year {actual_year} ({year_idx + 1}/{len(years)})")
-        yearly_datasets = []
-
+        
+        # STEP 1: Load all months and do ONLY the cheapest operations
+        monthly_datasets = []
         for m in months:
             try:
                 ds = load_mom6_monthly_files(input_dir, actual_year, m)
-                ds = interp_to_tracer_grid(ds)  # This now drops xq, yq coords
-                ds = compute_derived_fields(ds)
-                ds = compute_gsw_variables(ds)                
-                ds = apply_spatial_subset(ds, spatial_bounds)
-                ds = ds[vars_keep]
-                ds = rename_variables(ds)
-                ds = select_depth_levels(ds, DEPTH_LEVELS)
-                ds = rename_dimensions(ds)  # Rename BEFORE splitting & masking
-                ds = split_all_3d_vars(ds)
-                ds = create_masks(
-                    ds, boundary_width
-                )  # Create masks AFTER dimension renaming
-                ds = drop_unused_dimensions(ds)  # Final cleanup
-                ds = drop_time_metadata_vars(ds) # check later if this is what's causing time dim
-                yearly_datasets.append(ds)
+                
+                # ONLY operations needed before variable selection:
+                ds = apply_spatial_subset(ds, spatial_bounds)  # Reduce spatial domain
+                ds = compute_derived_fields(ds)  # Create Qnet from components
+                # COMPUTE IMMEDIATELY - load into memory before concatenating
+                logger.info(f"  Loading {actual_year}-{m:02d} into memory...")
+                ds = ds.compute()
+                logger.info(f"  Loaded {actual_year}-{m:02d}: {ds.nbytes / 1e9:.2f} GB")
+                monthly_datasets.append(ds)
             except FileNotFoundError as e:
                 logger.warning(f"Skipping {actual_year}-{m:02d}: {e}")
                 continue
 
-        if not yearly_datasets:
+        if not monthly_datasets:
             logger.warning(f"No valid data found for {actual_year}")
             continue
 
-        ds_year = xr.concat(yearly_datasets, dim="time", combine_attrs="drop_conflicts")
-
-
-
-        # --- Incremental statistics (Welford method) ---
-        # Exclude mask and wetmask from statistics
+        # STEP 2: Concatenate all months into yearly dataset
+        logger.info(f"Concatenating {len(monthly_datasets)} months for year {actual_year}")
+        ds_year = xr.concat(monthly_datasets, dim="time", combine_attrs="drop_conflicts")
+        logger.info(f"Yearly dataset has {len(ds_year.time)} timesteps before subsampling")
+        
+        # STEP 3: SUBSAMPLE EARLY - before expensive operations!
+        logger.info(f"Applying weekly subsampling to year {actual_year}")
+        ds_year = subsample_weekly(ds_year, weekly_stride=weekly_stride, start_day=weekly_day-1)
+        logger.info(f"After subsampling: {len(ds_year.time)} timesteps")
+        
+        # STEP 4: Filter variables AFTER subsampling (now Qnet exists)
+        ds_year = ds_year[vars_keep]
+        
+        # STEP 5: NOW do the expensive operations on reduced data
+        logger.info("Applying expensive transformations on subsampled data...")
+        ds_year = interp_to_tracer_grid(ds_year)  # Expensive interpolation
+        ds_year = compute_gsw_variables(ds_year)  # Very expensive GSW calculations
+        ds_year = rename_variables(ds_year)
+        ds_year = select_depth_levels(ds_year, DEPTH_LEVELS)
+        ds_year = rename_dimensions(ds_year)
+        ds_year = split_all_3d_vars(ds_year)
+        ds_year = create_masks(ds_year, boundary_width)
+        ds_year = drop_unused_dimensions(ds_year)
+        ds_year = drop_time_metadata_vars(ds_year)  
+        # Incremental statistics (Welford method)
         stat_vars = [v for v in ds_year.data_vars if v not in ["mask", "wetmask"]]
         ds_year_stats = ds_year[stat_vars]
 
@@ -710,7 +765,7 @@ def process_mom6_cobalt_data(
             )
             total_count = total_count_new
 
-        # --- Optionally write individual yearly file ---
+        # Optionally write individual yearly file
         if keep_yearly:
             yearly_path = output_dir / f"bgc_data_{actual_year}.zarr"
             encoding = {
@@ -727,7 +782,7 @@ def process_mom6_cobalt_data(
             zarr.consolidate_metadata(str(yearly_path))
             logger.info(f"Wrote yearly file: {yearly_path}")
 
-        # --- Rechunk for uniform chunk sizes (required by zarr) ---
+        # Rechunk for uniform chunk sizes
         actual_chunks = {}
         for dim in chunk_sizes:
             if dim in ds_year.dims:
@@ -736,13 +791,17 @@ def process_mom6_cobalt_data(
         logger.info(f"Rechunking with: {actual_chunks}")
         ds_year = ds_year.chunk(actual_chunks)
 
-        # --- Write to consolidated zarr file ---
+        # Write to consolidated zarr file - include chunks in encoding!
         encoding = {
-            v: {"compressor": compressor, "dtype": "float32"} for v in ds_year.data_vars
+            v: {
+                "compressor": compressor, 
+                "dtype": "float32",
+                "chunks": tuple(actual_chunks.get(d, ds_year.sizes[d]) 
+                            for d in ds_year[v].dims)
+            } 
+            for v in ds_year.data_vars
         }
-
         if year_idx == 0:
-            # First year: create new zarr file
             logger.info(f"Creating consolidated file: {consolidated_path}")
             ds_year.astype("float32").to_zarr(
                 consolidated_path,
@@ -753,23 +812,24 @@ def process_mom6_cobalt_data(
             )
             logger.info(f"Created {consolidated_path} with year {actual_year}")
         else:
-            # Subsequent years: append along time dimension
             logger.info(f"Appending year {actual_year} to {consolidated_path}")
             ds_year.astype("float32").to_zarr(
-                consolidated_path, mode="a", append_dim="time", consolidated=False
+                consolidated_path, 
+                mode="a", 
+                append_dim="time", 
+                consolidated=False,
             )
             logger.info(f"Successfully appended year {actual_year}")
-
-    # --- Consolidate metadata at the end ---
+    # Consolidate metadata
     logger.info("Consolidating metadata for bgc_data.zarr...")
     zarr.consolidate_metadata(str(consolidated_path))
 
-    # --- Finalize global mean/std ---
+    # Finalize global mean/std
     logger.info("Computing final global statistics...")
     global_var = global_M2 / total_count
     global_std = xr.where(global_var == 0, 1.0, np.sqrt(global_var))
 
-    # --- Flatten stats to scalars per variable (drop lat/lon/time) ---
+    # Flatten stats to scalars per variable
     def flatten_stats(ds: xr.Dataset) -> xr.Dataset:
         dims_to_reduce = [d for d in ds.dims if d in ("time", "lat", "lon")]
         if dims_to_reduce:
@@ -796,7 +856,11 @@ def process_mom6_cobalt_data(
     logger.info(f"Global means: {output_means}")
     logger.info(f"Global stds: {output_stds}")
     logger.info(f"Total timesteps: {total_count}")
+    logger.info(f"Expected reduction: ~{100*(1-1/weekly_stride):.0f}% from weekly subsampling")
     logger.info("=" * 60)
+
+    client.close()
+    cluster.close()
 
     return {"data": consolidated_path, "means": output_means, "stds": output_stds}
 
@@ -820,17 +884,19 @@ def main():
         "lon": args.chunk_x,
     }
 
-
     logger.info("=" * 60)
-    logger.info("MOM6-COBALT DATA PREPROCESSOR")
+    logger.info("MOM6-COBALT DATA PREPROCESSOR - WEEKLY SUBSAMPLING")
     logger.info("=" * 60)
     logger.info(f"Input directory: {input_dir}")
     logger.info(f"Output directory: {output_dir}")
     logger.info(f"Years to process: {years}")
     logger.info(f"Months to process: {months}")
     logger.info(f"First year (offset): {args.first_year}")
+    logger.info(f"Weekly sampling: every {args.weekly_stride} days, starting day {args.weekly_day}")
+    logger.info(f"Expected data reduction: ~{100*(1-1/args.weekly_stride):.0f}%")
     logger.info(f"Chunk sizes: {chunk_sizes}")
     logger.info(f"Keep yearly files: {args.keep_yearly}")
+    logger.info(f"Dask workers: {args.n_workers} × {args.threads_per_worker} threads")
     logger.info("=" * 60)
 
     try:
@@ -845,6 +911,11 @@ def main():
             chunk_sizes=chunk_sizes,
             first_year=args.first_year,
             keep_yearly=args.keep_yearly,
+            weekly_stride=args.weekly_stride,
+            weekly_day=args.weekly_day,
+            n_workers=args.n_workers,
+            threads_per_worker=args.threads_per_worker,
+            memory_per_worker=args.memory_per_worker,
         )
         logger.info("Validating processed data...")
         validate_processed_data(output_dir)

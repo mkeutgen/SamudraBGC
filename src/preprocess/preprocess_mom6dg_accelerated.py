@@ -113,7 +113,12 @@ def parse_arguments():
         action="store_true",
         help="Keep individual yearly zarr files in addition to consolidated file",
     )
-
+    parser.add_argument(
+        "--reset-year",
+        type=int,
+        default=None,
+        help="Calendar year to resume from (e.g., 2024). Will append to existing zarr file.",
+    )
     return parser.parse_args()
 
 
@@ -211,9 +216,9 @@ def parse_month_range(month_str: str) -> list[int]:
         return [int(m) for m in month_str.split(",")]
 
 
-def load_mom6_monthly_files(data_dir: Path, year: int, month: int) -> xr.Dataset:
+def load_mom6_monthly_files(data_dir: Path, year: int, month: int, target_chunks: dict = None) -> xr.Dataset:
     """
-    Load MOM6 monthly files (biogeochem, physics, boundary) and optionally apply 5-day averaging.
+    Load MOM6 monthly files (biogeochem, physics, boundary) with optimal chunking.
     Includes time decoding diagnostics.
     """
     bio_pattern = f"hist_control_cobalt_3d_yearly__{year:04d}_{month:02d}.nc"
@@ -224,15 +229,26 @@ def load_mom6_monthly_files(data_dir: Path, year: int, month: int) -> xr.Dataset
     phy_path = data_dir / phy_pattern
     bc_path  = data_dir / bc_pattern
 
+    # Default chunks if not provided
+    if target_chunks is None:
+        target_chunks = {"time": 30}
+
     datasets = []
     for path in [bio_path, phy_path, bc_path]:
         if path.exists():
             logger.info(f"Loading {path.name}")
             try:
-                ds_part = xr.open_dataset(path, engine="netcdf4", decode_times=True, use_cftime=True)
+                # Load with target chunking immediately
+                ds_part = xr.open_dataset(
+                    path, 
+                    engine="netcdf4", 
+                    decode_times=True, 
+                    use_cftime=True,
+                    chunks=target_chunks  # Use target chunks from the start
+                )
             except Exception as e:
                 logger.warning(f"Decode failed for {path.name}: {e}. Retrying with decode_times=False.")
-                ds_part = xr.open_dataset(path, engine="netcdf4", decode_times=False)
+                ds_part = xr.open_dataset(path, engine="netcdf4", decode_times=False, chunks=target_chunks)
             datasets.append(ds_part)
         else:
             logger.warning(f"Missing file: {path.name}")
@@ -304,6 +320,12 @@ def interp_to_tracer_grid(ds: xr.Dataset) -> xr.Dataset:
                 ds = ds.drop_dims(dim)
 
     logger.info(f"  Final dimensions: {list(ds.dims.keys())}")
+    
+    # Unify chunks after all interpolations
+    if hasattr(ds, 'unify_chunks'):
+        logger.info("  Unifying chunks after interpolation...")
+        ds = ds.unify_chunks()
+    
     return ds
 
 
@@ -362,6 +384,7 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
         output_core_dims=[[z_dim, y_dim, x_dim]],
         vectorize=True, 
         dask="parallelized", 
+        dask_gufunc_kwargs={"allow_rechunk": True},  # Safe: z_l is small (50 levels)
         output_dtypes=[float]
     )
     
@@ -377,6 +400,7 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
         output_core_dims=[[z_dim, y_dim, x_dim]],
         vectorize=True,
         dask="parallelized",
+        dask_gufunc_kwargs={"allow_rechunk": True},
         output_dtypes=[float],
     )
     SA.attrs = {
@@ -396,6 +420,7 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
         output_core_dims=[[z_dim, y_dim, x_dim]],
         vectorize=True,
         dask="parallelized",
+        dask_gufunc_kwargs={"allow_rechunk": True},
         output_dtypes=[float],
     )
     CT.attrs = {
@@ -440,6 +465,9 @@ def select_depth_levels(ds: xr.Dataset, target_depths: np.ndarray) -> xr.Dataset
     z_dim = "lev" if "lev" in ds.dims else "z_l"
     if z_dim in ds.dims:
         ds = ds.sel({z_dim: target_depths}, method="nearest")
+        # Unify chunks after selection
+        if hasattr(ds, 'unify_chunks'):
+            ds = ds.unify_chunks()
     return ds
 
 
@@ -449,7 +477,13 @@ def apply_spatial_subset(ds: xr.Dataset, bounds: list[float] | None) -> xr.Datas
     lat_min, lat_max, lon_min, lon_max = bounds
     y_dim = "lat" if "lat" in ds.dims else ("y" if "y" in ds.dims else "yh")
     x_dim = "lon" if "lon" in ds.dims else ("x" if "x" in ds.dims else "xh")
-    return ds.sel({y_dim: slice(lat_min, lat_max), x_dim: slice(lon_min, lon_max)})
+    ds_subset = ds.sel({y_dim: slice(lat_min, lat_max), x_dim: slice(lon_min, lon_max)})
+    
+    # Unify chunks after subsetting to ensure consistency
+    if hasattr(ds_subset, 'unify_chunks'):
+        ds_subset = ds_subset.unify_chunks()
+    
+    return ds_subset
 
 
 def create_masks(ds: xr.Dataset, boundary_width: int = 1) -> xr.Dataset:
@@ -608,6 +642,7 @@ def split_all_3d_vars(ds: xr.Dataset, zdim: str | None = None) -> xr.Dataset:
     return ds
 
 
+
 def process_mom6_cobalt_data(
     input_dir: Path,
     output_dir: Path,
@@ -618,7 +653,8 @@ def process_mom6_cobalt_data(
     compression=1,
     chunk_sizes=None,
     first_year: int = 1,
-    keep_yearly: bool = False) -> dict[str, Path]:
+    keep_yearly: bool = False,
+    reset_year: int = None) -> dict[str, Path]:  # Added reset_year parameter
     """
     Process MOM6-COBALT data with incremental writes to single consolidated zarr file.
 
@@ -627,22 +663,58 @@ def process_mom6_cobalt_data(
     2. Writes directly to a single bgc_data.zarr file using append mode
     3. Computes global statistics incrementally using Welford's method
     4. Optionally keeps individual yearly files
+    5. Can resume from a specific year using --reset-year
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Use available CPUs
-    n_workers = chunk_sizes.get("n_workers", 4)  # Or read from environment
+    # --- Flatten stats to scalars per variable (drop lat/lon/time) ---
+    def flatten_stats(ds: xr.Dataset) -> xr.Dataset:
+        dims_to_reduce = [d for d in ds.dims if d in ("time", "lat", "lon")]
+        if dims_to_reduce:
+            ds = ds.mean(dim=dims_to_reduce, skipna=True, keep_attrs=True)
+        return ds
+
+
+
+    # Determine starting year index
+    start_year_idx = 0
+    if reset_year is not None:
+        # Convert calendar year to simulation year
+        sim_year = years[0] + (reset_year - first_year)
+        try:
+            start_year_idx = years.index(sim_year)
+            logger.info("=" * 60)
+            logger.info(f"RESUMING from calendar year {reset_year} (simulation year {sim_year}, index {start_year_idx})")
+            logger.info("=" * 60)
+        except ValueError:
+            logger.error(f"Reset year {reset_year} (sim year {sim_year}) not found in years list {years}")
+            raise ValueError(f"Invalid reset year: {reset_year}")
+
+    # SPEED FIX 2: Use SLURM resources efficiently but conservatively
+    import os
+    n_cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", 4))
+    
+    # Conservative settings to avoid cluster crashes
+    n_workers = max(4, n_cpus // 4)  # Use 1/4 of CPUs as workers (4 with 16 CPUs)
+    threads_per_worker = 4
+    mem_per_worker = "64GB"
+    
     cluster = LocalCluster(
-        n_workers=8,               # 8 independent workers
-        threads_per_worker=4,      # 4 threads each
-        memory_limit="64GB"        # each worker gets 64 GB (8×64 = 512 GB total)
+        n_workers=n_workers,
+        threads_per_worker=threads_per_worker,
+        memory_limit=mem_per_worker,
+        silence_logs=logging.WARNING,
+        processes=True,  # Use separate processes, not threads
+        death_timeout=300  # 5 min timeout before declaring worker dead
     )    
     client = Client(cluster)
-    logger.info(f"Dask cluster started: {client.dashboard_link}")
+    logger.info(f"Dask cluster: {n_workers} workers × {threads_per_worker} threads = {n_workers * threads_per_worker} total threads")
+    logger.info(f"Memory per worker: {mem_per_worker}")
+    logger.info(f"Dashboard: {client.dashboard_link}")
 
     # Set default chunk sizes if not provided
     if chunk_sizes is None:
-        chunk_sizes = {"time": 365, "lev": 50, "lat": 90, "lon": 90}
+        chunk_sizes = {"time": 1, "lev": 50, "lat": 270, "lon": 180}
 
     total_count = 0
     global_mean = None
@@ -651,14 +723,43 @@ def process_mom6_cobalt_data(
     compressor = Blosc(cname="zstd", clevel=compression, shuffle=Blosc.BITSHUFFLE)
     consolidated_path = output_dir / "bgc_data.zarr"
 
-    for year_idx, y in enumerate(years):
+    output_means = output_dir / "bgc_means.zarr"
+    output_stds = output_dir / "bgc_stds.zarr"
+        
+        # Load existing statistics if resuming
+    if reset_year is not None and output_means.exists() and output_stds.exists():
+        logger.info("Loading previously saved statistics...")
+        saved_mean = xr.open_zarr(output_means, consolidated=True)
+        saved_std = xr.open_zarr(output_stds, consolidated=True)
+        
+        ds_check = xr.open_zarr(consolidated_path, consolidated=False)
+        total_count = ds_check.sizes.get("time", 0)
+        ds_check.close()
+        
+        global_mean = saved_mean
+        saved_var = saved_std ** 2
+        global_M2 = saved_var * total_count
+        logger.info(f"✓ Loaded saved statistics for {total_count} timesteps")
+
+
+
+    for year_idx in range(start_year_idx, len(years)):
+        y = years[year_idx]
         actual_year = first_year + (y - years[0])
-        logger.info(f"Processing year {actual_year} ({year_idx + 1}/{len(years)})")
+        logger.info(f"Processing year {actual_year} ({year_idx + 1}/{len(years)})")        
         yearly_datasets = []
+        # Load with minimal chunking - let natural chunks flow through
+        # We'll unify and rechunk after all transformations are done
+        load_chunks = {
+            "time": -1,  # Single chunk per monthly file
+            "z_l": -1,   # Single chunk for vertical (GSW needs this)
+            # Don't chunk spatial dims at load - we'll subset then rechunk
+        }
+        logger.info(f"Loading files with chunks: {load_chunks}")
 
         for m in months:
             try:
-                ds = load_mom6_monthly_files(input_dir, actual_year, m)
+                ds = load_mom6_monthly_files(input_dir, actual_year, m, target_chunks=load_chunks)
                 ds = interp_to_tracer_grid(ds)  # This now drops xq, yq coords
                 ds = compute_derived_fields(ds)
                 ds = compute_gsw_variables(ds)                
@@ -666,13 +767,27 @@ def process_mom6_cobalt_data(
                 ds = ds[vars_keep]
                 ds = rename_variables(ds)
                 ds = select_depth_levels(ds, DEPTH_LEVELS)
-                ds = rename_dimensions(ds)  # Rename BEFORE splitting & masking
+                ds = rename_dimensions(ds)  # Now we have lat, lon, lev
+                
+                # CRITICAL: Chunk to target sizes RIGHT AFTER rename, BEFORE splitting
+                # This ensures consistent chunks before we create 500+ variables
+                target_chunks_pre_split = {
+                    "time": -1,  # Keep monthly chunk
+                    "lev": -1,   # Single vertical chunk
+                    "lat": chunk_sizes.get("lat", 270),
+                    "lon": chunk_sizes.get("lon", 180)
+                }
+                # Only chunk dimensions that exist
+                target_chunks_pre_split = {k: v for k, v in target_chunks_pre_split.items() if k in ds.dims}
+                logger.info(f"  Chunking monthly data to: {target_chunks_pre_split}")
+                ds = ds.chunk(target_chunks_pre_split)
+                
                 ds = split_all_3d_vars(ds)
                 ds = create_masks(
                     ds, boundary_width
                 )  # Create masks AFTER dimension renaming
                 ds = drop_unused_dimensions(ds)  # Final cleanup
-                ds = drop_time_metadata_vars(ds) # check later if this is what's causing time dim
+                ds = drop_time_metadata_vars(ds)
                 yearly_datasets.append(ds)
             except FileNotFoundError as e:
                 logger.warning(f"Skipping {actual_year}-{m:02d}: {e}")
@@ -682,19 +797,36 @@ def process_mom6_cobalt_data(
             logger.warning(f"No valid data found for {actual_year}")
             continue
 
-        ds_year = xr.concat(yearly_datasets, dim="time", combine_attrs="drop_conflicts")
+        ds_year = xr.concat(yearly_datasets, dim="time", combine_attrs="drop_conflicts", data_vars="minimal")
+        
+        # CRITICAL: Unify chunks after concat to fix inconsistent chunking
+        logger.info("Unifying chunks across all variables...")
+        ds_year = ds_year.unify_chunks()
+        
+        # Rechunk to target sizes for final output
+        # Spatial dims should already be correct from pre-split chunking
+        # Time needs to be chunked from monthly (1-30 per file) to target (e.g., 365)
+        actual_chunks = {
+            "time": min(chunk_sizes.get("time", 365), ds_year.sizes["time"]),
+            "lev": ds_year.sizes.get("lev", 50),  # Keep as single chunk if exists
+            "lat": chunk_sizes.get("lat", 270),   # Use actual value from args
+            "lon": chunk_sizes.get("lon", 180)    # Use actual value from args
+        }
+        # Only include dimensions that actually exist
+        actual_chunks = {k: v for k, v in actual_chunks.items() if k in ds_year.dims}
+        
+        logger.info(f"Rechunking to target sizes: {actual_chunks}")
+        ds_year = ds_year.chunk(actual_chunks)
+        logger.info(f"Final chunks: {ds_year.chunks}")
 
-
-
-        # --- Incremental statistics (Welford method) ---
-        # Exclude mask and wetmask from statistics
+        # --- Update incremental statistics ---
         stat_vars = [v for v in ds_year.data_vars if v not in ["mask", "wetmask"]]
         ds_year_stats = ds_year[stat_vars]
-
+        
         n_i = ds_year_stats.sizes.get("time", 1)
-        mean_i = ds_year_stats.mean(dim="time")
-        var_i = ds_year_stats.var(dim="time", ddof=0)
-
+        mean_i = ds_year_stats.mean(dim="time").compute()
+        var_i = ds_year_stats.var(dim="time", ddof=0).compute()
+        
         if global_mean is None:
             global_mean = mean_i
             global_M2 = var_i * n_i
@@ -709,32 +841,23 @@ def process_mom6_cobalt_data(
                 + (delta**2) * (total_count * n_i / total_count_new)
             )
             total_count = total_count_new
+        
+        # --- WRITE STATISTICS AFTER EACH YEAR (checkpoint) ---
+        logger.info(f"Checkpointing statistics after year {actual_year}...")
+        global_var = global_M2 / total_count
+        global_std = xr.where(global_var == 0, 1.0, np.sqrt(global_var))
+        
+        global_mean_flat = flatten_stats(global_mean)
+        global_std_flat = flatten_stats(global_std)
+        
+        global_mean_flat.to_zarr(output_means, mode="w")
+        zarr.consolidate_metadata(str(output_means))
+        
+        global_std_flat.to_zarr(output_stds, mode="w")
+        zarr.consolidate_metadata(str(output_stds))
+        
+        logger.info(f"✓ Statistics saved (total timesteps: {total_count})")
 
-        # --- Optionally write individual yearly file ---
-        if keep_yearly:
-            yearly_path = output_dir / f"bgc_data_{actual_year}.zarr"
-            encoding = {
-                v: {"compressor": compressor, "dtype": "float32"}
-                for v in ds_year.data_vars
-            }
-            ds_year.astype("float32").to_zarr(
-                yearly_path,
-                mode="w",
-                consolidated=False,
-                zarr_version=2,
-                encoding=encoding,
-            )
-            zarr.consolidate_metadata(str(yearly_path))
-            logger.info(f"Wrote yearly file: {yearly_path}")
-
-        # --- Rechunk for uniform chunk sizes (required by zarr) ---
-        actual_chunks = {}
-        for dim in chunk_sizes:
-            if dim in ds_year.dims:
-                actual_chunks[dim] = min(chunk_sizes[dim], ds_year.sizes[dim])
-
-        logger.info(f"Rechunking with: {actual_chunks}")
-        ds_year = ds_year.chunk(actual_chunks)
 
         # --- Write to consolidated zarr file ---
         encoding = {
@@ -747,9 +870,9 @@ def process_mom6_cobalt_data(
             for v in ds_year.data_vars
         }
 
-
-        if year_idx == 0:
-            # First year: create new zarr file
+        # Changed this condition to account for start_year_idx
+        if year_idx == start_year_idx and start_year_idx == 0:
+            # First year ever: create new zarr file
             logger.info(f"Creating consolidated file: {consolidated_path}")
             ds_year.astype("float32").to_zarr(
                 consolidated_path,
@@ -770,40 +893,10 @@ def process_mom6_cobalt_data(
     # --- Consolidate metadata at the end ---
     logger.info("Consolidating metadata for bgc_data.zarr...")
     zarr.consolidate_metadata(str(consolidated_path))
-
-    # --- Finalize global mean/std ---
-    logger.info("Computing final global statistics...")
-    global_var = global_M2 / total_count
-    global_std = xr.where(global_var == 0, 1.0, np.sqrt(global_var))
-
-    # --- Flatten stats to scalars per variable (drop lat/lon/time) ---
-    def flatten_stats(ds: xr.Dataset) -> xr.Dataset:
-        dims_to_reduce = [d for d in ds.dims if d in ("time", "lat", "lon")]
-        if dims_to_reduce:
-            ds = ds.mean(dim=dims_to_reduce, skipna=True, keep_attrs=True)
-        return ds
-
-    global_mean_flat = flatten_stats(global_mean)
-    global_std_flat = flatten_stats(global_std)
-
-    output_means = output_dir / "bgc_means.zarr"
-    output_stds = output_dir / "bgc_stds.zarr"
-
-    logger.info("Writing flattened global means...")
-    global_mean_flat.to_zarr(output_means, mode="w")
-    zarr.consolidate_metadata(str(output_means))
-
-    logger.info("Writing flattened global stds...")
-    global_std_flat.to_zarr(output_stds, mode="w")
-    zarr.consolidate_metadata(str(output_stds))
-
     logger.info("=" * 60)
     logger.info("Processing completed successfully!")
-    logger.info(f"Consolidated data: {consolidated_path}")
-    logger.info(f"Global means: {output_means}")
-    logger.info(f"Global stds: {output_stds}")
-    logger.info(f"Total timesteps: {total_count}")
-    logger.info("=" * 60)
+    
+
 
     return {"data": consolidated_path, "means": output_means, "stds": output_stds}
 
@@ -852,6 +945,7 @@ def main():
             chunk_sizes=chunk_sizes,
             first_year=args.first_year,
             keep_yearly=args.keep_yearly,
+            reset_year=args.reset_year            
         )
         logger.info("Validating processed data...")
         validate_processed_data(output_dir)
