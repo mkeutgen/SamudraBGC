@@ -13,7 +13,7 @@ scheduler: { type: cosine }
 loss: mse
 finetune: false
 resume_ckpt_path: null
-inference_epochs: [15,30]
+inference_epochs: []
 data_percent: 1.0
 
 # Time ranges using noleap calendar (YYYY-MM-DD format)
