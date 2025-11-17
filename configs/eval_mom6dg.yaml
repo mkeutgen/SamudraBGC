@@ -1,25 +1,24 @@
-
 # yaml-language-server: $schema=schemas/EvalConfig.json
 
 debug: false
 save_zarr: true
 disk_mode: true
 
-# Evaluation time period - your out-of-sample 2025 data
+# Minimal test: just 1 week
 inference_time:
   start: "2025-01-01"
-  end: "2025-12-31"
+  end: "2025-01-07"
 
-num_model_steps_forward: 4  # Match your training rollout steps
+num_model_steps_forward: 1  # Smallest possible - 1 model step at a time
 
 backend: auto
 
 experiment:
-  name: mom6_cobalt_bgc_clim_baseline_eval
+  name: mom6_cobalt_bgc_clim_baseline_eval_test
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
-    mode: disabled  # or "online" if you want logging
+    mode: disabled
     project: ocean-emulators
     entity: m2lines
     group: mom6-cobalt-eval
