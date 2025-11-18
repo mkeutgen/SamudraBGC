@@ -81,6 +81,7 @@ from ocean_emulators.utils.logging import (
 from ocean_emulators.utils.loss import (
     MseDynamic,
     decomposed_mse,
+    decomposed_mae, 
     decomposed_mse_cos_weighted,
     decomposed_mse_diff_weighted,
     decomposed_mse_mae,
@@ -235,6 +236,9 @@ class Trainer:
             case "mse":
                 logger.info("Using decomposed mse loss")
                 self.loss_fn = partial(decomposed_mse, wet=self.wet)
+            case "mae":  # Add this case
+                logger.info("Using decomposed mae loss")
+                self.loss_fn = partial(decomposed_mae, wet=self.wet)            
             case "mse_diff_weighted":
                 assert cfg.data.hist == 1  # TEMP
                 logger.info("Using decomposed mse loss with weighted diff")

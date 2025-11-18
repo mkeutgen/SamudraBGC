@@ -1,16 +1,16 @@
 # yaml-language-server: $schema=schemas/TrainConfig.json
 
-# Training configuration for MOM6-Cobalt with 50 depth levels and noleap calendar
+# EXPERIMENT ONE : Using a mean absolute error loss rather than an MSE 
 
 debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
 epochs: 30
-batch_size: 1  # Reduced for 50 depth levels (more memory required)
+batch_size: 1 
 learning_rate: 0.0002
 scheduler: { type: cosine }
-loss: mae
+loss: mae # -> Only change compared to baseline 
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
@@ -19,12 +19,15 @@ data_percent: 1.0
 # Time ranges using noleap calendar (YYYY-MM-DD format)
 train_time:
   start: "2016-01-01"
-  end: "2023-12-31"   # 8 years for training
+  end: "2023-12-31" # 8 years and a half
 val_time:
   start: "2024-01-01"
-  end: "2024-12-31"    # 1 year for validation
-
-
+  end: "2024-12-31" 
+inference_times:
+  - start: "2024-01-01"  # Validation period
+    end: "2024-06-30"
+  - start: "2025-07-01"  # True Out of Sample Extrapolation test
+    end: "2025-12-31"
 
 data_stride: [1]
 steps: [4]
@@ -41,7 +44,7 @@ experiment:
     project: ocean-emulators
     entity: m2lines
     group: mom6-cobalt-train
-  prognostic_vars_key: bgc_thermo_all  # 357 variables (50 levels × 7 vars + SSH)
+  prognostic_vars_key: full_state_all  # 451 variables (50 levels × 9 vars + SSH)
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim  # UPDATE THIS PATH
 
@@ -50,8 +53,7 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  # For Zarr data: num_workers=0 is often fastest due to I/O overhead
-  # Try 0 first, then 1 with persistent_workers if needed
+  # mkeutgen : this is optimized for the amount of my HPC config and minimize data_load_time, you might have to play with those values a bit
   num_workers: 16
   persistent_workers: true  # Only applies if num_workers > 0
   prefetch_factor: 4  # Only applies if num_workers > 0

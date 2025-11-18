@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=train_bgc
+#SBATCH --job-name=train_bgc_BASELINE
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 #SBATCH --partition=cimes

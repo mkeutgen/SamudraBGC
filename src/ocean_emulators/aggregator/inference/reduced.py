@@ -135,20 +135,27 @@ class AreaWeightedReducedMetric:
             i_time_start: The index of the first timestep in the batch.
         """
         time_dim = 1
+        #print(f"{target.shape=}")
         if target.shape != gen.shape:
             raise RuntimeError(
                 "target and gen must have the same shape, got "
                 f"{target.shape} and {gen.shape}"
             )
+        # submit it to pull request 
+        target = target.squeeze()
+        gen = gen.squeeze()
         new_value = (
             self._compute_metric(target=target, gen=gen).mean(dim=0).to(self._device)
         )
+
         if self._total is None:
             self._total = torch.zeros(
                 [self._n_timesteps], dtype=new_value.dtype, device=self._device
             )
         time_slice = slice(i_time_start, i_time_start + gen.shape[time_dim])
+        
         self._total[time_slice] += new_value
+
         self._n_batches[time_slice] += 1
 
     def get(self) -> torch.Tensor:

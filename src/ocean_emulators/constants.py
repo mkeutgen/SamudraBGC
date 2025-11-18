@@ -171,24 +171,21 @@ SECONDS_PER_5DAY = 5 * 24 * 60 * 60  # 5 day average
 TIME_DELTA = 5  # Time delta in days
 
 PrognosticVarNames = list[str]
+#mkeutgen : All list of prognostic vars should end with _all if all ocean is desired; a subset of ocean levels can be created following ;
+#    "thermo_dynamic_5": [
+#        k + str(j) for k in ["uo_", "vo_", "thetao_", "so_"] for j in DEPTH_I_LEVELS[:5]
+#    ]
+
+
+
 PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
-    # Full state including dynamics
-    "full_state": [
+   # Full state including dynamics
+    "full_state_all": [
         k + str(j)
-        for k in [
-            "dic_",
-            "o2_",
-            "no3_",
-            "pp_",
-            "chl_",  # Biogeochem
-            "temp_",
-            "salt_",  # Thermo
-            "uo_",
-            "vo_",
-        ]  # Dynamic
+        for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_","uo_","vo_"]
         for j in DEPTH_I_LEVELS
     ]
-    + ["SSH"],  # Using SSH
+    + ["SSH"],
     # Without dynamics
     "bgc_thermo_all": [
         k + str(j)
@@ -206,7 +203,7 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
 BoundaryVarNames = list[str]
 BOUNDARY_VARS: dict[str, BoundaryVarNames] = {
     # Full forcing with surface chl for satellite assimilation
-    "full_forcing": ["Qnet", "tauuo", "tauvo", "chl_surface", "PRCmE"],
+    "full_forcing": ["Qnet", "tauuo", "tauvo", "chl_surface","SSH"],
     # Standard forcing
     "standard_forcing": ["Qnet", "tauuo", "tauvo", "PRCmE"],
     # Minimal
@@ -214,11 +211,11 @@ BOUNDARY_VARS: dict[str, BoundaryVarNames] = {
 }
 
 DEFAULT_METADATA = {
-    "CT": {
+    "temp": {
         "long_name": "Conservative Temperature",
         "units": "°C",
     },
-    "SA": {
+    "salt": {
         "long_name": "Absolute Salinity",
         "units": "g/kg",
     },

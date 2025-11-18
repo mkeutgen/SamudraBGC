@@ -44,7 +44,7 @@ experiment:
     project: ocean-emulators
     entity: m2lines
     group: mom6-cobalt-train
-  prognostic_vars_key: bgc_thermo_all  # 357 variables (50 levels × 7 vars + SSH)
+  prognostic_vars_key: full_state_all  # 451 variables (50 levels × 9 vars + SSH)
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim  # UPDATE THIS PATH
 

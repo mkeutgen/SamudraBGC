@@ -618,6 +618,7 @@ class ProfilerConfig(BaseConfig):
 TrainBackendConfig = Literal["cpu", "cuda", "nccl", "auto"]
 LossType = Literal[
     "mse",
+    "mae",
     "mse_diff_weighted",
     "mse_cos_weighted",
     "mse_residual_scaled",

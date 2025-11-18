@@ -7,14 +7,14 @@ disk_mode: true
 # Minimal test: just 1 week
 inference_time:
   start: "2025-01-01"
-  end: "2025-01-07"
+  end: "2025-03-30"
 
-num_model_steps_forward: 1  # Smallest possible - 1 model step at a time
+num_model_steps_forward: 90
 
 backend: auto
 
 experiment:
-  name: mom6_cobalt_bgc_clim_baseline_eval_test
+  name: mom6_cobalt_bgc_clim_baseline_eval
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:

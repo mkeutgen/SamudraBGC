@@ -14,6 +14,15 @@ def decomposed_mse(
     target = target * wet
     return F.mse_loss(pred, target, reduction="none").mean(dim=(0, 2, 3))
 
+def decomposed_mae(
+    pred: torch.Tensor, target: torch.Tensor, wet: torch.Tensor
+) -> torch.Tensor:
+    """Standard MAE (L1) loss computed per channel."""
+    pred = pred * wet
+    target = target * wet
+    return F.l1_loss(pred, target, reduction="none").mean(dim=(0, 2, 3))
+
+
 
 def decomposed_mse_diff_weighted(
     pred: torch.Tensor, target: torch.Tensor, wet: torch.Tensor
