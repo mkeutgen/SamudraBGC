@@ -8,11 +8,6 @@ This adaptation bridges the gap between MOM6 Double Gyre (MOM6-DG) ocean biogeoc
 
 ### 1. Core Modules
 
-- **`mom6_dg_adapter.py`**: Main adapter module containing:
-  - `MOM6DGConfig`: Configuration dataclass for MOM6-DG parameters
-  - `MOM6DGDataProcessor`: Processes raw MOM6-DG outputs into emulator format
-  - `MOM6DGDataValidator`: Validates processed data meets emulator requirements
-
 - **`constants.py`**: MOM6-DG specific constants:
   - Depth level definitions
   - Variable name mappings
@@ -22,12 +17,13 @@ This adaptation bridges the gap between MOM6 Double Gyre (MOM6-DG) ocean biogeoc
 
 ### 2. Configuration Files
 
-- **`configs/train_mom6dg_config.yaml`**: Training configuration template
+- **`configs/train_mom6dg.yaml`**: Training configuration for baseline
+- **`configs/eval_mom6dg.yaml`**: Evaluation configuration template
 - Customizable for different MOM6-DG setups
 
 ### 3. Preprocessing Tools
 
-- **`preprocess_mom6dg_data.py`**: Command-line tool for data preprocessing
+- **`preprocess_mom6dg_data.py`**: Command-line tool for data preprocessing from MOM6-Cobalt to pr
 
 ## Quick Start Guide
 
@@ -93,8 +89,8 @@ After preprocessing, data is restructured to:
 
 ```
 Variables:
-- CT_0, CT_1, ..., CT_49: Temperature at each depth level
-- SA_0, SA_1, ..., SA_49: Salinity at each depth level
+- temp_0, temp_1, ..., temp_49: Temperature at each depth level
+- salt_0, salt_1, ..., salt_49: Salinity at each depth level
 - dic_0, dic_1, ..., dic_49: DIC at each depth level
 - [etc. for all 3D variables]
 - SSH: Sea surface height
@@ -134,22 +130,14 @@ MOM6DG_DEPTH_LEVELS = np.array([
 ```
 
 ### Custom Biogeochemical Models
-
-For different BGC models (e.g., COBALT, BLING, miniBLING), modify:
-
-1. BGC tracer lists in `MOM6DGConfig`
-2. Non-negative variable constraints
-3. Metadata definitions
-
+Still to implement
 ## Variable Sets
 
 ### Prognostic Variable Keys
 
 - `mom6dg_full`: All variables (physics + BGC)
 - `mom6dg_bgc_thermo`: BGC + thermodynamics (no velocity)
-- `mom6dg_bgc_core`: Core BGC tracers only
 - `mom6dg_minimal`: Minimal set for testing
-- `mom6dg_physics`: Physical variables only
 
 ### Boundary Variable Keys
 
@@ -205,62 +193,6 @@ The validator performs these checks:
 - Enable mixed precision training when supported
 - Distribute across multiple GPUs if available
 
-## Example Workflow
-
-```bash
-# 1. Check your MOM6-DG data structure
-ncdump -h /path/to/mom6/ocean_daily.nc | head -50
-
-# 2. Create configuration file
-cat > mom6dg_config.yaml << EOF
-depth_levels: [1.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0]
-bgc_tracers: ["dic", "o2", "no3", "po4"]
-physical_vars: ["temp", "salt", "u", "v", "ssh"]
-forcing_vars: ["sfc_hflux", "taux", "tauy"]
-EOF
-
-# 3. Run preprocessing
-python preprocess_mom6dg_data.py \
-  --input /path/to/mom6/outputs \
-  --output ./processed_data \
-  --config mom6dg_config.yaml \
-  --start-time "0001-01-01" \
-  --end-time "0010-12-31"
-
-# 4. Validate
-python preprocess_mom6dg_data.py \
-  --output ./processed_data \
-  --validate-only
-
-# 5. Train model
-python train_mom6dg.py configs/train_mom6dg_config.yaml
-```
-
-## Integration with Existing BGC Emulator
-
-This adaptation is designed to work alongside the existing BGC emulator code. It:
-
-1. Preserves the original code structure
-2. Uses the same model architectures
-3. Maintains compatibility with existing utilities
-4. Adds MOM6-DG specific handling where needed
-
-## Support and Contributing
-
-For issues specific to MOM6-DG adaptation:
-
-1. Check this README first
-2. Verify your data format matches expectations
-3. Review the validation output for specific errors
-4. Consider contributing improvements back to the project
-
-## Citation
-
-If you use this adaptation in your research, please cite:
-
-- The original BGC emulator paper
-- MOM6 ocean model references
-- Any BGC model specific papers (COBALT, BLING, etc.)
 
 ## License
 
