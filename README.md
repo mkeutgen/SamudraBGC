@@ -13,16 +13,12 @@ This adaptation bridges the gap between MOM6 Double Gyre (MOM6-DG) ocean biogeoc
   - `MOM6DGDataProcessor`: Processes raw MOM6-DG outputs into emulator format
   - `MOM6DGDataValidator`: Validates processed data meets emulator requirements
 
-- **`constants_mom6dg.py`**: MOM6-DG specific constants:
+- **`constants.py`**: MOM6-DG specific constants:
   - Depth level definitions
   - Variable name mappings
   - Prognostic and boundary variable sets
   - Metadata definitions
 
-- **`train_mom6dg.py`**: Modified training script for MOM6-DG data:
-  - `MOM6DGTrainer`: Training class adapted for MOM6-DG
-  - Custom data loading and model initialization
-  - Multi-step training with physical constraints
 
 ### 2. Configuration Files
 
@@ -37,26 +33,10 @@ This adaptation bridges the gap between MOM6 Double Gyre (MOM6-DG) ocean biogeoc
 
 ### Step 1: Prepare Your MOM6-DG Data
 
-```bash
-# Preprocess your MOM6-DG simulation outputs
-python preprocess_mom6dg_data.py \
-  --input /path/to/mom6/outputs \
-  --output /path/to/processed/data \
-  --start-time "0001-01-01" \
-  --end-time "0010-12-31" \
-  --depth-levels 50
-```
 
-### Step 2: Validate Processed Data
 
-```bash
-# Validate that processing was successful
-python preprocess_mom6dg_data.py \
-  --output /path/to/processed/data \
-  --validate-only
-```
 
-### Step 3: Configure Training
+### Step 2: Configure Training
 
 Edit `configs/train_mom6dg_config.yaml`:
 
@@ -72,7 +52,7 @@ unet:
   n_out: 500  # Should match prognostic variable count
 ```
 
-### Step 4: Start Training
+### Step 3: Start Training
 
 ```bash
 # Train the BGC emulator
@@ -284,7 +264,7 @@ If you use this adaptation in your research, please cite:
 
 ## License
 
-This adaptation follows the same license as the original BGC emulator project.
+This adaptation follows the same license as the original Ocean Emulator project by OpenAthena.
 
 ---
 
