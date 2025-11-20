@@ -125,7 +125,7 @@ class NoLeapDate:
     def __init__(self, s: str):
         """Initialize a NoLeapDate from a string in YYYY-MM-DD format."""
         datetime = cftime.datetime.strptime(s, "%Y-%m-%d", calendar="noleap")
-        datetime = datetime.replace(hour=0, minute=0, second=0)
+        datetime = datetime.replace(hour=12, minute=0, second=0)
         self.datetime = datetime
 
     def __str__(self) -> str:
@@ -148,6 +148,40 @@ DateConfig = Annotated[
     WithJsonSchema({"type": "string", "format": "date"}),
 ]
 
+
+
+# class TimeConfig(BaseConfig):
+#    """Represents a time slice of the data.
+#
+#    Endpoints are Julian dates (not times) but cftime stores them in datetimes.
+#    The final endpoint is exclusive.
+#    """
+#
+#    start: DateConfig
+#    end: DateConfig
+#
+#    @property
+#    def time_slice(self) -> slice:
+#        return slice(self.start.datetime, self.end.datetime)
+#
+#    def overlaps(self, other: Self) -> bool:
+#        """Check if this time range overlaps with another time range.
+#
+#        Args:
+#            other: Another TimeConfig to check for overlap
+#
+#        Returns:
+#            True if the time ranges overlap, False otherwise
+#        """
+#        return (
+#            self.start.datetime < other.end.datetime
+#            and self.end.datetime > other.start.datetime
+#        )
+#
+#    def __str__(self) -> str:
+#        return f"{self.start} to {self.end}"
+#
+#
 
 # The TimeConfig class remains the same but now uses NoLeapDate internally
 class TimeConfig(BaseConfig):
@@ -619,6 +653,7 @@ TrainBackendConfig = Literal["cpu", "cuda", "nccl", "auto"]
 LossType = Literal[
     "mse",
     "mae",
+    "gradient_mae",
     "mse_diff_weighted",
     "mse_cos_weighted",
     "mse_residual_scaled",

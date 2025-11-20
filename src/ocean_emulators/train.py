@@ -81,11 +81,12 @@ from ocean_emulators.utils.logging import (
 from ocean_emulators.utils.loss import (
     MseDynamic,
     decomposed_mse,
-    decomposed_mae, 
+    decomposed_mae,
     decomposed_mse_cos_weighted,
     decomposed_mse_diff_weighted,
     decomposed_mse_mae,
     decomposed_mse_scaled,
+    gradient_mae_loss,
 )
 from ocean_emulators.utils.train import (
     CheckpointPaths,
@@ -236,9 +237,16 @@ class Trainer:
             case "mse":
                 logger.info("Using decomposed mse loss")
                 self.loss_fn = partial(decomposed_mse, wet=self.wet)
-            case "mae":  # Add this case
+            case "mae":  
                 logger.info("Using decomposed mae loss")
-                self.loss_fn = partial(decomposed_mae, wet=self.wet)            
+                self.loss_fn = partial(decomposed_mae, wet=self.wet)  
+            case "gradient_mae":
+                logger.info("Using gradient MAE loss (stable for long rollouts)")
+                self.loss_fn = partial(
+                    gradient_mae_loss,
+                    wet=self.wet,
+                    gradient_weight=1.0,
+                )    
             case "mse_diff_weighted":
                 assert cfg.data.hist == 1  # TEMP
                 logger.info("Using decomposed mse loss with weighted diff")
@@ -249,7 +257,7 @@ class Trainer:
                 area_weights = torch.from_numpy(area_weights).to(device=self.device)
                 self.loss_fn = partial(
                     decomposed_mse_cos_weighted, wet=self.wet, cos=area_weights
-                )
+                )               
             case "mse_residual_scaled":
                 logger.info("Using decomposed mse loss with scaled residuals")
                 assert self.data_container.scaling_residuals is not None, (

@@ -104,7 +104,6 @@ DEPTH_LEVELS = [
     699.24,
     998.605,
 ]
-
 # Depth thicknesses - computed from level interfaces
 DEPTH_THICKNESS = [
     2.000,  # Level 0: center at 1.000m
@@ -167,8 +166,8 @@ MASK_VARS = [f"mask_{i}" for i in range(50)]
 
 RHO_0 = 1035.0  # DENSITY_OF_WATER kg/m^3
 CP_SW = 3992.0  # SPECIFIC_HEAT_OF_WATER J/kg/K
-SECONDS_PER_5DAY = 5 * 24 * 60 * 60  # 5 day average
-TIME_DELTA = 5  # Time delta in days
+SECONDS_PER_TIME_STEP = 5 * 24 * 60 * 60  # 5 day average
+TIME_DELTA = 1
 
 PrognosticVarNames = list[str]
 #mkeutgen : All list of prognostic vars should end with _all if all ocean is desired; a subset of ocean levels can be created following ;

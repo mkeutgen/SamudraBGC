@@ -1,15 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=experiment_mae
+#SBATCH --job-name=experiment_mae_gradient
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
-#SBATCH --nodes=8 
+#SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=512G
-#SBATCH --time=12:00:00
+#SBATCH --mem=256G
+#SBATCH --time=06:00:00
 
 ##########################################################################
 ### Maxime's Instructions: GPU Configuration Options                   ###

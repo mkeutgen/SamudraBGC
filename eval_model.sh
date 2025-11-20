@@ -27,7 +27,7 @@ export CUDA_VISIBLE_DEVICES=0
 DATA_PATH=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
 
 # Checkpoint is in saved_nets/, not checkpoints/
-CKPT_PATH="./outputs/mom6_cobalt_bgc_clim_baseline/saved_nets/ema_ckpt.pt"
+CKPT_PATH="./outputs/mom6_cobalt_bgc_clim_mae_gradient/saved_nets/ema_ckpt.pt"
 # CKPT_PATH="./outputs/mom6_cobalt_bgc_clim_baseline/saved_nets/best_validation_ckpt.pt"
 
 # Run evaluation

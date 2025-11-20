@@ -141,9 +141,6 @@ class AreaWeightedReducedMetric:
                 "target and gen must have the same shape, got "
                 f"{target.shape} and {gen.shape}"
             )
-        # submit it to pull request 
-        target = target.squeeze()
-        gen = gen.squeeze()
         new_value = (
             self._compute_metric(target=target, gen=gen).mean(dim=0).to(self._device)
         )

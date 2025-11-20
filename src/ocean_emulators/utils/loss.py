@@ -168,6 +168,107 @@ class MseDynamic:
 
 
 
+def gradient_mae_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    wet: torch.Tensor,
+    gradient_weight: float = 1.0,
+) -> torch.Tensor:
+    """
+    MAE on values + gradients. Stable for long rollouts.
+    
+    Same principle as gradient_mse, but L1 norm for stability:
+    - More robust to outliers
+    - Stable gradients (sign-based, not magnitude-based)
+    - Better for autoregressive prediction
+    
+    Use for: Long rollouts (>7 days), autoregressive prediction
+    """
+    pred = pred * wet
+    target = target * wet
+    
+    # Value MAE (L1)
+    value_loss = F.l1_loss(pred, target, reduction='none')
+    
+    # Gradient MAE (L1 on derivatives)
+    gy_pred = pred[:, :, 1:, :] - pred[:, :, :-1, :]
+    gx_pred = pred[:, :, :, 1:] - pred[:, :, :, :-1]
+    gy_target = target[:, :, 1:, :] - target[:, :, :-1, :]
+    gx_target = target[:, :, :, 1:] - target[:, :, :, :-1]
+    
+    gy_loss = F.l1_loss(gy_pred, gy_target, reduction='none')
+    gx_loss = F.l1_loss(gx_pred, gx_target, reduction='none')
+    
+    # Pad and combine
+    gy_loss = F.pad(gy_loss, (0, 0, 0, 1), value=0)
+    gx_loss = F.pad(gx_loss, (0, 1, 0, 0), value=0)
+    gradient_loss = (gy_loss + gx_loss) / 2.0
+    
+    return (value_loss + gradient_weight * gradient_loss).mean(dim=(0, 2, 3))
+
+
+# ============================================================================
+# LAPLACIAN VERSIONS (still not tested)
+# ============================================================================
+
+def laplacian_mae_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    wet: torch.Tensor,
+    laplacian_weight: float = 0.5,
+) -> torch.Tensor:
+    """
+    MAE on values + Laplacian (second derivatives).
+    Matches curvature → maximum sharpness.
+    
+    Use if gradient_mae still too smooth.
+    """
+    pred = pred * wet
+    target = target * wet
+    
+    # Value MAE
+    value_loss = F.l1_loss(pred, target, reduction='none')
+    
+    # Laplacian (∇² = ∂²/∂x² + ∂²/∂y²)
+    def laplacian(field):
+        f_yy = field[:, :, 2:, :] - 2*field[:, :, 1:-1, :] + field[:, :, :-2, :]
+        f_xx = field[:, :, :, 2:] - 2*field[:, :, :, 1:-1] + field[:, :, :, :-2]
+        h_min = min(f_yy.shape[2], f_xx.shape[2])
+        w_min = min(f_yy.shape[3], f_xx.shape[3])
+        return f_yy[:, :, :h_min, :w_min] + f_xx[:, :, :h_min, :w_min]
+    
+    lap_pred = laplacian(pred)
+    lap_target = laplacian(target)
+    lap_loss = F.l1_loss(lap_pred, lap_target, reduction='none')
+    
+    # Pad back
+    pad_h = (pred.shape[2] - lap_loss.shape[2]) // 2
+    pad_w = (pred.shape[3] - lap_loss.shape[3]) // 2
+    lap_loss = F.pad(lap_loss, (pad_w, pad_w, pad_h, pad_h), value=0)
+    
+    return (value_loss + laplacian_weight * lap_loss).mean(dim=(0, 2, 3))
+
+
+def gradient_laplacian_mae_combined_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    wet: torch.Tensor,
+    gradient_weight: float = 1.0,
+    laplacian_weight: float = 0.3,
+) -> torch.Tensor:
+    """
+    MAE on values + gradients + Laplacian.
+    Most comprehensive: stability + phase coherence + maximum sharpness.
+    
+    Use for: Long rollouts + need very sharp features
+    """
+    grad_loss = gradient_mae_loss(pred, target, wet, gradient_weight=1.0)
+    lapl_loss = laplacian_mae_loss(pred, target, wet, laplacian_weight=1.0)
+    return grad_loss + laplacian_weight * lapl_loss
+
+
+
+
 # MK : I still need to figure how to implement this loss function to better penalize lack of coherence of fronts 
 def gradient_structure_loss(field_true, field_pred, patch_size=5):
 	"""

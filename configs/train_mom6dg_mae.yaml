@@ -6,11 +6,11 @@ debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 30
+epochs: 60
 batch_size: 1 
 learning_rate: 0.0002
 scheduler: { type: cosine }
-loss: mae # -> Only change compared to baseline 
+loss: gradient_mae # -> Only change compared to baseline 
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
@@ -36,7 +36,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: mom6_cobalt_bgc_clim_mae
+  name: mom6_cobalt_bgc_clim_mae_gradient
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:

@@ -18,8 +18,8 @@ data_percent: 1.0
 
 # Time ranges using noleap calendar (YYYY-MM-DD format)
 train_time:
-  start: "2016-01-01"
-  end: "2023-12-31" # 8 years and a half
+  start: "1960-01-01"
+  end: "1979-12-31" # 8 years and a half
 val_time:
   start: "2024-01-01"
   end: "2024-12-31" 

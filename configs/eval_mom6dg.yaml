@@ -7,14 +7,14 @@ disk_mode: true
 # Minimal test: just 1 week
 inference_time:
   start: "2025-01-01"
-  end: "2025-03-30"
+  end: "2025-06-30"
 
-num_model_steps_forward: 90
+num_model_steps_forward: 10
 
 backend: auto
 
 experiment:
-  name: mom6_cobalt_bgc_clim_baseline_eval
+  name: mom6_cobalt_bgc_clim_mae_grad_eval
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
@@ -22,7 +22,7 @@ experiment:
     project: ocean-emulators
     entity: m2lines
     group: mom6-cobalt-eval
-  prognostic_vars_key: bgc_thermo_all
+  prognostic_vars_key: full_state_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
 
