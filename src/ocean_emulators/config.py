@@ -652,13 +652,15 @@ class ProfilerConfig(BaseConfig):
 TrainBackendConfig = Literal["cpu", "cuda", "nccl", "auto"]
 LossType = Literal[
     "mse",
-    "mae",
-    "gradient_mae",
+    "mae",  
+    "mae_gradient",           
+    "mae_gradient_weighted",  
+    "mae_gradient_multiscale", # for later test
     "mse_diff_weighted",
-    "mse_cos_weighted",
+    "mse_cos_weighted",  
     "mse_residual_scaled",
     "mse_mae",
-    "mse_dynamic",
+    "mse_dynamic", 
     "mse_dynamic_no_limit",
 ]
 
@@ -674,6 +676,8 @@ class TrainConfig(TopLevelConfig):
     learning_rate: float = 2e-4
     scheduler: SchedulerConfig | None = None
     loss: LossType = "mse"
+    gradient_weight: float = 0.1     
+    gradient_scales: list[int] = None 
     finetune: bool = False
     resume_ckpt_path: str | None = None
     debug: bool = False

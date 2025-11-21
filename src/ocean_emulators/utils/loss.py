@@ -167,106 +167,198 @@ class MseDynamic:
             self._per_channel_scale = state["per_channel_scale"].to(self._wet.device)
 
 
+#############################################
+##### Maxime Custom Loss Funs ##################
+################################################
 
-def gradient_mae_loss(
-    pred: torch.Tensor,
-    target: torch.Tensor,
-    wet: torch.Tensor,
-    gradient_weight: float = 1.0,
+
+def decomposed_mae_gradient(
+    pred: torch.Tensor, target: torch.Tensor, wet: torch.Tensor
 ) -> torch.Tensor:
     """
-    MAE on values + gradients. Stable for long rollouts.
+    MAE loss with spatial gradient matching penalty (unweighted version).
     
-    Same principle as gradient_mse, but L1 norm for stability:
-    - More robust to outliers
-    - Stable gradients (sign-based, not magnitude-based)
-    - Better for autoregressive prediction
+    This is your current implementation made explicit. The gradient term
+    has implicit weight of 1.0 relative to the MAE term.
     
-    Use for: Long rollouts (>7 days), autoregressive prediction
+    Loss = MAE(pred, target) + gradient_penalty(pred, target)
+    
+    Args:
+        pred: Predicted tensor [batch, channels, height, width]
+        target: Target tensor [batch, channels, height, width]
+        wet: Wet mask [batch, channels, height, width]
+    
+    Returns:
+        Loss per channel [channels]
     """
     pred = pred * wet
     target = target * wet
     
-    # Value MAE (L1)
-    value_loss = F.l1_loss(pred, target, reduction='none')
+    # MAE term
+    mae_loss = F.l1_loss(pred, target, reduction="none")
     
-    # Gradient MAE (L1 on derivatives)
-    gy_pred = pred[:, :, 1:, :] - pred[:, :, :-1, :]
-    gx_pred = pred[:, :, :, 1:] - pred[:, :, :, :-1]
-    gy_target = target[:, :, 1:, :] - target[:, :, :-1, :]
-    gx_target = target[:, :, :, 1:] - target[:, :, :, :-1]
+    # Gradient penalty: Match spatial gradients
+    # Compute gradients in x and y directions using finite differences
+    pred_grad_y = pred[:, :, 1:, :] - pred[:, :, :-1, :]  # dy
+    pred_grad_x = pred[:, :, :, 1:] - pred[:, :, :, :-1]  # dx
     
-    gy_loss = F.l1_loss(gy_pred, gy_target, reduction='none')
-    gx_loss = F.l1_loss(gx_pred, gx_target, reduction='none')
+    target_grad_y = target[:, :, 1:, :] - target[:, :, :-1, :]
+    target_grad_x = target[:, :, :, 1:] - target[:, :, :, :-1]
     
-    # Pad and combine
-    gy_loss = F.pad(gy_loss, (0, 0, 0, 1), value=0)
-    gx_loss = F.pad(gx_loss, (0, 1, 0, 0), value=0)
-    gradient_loss = (gy_loss + gx_loss) / 2.0
+    # L1 loss on gradients
+    grad_loss_y = F.l1_loss(pred_grad_y, target_grad_y, reduction="none")
+    grad_loss_x = F.l1_loss(pred_grad_x, target_grad_x, reduction="none")
     
-    return (value_loss + gradient_weight * gradient_loss).mean(dim=(0, 2, 3))
+    # Average gradient losses (need to pad to match spatial dims)
+    grad_loss = (
+        F.pad(grad_loss_y, (0, 0, 0, 1), value=0).mean(dim=(0, 2, 3)) +
+        F.pad(grad_loss_x, (0, 1, 0, 0), value=0).mean(dim=(0, 2, 3))
+    ) / 2
+    
+    # Combined loss (equal weighting)
+    mae_per_channel = mae_loss.mean(dim=(0, 2, 3))
+    total_loss = mae_per_channel + grad_loss
+    
+    return total_loss
 
 
-# ============================================================================
-# LAPLACIAN VERSIONS (still not tested)
-# ============================================================================
-
-def laplacian_mae_loss(
-    pred: torch.Tensor,
-    target: torch.Tensor,
+def decomposed_mae_gradient_weighted(
+    pred: torch.Tensor, 
+    target: torch.Tensor, 
     wet: torch.Tensor,
-    laplacian_weight: float = 0.5,
+    gradient_weight: float = 0.1
 ) -> torch.Tensor:
     """
-    MAE on values + Laplacian (second derivatives).
-    Matches curvature → maximum sharpness.
+    MAE loss with WEIGHTED spatial gradient matching penalty.
     
-    Use if gradient_mae still too smooth.
+    This is the KEY fix for your bias problem. By controlling gradient_weight,
+    you can balance accuracy (MAE term) vs sharpness (gradient term).
+    
+    Loss = MAE(pred, target) + α * gradient_penalty(pred, target)
+    
+    where α = gradient_weight is a tunable hyperparameter.
+    
+    Recommended starting values:
+    - α = 0.05: Very conservative, prioritize accuracy
+    - α = 0.1:  Conservative, good balance (EXP 1A)
+    - α = 0.25: Moderate, more sharpness (EXP 1B)
+    - α = 0.5:  Aggressive sharpening
+    - α = 1.0:  Equal weighting (your current unweighted version)
+    
+    Args:
+        pred: Predicted tensor [batch, channels, height, width]
+        target: Target tensor [batch, channels, height, width]
+        wet: Wet mask [batch, channels, height, width]
+        gradient_weight: Scaling factor α for gradient penalty
+    
+    Returns:
+        Loss per channel [channels]
     """
     pred = pred * wet
     target = target * wet
     
-    # Value MAE
-    value_loss = F.l1_loss(pred, target, reduction='none')
+    # MAE term (main accuracy objective)
+    mae_loss = F.l1_loss(pred, target, reduction="none")
+    mae_per_channel = mae_loss.mean(dim=(0, 2, 3))
     
-    # Laplacian (∇² = ∂²/∂x² + ∂²/∂y²)
-    def laplacian(field):
-        f_yy = field[:, :, 2:, :] - 2*field[:, :, 1:-1, :] + field[:, :, :-2, :]
-        f_xx = field[:, :, :, 2:] - 2*field[:, :, :, 1:-1] + field[:, :, :, :-2]
-        h_min = min(f_yy.shape[2], f_xx.shape[2])
-        w_min = min(f_yy.shape[3], f_xx.shape[3])
-        return f_yy[:, :, :h_min, :w_min] + f_xx[:, :, :h_min, :w_min]
+    # Gradient penalty: Match spatial gradients
+    pred_grad_y = pred[:, :, 1:, :] - pred[:, :, :-1, :]
+    pred_grad_x = pred[:, :, :, 1:] - pred[:, :, :, :-1]
     
-    lap_pred = laplacian(pred)
-    lap_target = laplacian(target)
-    lap_loss = F.l1_loss(lap_pred, lap_target, reduction='none')
+    target_grad_y = target[:, :, 1:, :] - target[:, :, :-1, :]
+    target_grad_x = target[:, :, :, 1:] - target[:, :, :, :-1]
     
-    # Pad back
-    pad_h = (pred.shape[2] - lap_loss.shape[2]) // 2
-    pad_w = (pred.shape[3] - lap_loss.shape[3]) // 2
-    lap_loss = F.pad(lap_loss, (pad_w, pad_w, pad_h, pad_h), value=0)
+    grad_loss_y = F.l1_loss(pred_grad_y, target_grad_y, reduction="none")
+    grad_loss_x = F.l1_loss(pred_grad_x, target_grad_x, reduction="none")
     
-    return (value_loss + laplacian_weight * lap_loss).mean(dim=(0, 2, 3))
+    # Average gradient losses
+    grad_loss = (
+        F.pad(grad_loss_y, (0, 0, 0, 1), value=0).mean(dim=(0, 2, 3)) +
+        F.pad(grad_loss_x, (0, 1, 0, 0), value=0).mean(dim=(0, 2, 3))
+    ) / 2
+    
+    # Weighted combination
+    total_loss = mae_per_channel + gradient_weight * grad_loss
+    
+    return total_loss
 
 
-def gradient_laplacian_mae_combined_loss(
+def decomposed_mae_gradient_multiscale(
     pred: torch.Tensor,
-    target: torch.Tensor,
+    target: torch.Tensor, 
     wet: torch.Tensor,
-    gradient_weight: float = 1.0,
-    laplacian_weight: float = 0.3,
+    gradient_weight: float = 0.15,
+    scales: list[int] = None
 ) -> torch.Tensor:
     """
-    MAE on values + gradients + Laplacian.
-    Most comprehensive: stability + phase coherence + maximum sharpness.
+    MAE loss with MULTI-SCALE gradient matching (Tier 2 experiment).
     
-    Use for: Long rollouts + need very sharp features
+    Instead of matching gradients at a single scale, this matches gradient
+    statistics at multiple spatial scales. This is inspired by perceptual loss
+    and helps preserve both fine-scale fronts and large-scale patterns.
+    
+    Loss = MAE + α * Σ_scales gradient_penalty_at_scale
+    
+    This is more sophisticated than simple gradient matching and may better
+    preserve the structure of oceanic fronts while maintaining accuracy.
+    
+    Args:
+        pred: Predicted tensor [batch, channels, height, width]
+        target: Target tensor [batch, channels, height, width]
+        wet: Wet mask [batch, channels, height, width]
+        gradient_weight: Scaling factor for total gradient penalty
+        scales: List of pooling sizes for multi-scale (default: [1, 2, 4])
+    
+    Returns:
+        Loss per channel [channels]
     """
-    grad_loss = gradient_mae_loss(pred, target, wet, gradient_weight=1.0)
-    lapl_loss = laplacian_mae_loss(pred, target, wet, laplacian_weight=1.0)
-    return grad_loss + laplacian_weight * lapl_loss
-
-
+    if scales is None:
+        scales = [1, 2, 4]
+    
+    pred = pred * wet
+    target = target * wet
+    
+    # MAE term
+    mae_loss = F.l1_loss(pred, target, reduction="none")
+    mae_per_channel = mae_loss.mean(dim=(0, 2, 3))
+    
+    # Multi-scale gradient penalty
+    total_grad_loss = 0.0
+    
+    for scale in scales:
+        # Downsample if scale > 1
+        if scale > 1:
+            pred_scaled = F.avg_pool2d(pred, kernel_size=scale, stride=scale)
+            target_scaled = F.avg_pool2d(target, kernel_size=scale, stride=scale)
+        else:
+            pred_scaled = pred
+            target_scaled = target
+        
+        # Compute gradients at this scale
+        pred_grad_y = pred_scaled[:, :, 1:, :] - pred_scaled[:, :, :-1, :]
+        pred_grad_x = pred_scaled[:, :, :, 1:] - pred_scaled[:, :, :, :-1]
+        
+        target_grad_y = target_scaled[:, :, 1:, :] - target_scaled[:, :, :-1, :]
+        target_grad_x = target_scaled[:, :, :, 1:] - target_scaled[:, :, :, :-1]
+        
+        # L1 loss on gradients at this scale
+        grad_loss_y = F.l1_loss(pred_grad_y, target_grad_y, reduction="none")
+        grad_loss_x = F.l1_loss(pred_grad_x, target_grad_x, reduction="none")
+        
+        # Average and accumulate
+        scale_grad_loss = (
+            grad_loss_y.mean(dim=(0, 2, 3)) + grad_loss_x.mean(dim=(0, 2, 3))
+        ) / 2
+        
+        total_grad_loss = total_grad_loss + scale_grad_loss
+    
+    # Average over scales
+    total_grad_loss = total_grad_loss / len(scales)
+    
+    # Weighted combination
+    total_loss = mae_per_channel + gradient_weight * total_grad_loss
+    
+    return total_loss
 
 
 # MK : I still need to figure how to implement this loss function to better penalize lack of coherence of fronts 

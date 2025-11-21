@@ -86,7 +86,9 @@ from ocean_emulators.utils.loss import (
     decomposed_mse_diff_weighted,
     decomposed_mse_mae,
     decomposed_mse_scaled,
-    gradient_mae_loss,
+    decomposed_mae_gradient,           
+    decomposed_mae_gradient_weighted,  
+    decomposed_mae_gradient_multiscale, 
 )
 from ocean_emulators.utils.train import (
     CheckpointPaths,
@@ -240,13 +242,6 @@ class Trainer:
             case "mae":  
                 logger.info("Using decomposed mae loss")
                 self.loss_fn = partial(decomposed_mae, wet=self.wet)  
-            case "gradient_mae":
-                logger.info("Using gradient MAE loss (stable for long rollouts)")
-                self.loss_fn = partial(
-                    gradient_mae_loss,
-                    wet=self.wet,
-                    gradient_weight=1.0,
-                )    
             case "mse_diff_weighted":
                 assert cfg.data.hist == 1  # TEMP
                 logger.info("Using decomposed mse loss with weighted diff")
@@ -292,6 +287,26 @@ class Trainer:
                     ).to(device=self.device),
                     should_limit=should_limit,
                 )
+            case "mae_gradient":
+                logger.info("Using MAE loss with gradient penalty")
+                self.loss_fn = partial(decomposed_mae_gradient, wet=self.wet)
+            
+            case "mae_gradient_weighted":
+                logger.info(f"Using MAE loss with weighted gradient penalty (α={cfg.gradient_weight})")
+                self.loss_fn = partial(
+                    decomposed_mae_gradient_weighted,
+                    wet=self.wet,
+                    gradient_weight=cfg.gradient_weight
+                )
+            
+            case "mae_gradient_multiscale":  # for later
+                logger.info(f"Using MAE loss with multi-scale gradient penalty")
+                self.loss_fn = partial(
+                    decomposed_mae_gradient_multiscale,
+                    wet=self.wet,
+                    gradient_weight=cfg.gradient_weight,
+                    scales=cfg.gradient_scales or [1, 2, 4]
+                )            
             case _:
                 assert_never(cfg.loss)
 
