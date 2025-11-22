@@ -32,7 +32,6 @@ srun python preprocess_mom6dg_parallelized.py \
   --years 1-10 \
   --months 1-12 \
   --compression 1 \
-  --add-helmholtz \
   --grid-spacing 9000.0 \
   --boundary-width 1 \
   --chunk-time 1 \

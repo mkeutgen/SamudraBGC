@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=compute-stats
+#SBATCH --output=logs/%x-%j.out
+#SBATCH --error=logs/%x-%j.err
+#SBATCH --partition=cimes
+#SBATCH --account=cimes3
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64G
+#SBATCH --time=10:00:00
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=mk0964@princeton.edu
+
+module purge
+module load anaconda3/2024.10
+conda activate preprocess_env
+
+cd /scratch/cimes/maximek/INMOS/Ocean_Emulator/src/preprocess/
+
+python compute_stats.py
