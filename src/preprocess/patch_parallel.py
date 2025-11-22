@@ -1,3 +1,10 @@
+#!/usr/bin/env python
+"""
+Parallelized Helmholtz Decomposition Patch for Existing Zarr Data
+=================================================================
+Adds psi and phi to already-processed bgc_data.zarr with parallel processing.
+"""
+
 import logging
 from pathlib import Path
 import numpy as np
@@ -5,8 +12,10 @@ import xarray as xr
 import zarr
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import spsolve
-from tqdm import tqdm
-
+import dask
+from dask.distributed import Client, LocalCluster
+from dask.diagnostics import ProgressBar
+import time
 logging.basicConfig(
     level=logging.INFO, 
     format="%(asctime)s - %(levelname)s - %(message)s"
@@ -109,8 +118,47 @@ def compute_helmholtz(u, v, dx, dy, L_neumann, L_dirichlet):
     
     return psi, phi
 
-def add_helmholtz_to_zarr(ds_path, dx, dy):
-    """Add psi and phi fields to existing zarr dataset without modifying existing data."""
+def process_single_depth_time_from_zarr(zarr_path, t_idx, z, dx, dy, L_neumann, L_dirichlet):
+    """Process a single (depth, time) - loads data from zarr inside worker."""
+    import xarray as xr
+    import numpy as np
+    
+    # Load data inside the worker
+    ds = xr.open_zarr(zarr_path, consolidated=True)
+    u = ds[f"uo_{z}"].isel(time=t_idx).values
+    v = ds[f"vo_{z}"].isel(time=t_idx).values
+    
+    # Handle NaN
+    u = np.nan_to_num(u, nan=0.0)
+    v = np.nan_to_num(v, nan=0.0)
+    
+    # Compute Helmholtz decomposition
+    psi, phi = compute_helmholtz(u, v, dx, dy, L_neumann, L_dirichlet)
+    
+    return t_idx, z, psi.astype('f4'), phi.astype('f4')
+
+
+def add_helmholtz_to_zarr_parallel(ds_path, dx, dy, n_workers=30):
+    """Add psi and phi fields with batched parallel processing."""
+    
+    # Setup Dask cluster
+    logger.info("Setting up Dask cluster...")
+    cluster = LocalCluster(
+        n_workers=n_workers,
+        threads_per_worker=1,
+        memory_limit="16GB",
+        silence_logs=logging.WARNING,
+        processes=True,
+        death_timeout=300
+    )
+    client = Client(cluster)
+    
+    logger.info("=" * 60)
+    logger.info(f"Dask Cluster:")
+    logger.info(f"  Workers: {n_workers}")
+    logger.info(f"  Dashboard: {client.dashboard_link}")
+    logger.info("=" * 60)
+    
     logger.info("Loading dataset...")
     ds = xr.open_zarr(ds_path, consolidated=True)
     
@@ -118,12 +166,10 @@ def add_helmholtz_to_zarr(ds_path, dx, dy):
     n_times = len(ds.time)
     n_depths = 50
     
-    # Get existing chunk size from uo_0
     existing_chunks = ds['uo_0'].chunks
     time_chunk = existing_chunks[0][0] if existing_chunks[0] else 1
     
     logger.info(f"Grid: {ny} x {nx}, Times: {n_times}, Depths: {n_depths}")
-    logger.info(f"Using chunk size: ({time_chunk}, {ny}, {nx})")
     logger.info("Building Laplacian matrices...")
     L_neumann = build_laplacian_neumann(ny, nx, dx, dy)
     L_dirichlet = build_laplacian_dirichlet(ny, nx, dx, dy)
@@ -131,49 +177,81 @@ def add_helmholtz_to_zarr(ds_path, dx, dy):
     # Open zarr in append mode
     store = zarr.open(str(ds_path), mode='a')
     
-    # Create new arrays for psi and phi if they don't exist
-    logger.info("Creating psi and phi arrays...")
+    # Create new arrays WITH proper xarray metadata
+    logger.info("Creating psi and phi arrays with xarray metadata...")
     for z in range(n_depths):
         if f'psi_{z}' not in store:
-            store.create_dataset(
+            arr = store.create_dataset(
                 f'psi_{z}',
                 shape=(n_times, ny, nx),
                 chunks=(time_chunk, ny, nx),
                 dtype='f4',
                 compressor=zarr.Blosc(cname='zstd', clevel=4)
             )
+            # Add xarray metadata attributes
+            arr.attrs['_ARRAY_DIMENSIONS'] = ['time', 'lat', 'lon']
+            
         if f'phi_{z}' not in store:
-            store.create_dataset(
+            arr = store.create_dataset(
                 f'phi_{z}',
                 shape=(n_times, ny, nx),
                 chunks=(time_chunk, ny, nx),
                 dtype='f4',
                 compressor=zarr.Blosc(cname='zstd', clevel=4)
             )
+            # Add xarray metadata attributes
+            arr.attrs['_ARRAY_DIMENSIONS'] = ['time', 'lat', 'lon']
     
-    # Process each timestep
-    for t_idx in tqdm(range(n_times), desc="Processing time steps"):
-        for z in tqdm(range(n_depths), desc=f"  Depth levels", leave=False):
-            # Load velocities
-            u = ds[f"uo_{z}"].isel(time=t_idx).values
-            v = ds[f"vo_{z}"].isel(time=t_idx).values
-            
-            # Handle NaN
-            u = np.nan_to_num(u, nan=0.0)
-            v = np.nan_to_num(v, nan=0.0)
-            
-            # Compute Helmholtz decomposition
-            psi, phi = compute_helmholtz(u, v, dx, dy, L_neumann, L_dirichlet)
-            
-            # Write to zarr (only writes to new arrays)
-            store[f'psi_{z}'][t_idx, :, :] = psi.astype('f4')
-            store[f'phi_{z}'][t_idx, :, :] = phi.astype('f4')
+    # Process in batches of time steps
+    batch_size = 100
+    total_batches = (n_times + batch_size - 1) // batch_size
     
-    # Consolidate metadata
+    logger.info(f"Processing {n_times} timesteps in {total_batches} batches of {batch_size}")
+    logger.info(f"Total tasks: {n_times * n_depths}")
+    
+    for batch_idx in range(total_batches):
+        t_start = batch_idx * batch_size
+        t_end = min(t_start + batch_size, n_times)
+        
+        batch_start_time = time.time()
+        logger.info(f"Batch {batch_idx + 1}/{total_batches}: timesteps {t_start}-{t_end}")
+        
+        # Create tasks
+        tasks = []
+        for z in range(n_depths):
+            for t_idx in range(t_start, t_end):
+                task = dask.delayed(process_single_depth_time_from_zarr)(
+                    str(ds_path), t_idx, z, dx, dy, L_neumann, L_dirichlet
+                )
+                tasks.append(task)
+        
+        # Compute
+        logger.info(f"  Computing {len(tasks)} tasks...")
+        results = client.compute(tasks, sync=True)
+        
+        # Write
+        logger.info(f"  Writing results...")
+        for t_idx, z, psi, phi in results:
+            store[f'psi_{z}'][t_idx, :, :] = psi
+            store[f'phi_{z}'][t_idx, :, :] = phi
+        
+        batch_time = time.time() - batch_start_time
+        remaining_batches = total_batches - (batch_idx + 1)
+        est_remaining = (batch_time * remaining_batches) / 60
+        
+        logger.info(f"  ✓ Batch complete in {batch_time/60:.1f} min ({100*(t_end)/n_times:.1f}% total)")
+        if remaining_batches > 0:
+            logger.info(f"  Estimated time remaining: {est_remaining:.1f} minutes")
+    
+    # Consolidate metadata ONLY after ALL batches complete
     logger.info("Consolidating metadata...")
     zarr.consolidate_metadata(str(ds_path))
     
-    logger.info("Helmholtz decomposition added successfully!")
+    # Cleanup
+    client.close()
+    cluster.close()
+    
+    logger.info("✓ Helmholtz decomposition complete!")
 
 def flatten_stats(ds: xr.Dataset) -> xr.Dataset:
     """Flatten stats to scalars per variable (drop lat/lon/time)"""
@@ -193,11 +271,14 @@ def main():
     dx = 9000.0  # meters
     dy = 9000.0  # meters
     
+    # Number of workers (adjust based on your SLURM allocation)
+    n_workers = 30  # With 512GB, can use 30 workers @ 16GB each
+    
     logger.info("=" * 60)
-    logger.info("Step 1: Adding Helmholtz decomposition (psi, phi)")
+    logger.info("Step 1: Adding Helmholtz decomposition (psi, phi) IN PARALLEL")
     logger.info("=" * 60)
     
-    add_helmholtz_to_zarr(input_path, dx, dy)
+    add_helmholtz_to_zarr_parallel(input_path, dx, dy, n_workers=n_workers)
     
     logger.info("=" * 60)
     logger.info("Step 2: Computing statistics from bgc_data.zarr")

@@ -24,7 +24,7 @@ export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export NUMEXPR_MAX_THREADS=$SLURM_CPUS_PER_TASK
 
-srun python preprocess_mom6dg_accelerated.py \
+srun python preprocess_mom6dg_data.py \
   --input /scratch/cimes/maximek/INMOS/original_data/ \
   --output /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim \
   --spatial-subset 25.0 55.0 -45.0 -25.0 \
@@ -33,8 +33,7 @@ srun python preprocess_mom6dg_accelerated.py \
   --years 1-10 \
   --months 1-12 \
   --compression 1 \
-  --chunk-time 1 \
+  --chunk-time 365 \
   --chunk-lev 50 \
-  --chunk-y 270 \
-  --chunk-x 180 \
-  --reset-year 2024
+  --chunk-y 90 \
+  --chunk-x 90 
