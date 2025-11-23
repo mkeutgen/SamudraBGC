@@ -22,38 +22,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def build_laplacian_neumann(ny, nx, dx, dy):
-    """Build 2D Laplacian with Neumann BC for velocity potential φ."""
-    N = nx * ny
-    L = lil_matrix((N, N))
-    
-    dx2_inv = 1.0 / (dx * dx)
-    dy2_inv = 1.0 / (dy * dy)
-    
-    for i in range(ny):
-        for j in range(nx):
-            idx = i * nx + j
-            center = 0.0
-            
-            if j > 0:
-                L[idx, idx - 1] = dx2_inv
-                center -= dx2_inv
-            if j < nx - 1:
-                L[idx, idx + 1] = dx2_inv
-                center -= dx2_inv
-            if i > 0:
-                L[idx, idx - nx] = dy2_inv
-                center -= dy2_inv
-            if i < ny - 1:
-                L[idx, idx + nx] = dy2_inv
-                center -= dy2_inv
-            
-            L[idx, idx] = center
-    
-    return L.tocsr()
-
 def build_laplacian_dirichlet(ny, nx, dx, dy):
-    """Build 2D Laplacian with Dirichlet BC for streamfunction ψ."""
+    """Build 2D Laplacian with Dirichlet BC (ψ = 0 or φ = 0 for solid walls)."""
     N = nx * ny
     L = lil_matrix((N, N))
     
@@ -65,8 +35,10 @@ def build_laplacian_dirichlet(ny, nx, dx, dy):
             idx = i * nx + j
             
             if i == 0 or i == ny-1 or j == 0 or j == nx-1:
+                # Solid wall boundary: enforce zero value
                 L[idx, idx] = 1.0
             else:
+                # Interior: standard 5-point stencil
                 L[idx, idx] = -2*dx2_inv - 2*dy2_inv
                 L[idx, idx - 1] = dx2_inv
                 L[idx, idx + 1] = dx2_inv
@@ -75,15 +47,19 @@ def build_laplacian_dirichlet(ny, nx, dx, dy):
     
     return L.tocsr()
 
-def compute_helmholtz(u, v, dx, dy, L_neumann, L_dirichlet):
-    """Compute streamfunction and velocity potential from velocities."""
+
+def compute_helmholtz(u, v, dx, dy, L_dirichlet_psi, L_dirichlet_phi):
+    """
+    Compute streamfunction and velocity potential from velocities.
+    Uses Dirichlet BC for both (solid wall boundaries).
+    """
     ny, nx = u.shape
     
     # Compute vorticity and divergence
     div = np.zeros_like(u)
     vort = np.zeros_like(u)
     
-    # Interior
+    # Interior points
     div[1:-1, 1:-1] = (
         (u[1:-1, 2:] - u[1:-1, :-2]) / (2 * dx) +
         (v[2:, 1:-1] - v[:-2, 1:-1]) / (2 * dy)
@@ -93,7 +69,7 @@ def compute_helmholtz(u, v, dx, dy, L_neumann, L_dirichlet):
         (u[2:, 1:-1] - u[:-2, 1:-1]) / (2 * dy)
     )
     
-    # Boundaries
+    # Boundaries (one-sided differences)
     div[:, 0] = (u[:, 1] - u[:, 0]) / dx + np.gradient(v[:, 0], dy, axis=0)
     vort[:, 0] = (v[:, 1] - v[:, 0]) / dx - np.gradient(u[:, 0], dy, axis=0)
     div[:, -1] = (u[:, -1] - u[:, -2]) / dx + np.gradient(v[:, -1], dy, axis=0)
@@ -103,20 +79,25 @@ def compute_helmholtz(u, v, dx, dy, L_neumann, L_dirichlet):
     div[-1, :] = np.gradient(u[-1, :], dx, axis=0) + (v[-1, :] - v[-2, :]) / dy
     vort[-1, :] = np.gradient(v[-1, :], dx, axis=0) - (u[-1, :] - u[-2, :]) / dy
     
-    # Prepare RHS for Dirichlet BC
+    # Prepare RHS for Dirichlet BC (ψ = 0 on boundaries)
     vort_rhs = vort.ravel().copy()
+    div_rhs = div.ravel().copy()
     for i in range(ny):
         for j in range(nx):
             if i == 0 or i == ny-1 or j == 0 or j == nx-1:
                 idx = i * nx + j
-                vort_rhs[idx] = 0.0
+                vort_rhs[idx] = 0.0  # ψ = 0 at boundaries
+                div_rhs[idx] = 0.0   # φ = 0 at boundaries
     
-    # Solve Poisson equations
-    psi = spsolve(L_dirichlet, vort_rhs).reshape(ny, nx)
-    phi = spsolve(L_neumann, div.ravel()).reshape(ny, nx)
+    # Solve Poisson equations with Dirichlet BC
+    psi = spsolve(L_dirichlet_psi, vort_rhs).reshape(ny, nx)
+    phi = spsolve(L_dirichlet_phi, div_rhs).reshape(ny, nx)
+    
+    # Remove gauge freedom from phi
     phi -= phi.mean()
     
     return psi, phi
+
 
 def process_single_depth_time_from_zarr(zarr_path, t_idx, z, dx, dy, L_neumann, L_dirichlet):
     """Process a single (depth, time) - loads data from zarr inside worker."""
@@ -132,8 +113,8 @@ def process_single_depth_time_from_zarr(zarr_path, t_idx, z, dx, dy, L_neumann, 
     u = np.nan_to_num(u, nan=0.0)
     v = np.nan_to_num(v, nan=0.0)
     
-    # Compute Helmholtz decomposition
-    psi, phi = compute_helmholtz(u, v, dx, dy, L_neumann, L_dirichlet)
+    # Compute Helmholtz decomposition with Dirichlet for both BC
+    psi, phi = compute_helmholtz(u, v, dx, dy, L_dirichlet_psi, L_dirichlet_phi)
     
     return t_idx, z, psi.astype('f4'), phi.astype('f4')
 
@@ -170,8 +151,8 @@ def add_helmholtz_to_zarr_parallel(ds_path, dx, dy, n_workers=30):
     time_chunk = existing_chunks[0][0] if existing_chunks[0] else 1
     
     logger.info(f"Grid: {ny} x {nx}, Times: {n_times}, Depths: {n_depths}")
-    logger.info("Building Laplacian matrices...")
-    L_neumann = build_laplacian_neumann(ny, nx, dx, dy)
+    logger.info("Building Laplacian matrices with Dirichlet BC (solid walls)...")
+    # Use SAME Dirichlet BC for both ψ and φ (solid walls)
     L_dirichlet = build_laplacian_dirichlet(ny, nx, dx, dy)
     
     # Open zarr in append mode
@@ -220,10 +201,10 @@ def add_helmholtz_to_zarr_parallel(ds_path, dx, dy, n_workers=30):
         tasks = []
         for z in range(n_depths):
             for t_idx in range(t_start, t_end):
+                # In the task creation:
                 task = dask.delayed(process_single_depth_time_from_zarr)(
-                    str(ds_path), t_idx, z, dx, dy, L_neumann, L_dirichlet
+                    str(ds_path), t_idx, z, dx, dy, L_dirichlet, L_dirichlet  # Same BC for both
                 )
-                tasks.append(task)
         
         # Compute
         logger.info(f"  Computing {len(tasks)} tasks...")
@@ -262,7 +243,7 @@ def flatten_stats(ds: xr.Dataset) -> xr.Dataset:
 
 def main():
     # Paths
-    data_dir = Path("/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim")
+    data_dir = Path("/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL")
     input_path = data_dir / "bgc_data.zarr"
     output_means = data_dir / "bgc_means.zarr"
     output_stds = data_dir / "bgc_stds.zarr"

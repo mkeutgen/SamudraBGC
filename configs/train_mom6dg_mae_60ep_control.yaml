@@ -47,7 +47,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: mom6_cobalt_bgc_clim_mae_60ep_control
+  name: mom6_cobalt_bgc_clim_mae_60ep_control_helmholtz_full
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
@@ -57,7 +57,7 @@ experiment:
     group: mom6-cobalt-train-mae-grad-experiments
   prognostic_vars_key: full_state_all
   boundary_vars_key: minimal_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL
 
 data:
   data_location: bgc_data.zarr
@@ -71,6 +71,7 @@ data:
   concurrent_compute: true
 
 model:
+  checkpointing: "all"
   pred_residuals: false
   last_kernel_size: 3
   pad: "constant"

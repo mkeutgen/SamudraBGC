@@ -5,7 +5,10 @@ import xarray as xr
 import zarr
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import spsolve
-from tqdm import tqdm
+import dask
+from dask.distributed import Client, LocalCluster
+from dask.diagnostics import ProgressBar
+import time
 
 logging.basicConfig(
     level=logging.INFO, 
@@ -13,38 +16,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def build_laplacian_neumann(ny, nx, dx, dy):
-    """Build 2D Laplacian with Neumann BC for velocity potential φ."""
-    N = nx * ny
-    L = lil_matrix((N, N))
-    
-    dx2_inv = 1.0 / (dx * dx)
-    dy2_inv = 1.0 / (dy * dy)
-    
-    for i in range(ny):
-        for j in range(nx):
-            idx = i * nx + j
-            center = 0.0
-            
-            if j > 0:
-                L[idx, idx - 1] = dx2_inv
-                center -= dx2_inv
-            if j < nx - 1:
-                L[idx, idx + 1] = dx2_inv
-                center -= dx2_inv
-            if i > 0:
-                L[idx, idx - nx] = dy2_inv
-                center -= dy2_inv
-            if i < ny - 1:
-                L[idx, idx + nx] = dy2_inv
-                center -= dy2_inv
-            
-            L[idx, idx] = center
-    
-    return L.tocsr()
-
 def build_laplacian_dirichlet(ny, nx, dx, dy):
-    """Build 2D Laplacian with Dirichlet BC for streamfunction ψ."""
+    """Build 2D Laplacian with Dirichlet BC (ψ = 0 or φ = 0 for solid walls)."""
     N = nx * ny
     L = lil_matrix((N, N))
     
@@ -66,7 +39,8 @@ def build_laplacian_dirichlet(ny, nx, dx, dy):
     
     return L.tocsr()
 
-def compute_helmholtz(u, v, dx, dy, L_neumann, L_dirichlet):
+
+def compute_helmholtz(u, v, dx, dy, L_dirichlet_psi, L_dirichlet_phi):
     """Compute streamfunction and velocity potential from velocities."""
     ny, nx = u.shape
     
@@ -96,21 +70,59 @@ def compute_helmholtz(u, v, dx, dy, L_neumann, L_dirichlet):
     
     # Prepare RHS for Dirichlet BC
     vort_rhs = vort.ravel().copy()
+    div_rhs = div.ravel().copy()
     for i in range(ny):
         for j in range(nx):
             if i == 0 or i == ny-1 or j == 0 or j == nx-1:
                 idx = i * nx + j
                 vort_rhs[idx] = 0.0
+                div_rhs[idx] = 0.0
     
     # Solve Poisson equations
-    psi = spsolve(L_dirichlet, vort_rhs).reshape(ny, nx)
-    phi = spsolve(L_neumann, div.ravel()).reshape(ny, nx)
+    psi = spsolve(L_dirichlet_psi, vort_rhs).reshape(ny, nx)
+    phi = spsolve(L_dirichlet_phi, div_rhs).reshape(ny, nx)
     phi -= phi.mean()
     
     return psi, phi
 
-def add_helmholtz_to_zarr(ds_path, dx, dy):
-    """Add psi and phi fields to existing zarr dataset without modifying existing data."""
+
+def process_single_depth_time_from_zarr(zarr_path, t_idx, z, dx, dy, L_dirichlet_psi, L_dirichlet_phi):
+    """Process a single (depth, time) - loads data from zarr inside worker."""
+    import xarray as xr
+    import numpy as np
+    
+    ds = xr.open_zarr(zarr_path, consolidated=True)
+    u = ds[f"uo_{z}"].isel(time=t_idx).values
+    v = ds[f"vo_{z}"].isel(time=t_idx).values
+    
+    u = np.nan_to_num(u, nan=0.0)
+    v = np.nan_to_num(v, nan=0.0)
+    
+    psi, phi = compute_helmholtz(u, v, dx, dy, L_dirichlet_psi, L_dirichlet_phi)
+    
+    return t_idx, z, psi.astype('f4'), phi.astype('f4')
+
+
+def add_helmholtz_to_zarr_parallel(ds_path, dx, dy, n_workers=80):
+    """Add psi and phi fields with batched parallel processing."""
+    
+    logger.info("Setting up Dask cluster...")
+    cluster = LocalCluster(
+        n_workers=n_workers,
+        threads_per_worker=1,
+        memory_limit="10GB",
+        silence_logs=logging.WARNING,
+        processes=True,
+        death_timeout=300
+    )
+    client = Client(cluster)
+    
+    logger.info("=" * 60)
+    logger.info(f"Dask Cluster:")
+    logger.info(f"  Workers: {n_workers}")
+    logger.info(f"  Dashboard: {client.dashboard_link}")
+    logger.info("=" * 60)
+    
     logger.info("Loading dataset...")
     ds = xr.open_zarr(ds_path, consolidated=True)
     
@@ -118,120 +130,139 @@ def add_helmholtz_to_zarr(ds_path, dx, dy):
     n_times = len(ds.time)
     n_depths = 50
     
-    # Get existing chunk size from uo_0
-    existing_chunks = ds['uo_0'].chunks
-    time_chunk = existing_chunks[0][0] if existing_chunks[0] else 1
+    zarr_array = zarr.open(str(ds_path), mode='r')['uo_0']
+    time_chunk, lat_chunk, lon_chunk = zarr_array.chunks
     
     logger.info(f"Grid: {ny} x {nx}, Times: {n_times}, Depths: {n_depths}")
-    logger.info(f"Using chunk size: ({time_chunk}, {ny}, {nx})")
-    logger.info("Building Laplacian matrices...")
-    L_neumann = build_laplacian_neumann(ny, nx, dx, dy)
+    logger.info(f"Using chunk sizes: time={time_chunk}, lat={lat_chunk}, lon={lon_chunk}")
+    
+    logger.info("Building Laplacian matrices with Dirichlet BC (solid walls)...")
     L_dirichlet = build_laplacian_dirichlet(ny, nx, dx, dy)
     
-    # Open zarr in append mode
     store = zarr.open(str(ds_path), mode='a')
     
-    # Create new arrays for psi and phi if they don't exist
     logger.info("Creating psi and phi arrays...")
     for z in range(n_depths):
         if f'psi_{z}' not in store:
-            store.create_dataset(
+            arr = store.create_dataset(
                 f'psi_{z}',
                 shape=(n_times, ny, nx),
-                chunks=(time_chunk, ny, nx),
+                chunks=(time_chunk, lat_chunk, lon_chunk),
                 dtype='f4',
                 compressor=zarr.Blosc(cname='zstd', clevel=4)
             )
+            arr.attrs['_ARRAY_DIMENSIONS'] = ['time', 'lat', 'lon']
+            
         if f'phi_{z}' not in store:
-            store.create_dataset(
+            arr = store.create_dataset(
                 f'phi_{z}',
                 shape=(n_times, ny, nx),
-                chunks=(time_chunk, ny, nx),
+                chunks=(time_chunk, lat_chunk, lon_chunk),
                 dtype='f4',
                 compressor=zarr.Blosc(cname='zstd', clevel=4)
             )
+            arr.attrs['_ARRAY_DIMENSIONS'] = ['time', 'lat', 'lon']
     
-    # Process each timestep
-    for t_idx in tqdm(range(n_times), desc="Processing time steps"):
-        for z in tqdm(range(n_depths), desc=f"  Depth levels", leave=False):
-            # Load velocities
-            u = ds[f"uo_{z}"].isel(time=t_idx).values
-            v = ds[f"vo_{z}"].isel(time=t_idx).values
-            
-            # Handle NaN
-            u = np.nan_to_num(u, nan=0.0)
-            v = np.nan_to_num(v, nan=0.0)
-            
-            # Compute Helmholtz decomposition
-            psi, phi = compute_helmholtz(u, v, dx, dy, L_neumann, L_dirichlet)
-            
-            # Write to zarr (only writes to new arrays)
-            store[f'psi_{z}'][t_idx, :, :] = psi.astype('f4')
-            store[f'phi_{z}'][t_idx, :, :] = phi.astype('f4')
+    batch_size = 200
+    total_batches = (n_times + batch_size - 1) // batch_size
     
-    # Consolidate metadata
+    logger.info(f"Processing {n_times} timesteps in {total_batches} batches of {batch_size}")
+    logger.info(f"Total tasks: {n_times * n_depths} ({n_depths} depths × {n_times} times)")
+    
+    for batch_idx in range(total_batches):
+        t_start = batch_idx * batch_size
+        t_end = min(t_start + batch_size, n_times)
+        n_timesteps = t_end - t_start
+        
+        batch_start_time = time.time()
+        logger.info(f"Batch {batch_idx + 1}/{total_batches}: timesteps {t_start}-{t_end}")
+        
+        tasks = []
+        for z in range(n_depths):
+            for t_idx in range(t_start, t_end):
+                task = dask.delayed(process_single_depth_time_from_zarr)(
+                    str(ds_path), t_idx, z, dx, dy, L_dirichlet, L_dirichlet
+                )
+                tasks.append(task) 
+        
+        logger.info(f"  Computing {len(tasks)} tasks ({n_depths} depths × {n_timesteps} times)...")
+        results = client.compute(tasks, sync=True)
+        
+        logger.info(f"  Writing {len(results)} results...")
+        for t_idx, z, psi, phi in results:
+            store[f'psi_{z}'][t_idx, :, :] = psi
+            store[f'phi_{z}'][t_idx, :, :] = phi
+        
+        batch_time = time.time() - batch_start_time
+        remaining_batches = total_batches - (batch_idx + 1)
+        est_remaining = (batch_time * remaining_batches) / 60
+        
+        logger.info(f"  ✓ Batch complete in {batch_time/60:.1f} min ({100*(t_end)/n_times:.1f}% total)")
+        if remaining_batches > 0:
+            logger.info(f"  Estimated time remaining: {est_remaining:.1f} minutes")
+    
     logger.info("Consolidating metadata...")
     zarr.consolidate_metadata(str(ds_path))
     
-    logger.info("Helmholtz decomposition added successfully!")
+    client.close()
+    cluster.close()
+    
+    logger.info("✓ Helmholtz decomposition complete!")
+
 
 def flatten_stats(ds: xr.Dataset) -> xr.Dataset:
-    """Flatten stats to scalars per variable (drop lat/lon/time)"""
     dims_to_reduce = [d for d in ds.dims if d in ("time", "lat", "lon")]
     if dims_to_reduce:
         ds = ds.mean(dim=dims_to_reduce, skipna=True, keep_attrs=True)
     return ds
 
+
 def main():
-    # Paths
-    data_dir = Path("/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim")
+    data_dir = Path("/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL")
     input_path = data_dir / "bgc_data.zarr"
-    output_means = data_dir / "bgc_means.zarr"
+    output_means = data_dir / "bgc_means.zarr"  
     output_stds = data_dir / "bgc_stds.zarr"
     
-    # Grid spacing
-    dx = 9000.0  # meters
-    dy = 9000.0  # meters
+    dx = 9000.0
+    dy = 9000.0
+    n_workers = 80
     
     logger.info("=" * 60)
-    logger.info("Step 1: Adding Helmholtz decomposition (psi, phi)")
+    logger.info("Step 1: Adding Helmholtz decomposition (psi, phi) IN PARALLEL")
     logger.info("=" * 60)
     
-    add_helmholtz_to_zarr(input_path, dx, dy)
+    add_helmholtz_to_zarr_parallel(input_path, dx, dy, n_workers=n_workers)
     
     logger.info("=" * 60)
     logger.info("Step 2: Computing statistics from bgc_data.zarr")
     logger.info("=" * 60)
     
-    # Load data (now includes psi and phi)
     logger.info(f"Loading: {input_path}")
     ds = xr.open_zarr(input_path, consolidated=True)
     
     logger.info(f"Dataset shape: {dict(ds.sizes)}")
-    logger.info(f"Variables: {list(ds.data_vars)}")
     
-    # Exclude mask and wetmask from statistics
     stat_vars = [v for v in ds.data_vars if v not in ["mask", "wetmask"]]
-    logger.info(f"Computing stats for {len(stat_vars)} variables (excluding mask/wetmask)")
+    logger.info(f"Computing stats for {len(stat_vars)} variables")
     
     ds_stats = ds[stat_vars]
     
-    # Compute global mean and std
     logger.info("Computing global mean...")
-    global_mean = ds_stats.mean(dim="time", skipna=True)
+    with ProgressBar():
+        global_mean = ds_stats.mean(dim="time", skipna=True).compute()
+    logger.info("✓ Mean computed")
     
     logger.info("Computing global std...")
-    global_std = ds_stats.std(dim="time", skipna=True, ddof=0)
+    with ProgressBar():
+        global_std = ds_stats.std(dim="time", skipna=True, ddof=0).compute()
+    logger.info("✓ Std computed")
     
-    # Replace zero std with 1.0
     global_std = xr.where(global_std == 0, 1.0, global_std)
     
-    # Flatten to scalars
     logger.info("Flattening statistics...")
     global_mean_flat = flatten_stats(global_mean)
     global_std_flat = flatten_stats(global_std)
     
-    # Write outputs
     logger.info(f"Writing: {output_means}")
     global_mean_flat.to_zarr(output_means, mode="w")
     zarr.consolidate_metadata(str(output_means))
@@ -242,9 +273,8 @@ def main():
     
     logger.info("=" * 60)
     logger.info("All processing complete!")
-    logger.info(f"Mean values range: {float(global_mean_flat.to_array().min()):.6f} to {float(global_mean_flat.to_array().max()):.6f}")
-    logger.info(f"Std values range: {float(global_std_flat.to_array().min()):.6f} to {float(global_std_flat.to_array().max()):.6f}")
     logger.info("=" * 60)
+
 
 if __name__ == "__main__":
     main()

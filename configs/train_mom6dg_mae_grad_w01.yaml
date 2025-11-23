@@ -20,7 +20,7 @@ disk_mode: true
 pin_mem: true
 save_freq: 5
 epochs: 40  # Slightly longer than baseline to ensure convergence
-batch_size: 1 
+batch_size: 1
 learning_rate: 0.0002
 scheduler: { type: cosine }
 
@@ -53,7 +53,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: mom6_cobalt_bgc_clim_mae_grad_w01
+  name: mom6_cobalt_bgc_clim_mae_grad_w01_helmholtz_l40s
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
@@ -77,6 +77,7 @@ data:
   concurrent_compute: true
 
 model:
+  checkpointing: "all"
   pred_residuals: false
   last_kernel_size: 3
   pad: "constant"

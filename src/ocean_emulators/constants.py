@@ -178,8 +178,15 @@ PrognosticVarNames = list[str]
 
 
 PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
-   # Full state including dynamics
     "full_state_all": [
+        k + str(j)
+        for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_","psi_","phi_"]
+        for j in DEPTH_I_LEVELS
+    ]
+    + ["SSH"],
+    
+    # Keep the old one for backward compatibility if needed
+    "full_state_uv_all": [
         k + str(j)
         for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_","uo_","vo_"]
         for j in DEPTH_I_LEVELS
@@ -210,6 +217,14 @@ BOUNDARY_VARS: dict[str, BoundaryVarNames] = {
 }
 
 DEFAULT_METADATA = {
+    "psi": {
+        "long_name": "Streamfunction (Rotational Component)",
+        "units": "m²/s",
+    },
+    "phi": {
+        "long_name": "Velocity Potential (Divergent Component)",
+        "units": "m²/s",
+    },
     "temp": {
         "long_name": "Conservative Temperature",
         "units": "°C",

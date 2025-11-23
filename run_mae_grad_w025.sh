@@ -5,11 +5,11 @@
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
-#SBATCH --nodes=8 
+#SBATCH --nodes=4 
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=512G
-#SBATCH --time=16:00:00
+#SBATCH --time=8:00:00
 
 module purge
 module load anaconda3/2024.10

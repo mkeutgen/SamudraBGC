@@ -1,7 +1,7 @@
 import abc
 from functools import cached_property
 from pathlib import Path
-from typing import Annotated, Literal, Self, assert_never
+from typing import Annotated, Literal, Self, assert_never, Optional, List
 
 import cftime
 import torch
@@ -677,7 +677,7 @@ class TrainConfig(TopLevelConfig):
     scheduler: SchedulerConfig | None = None
     loss: LossType = "mse"
     gradient_weight: float = 0.1     
-    gradient_scales: list[int] = None 
+    gradient_scales: Optional[List[float]] = None 
     finetune: bool = False
     resume_ckpt_path: str | None = None
     debug: bool = False

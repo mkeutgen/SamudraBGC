@@ -243,7 +243,7 @@ def decomposed_mae_gradient_weighted(
     - α = 0.1:  Conservative, good balance (EXP 1A)
     - α = 0.25: Moderate, more sharpness (EXP 1B)
     - α = 0.5:  Aggressive sharpening
-    - α = 1.0:  Equal weighting (your current unweighted version)
+    - α = 1.0:  Equal weighting (my current unweighted version)
     
     Args:
         pred: Predicted tensor [batch, channels, height, width]

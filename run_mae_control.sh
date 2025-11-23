@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=train_mae_grad_w01
-#SBATCH --output=logs/mae_grad_w01-%j.out
-#SBATCH --error=logs/mae_grad_w01-%j.err
+#SBATCH --job-name=train_mae_control_FULL
+#SBATCH --output=logs/mae_control-%j.out
+#SBATCH --error=logs/mae_control-%j.err
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -12,17 +12,8 @@
 #SBATCH --time=16:00:00
 
 ##########################################################################
-### EXPERIMENT 1A: MAE + Weighted Gradient Loss (Conservative α=0.1)  ###
+### EXPERIMENT: MAE  Control ###
 ##########################################################################
-#
-# This is the HIGHEST PRIORITY experiment - most likely to fix your bias
-# problem with minimal changes.
-#
-# Expected outcome:
-# - Bias < 0.01 g/kg (10x better than current MAE+Grad)
-# - Gradients sharper than baseline (but not as aggressive as current)
-#
-# Training time: ~12-14 hours on 8 L40s nodes
 ##########################################################################
 
 module purge
@@ -61,7 +52,6 @@ srun torchrun \
     --nproc_per_node=$GPUS_PER_NODE \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
-    src/ocean_emulators/train.py configs/train_mom6dg_mae_grad_w01.yaml
+    src/ocean_emulators/train.py configs/train_mom6dg_mae_60ep_control.yaml
 
-echo "===== EXP 1A Complete ====="
-echo "Check outputs/mom6_cobalt_bgc_clim_mae_grad_w01/ for results"
+echo "===== Control Complete ====="

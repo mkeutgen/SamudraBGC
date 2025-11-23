@@ -299,7 +299,7 @@ class Trainer:
                     gradient_weight=cfg.gradient_weight
                 )
             
-            case "mae_gradient_multiscale":  # for later
+            case "mae_gradient_multiscale":  # Tier 2
                 logger.info(f"Using MAE loss with multi-scale gradient penalty")
                 self.loss_fn = partial(
                     decomposed_mae_gradient_multiscale,
