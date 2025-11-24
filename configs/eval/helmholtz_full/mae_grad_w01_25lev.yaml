@@ -3,15 +3,13 @@
 # Category: helmholtz_full
 
 debug: false
-batch_size: 1
+save_zarr: true
+disk_mode: true
 ckpt_path: ./outputs/helmholtzfull_mae_grad_w01_25lev/checkpoints/ckpt_ema_epoch_040.pt
-eval_time:
+inference_time:
   start: '2025-01-01'
   end: '2025-12-31'
-data_stride:
-- 1
-steps:
-- 4
+num_model_steps_forward: 10
 backend: auto
 experiment:
   name: helmholtzfull_mae_grad_w01_25lev_eval
