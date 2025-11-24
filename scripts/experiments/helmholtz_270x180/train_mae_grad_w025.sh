@@ -21,11 +21,9 @@ set -e
 
 # Load modules
 module purge
-module load anaconda3/2024.02
-module load cuda/12.1
-
-# Activate environment
-source activate ocean_emulator
+module load anaconda3/2024.10
+conda activate /scratch/cimes/maximek/envs/ocean-emulator
+cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
 # Training
 echo "Starting training: helmholtz270_mae_grad_w025"
