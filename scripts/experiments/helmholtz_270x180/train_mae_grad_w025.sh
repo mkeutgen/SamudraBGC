@@ -1,0 +1,40 @@
+#!/bin/bash
+#SBATCH --job-name=helmholtz270_mae_grad_w025_train
+#SBATCH --partition=cimes
+#SBATCH --account=cimes3
+#SBATCH --gres=gpu:l40s:1
+#SBATCH --nodes=8
+#SBATCH --gpus-per-node=1
+#SBATCH --time=48:00:00
+#SBATCH --mem=100G
+#SBATCH --output=logs/helmholtz270_mae_grad_w025_train_%j.out
+#SBATCH --error=logs/helmholtz270_mae_grad_w025_train_%j.err
+
+# Experiment: helmholtz270_mae_grad_w025
+# Category: helmholtz_270x180
+# Domain: 270x180
+# Loss: mae_gradient_weighted
+# Gradient weight: 0.25
+# Epochs: 40
+
+set -e
+
+# Load modules
+module purge
+module load anaconda3/2024.02
+module load cuda/12.1
+
+# Activate environment
+source activate ocean_emulator
+
+# Training
+echo "Starting training: helmholtz270_mae_grad_w025"
+echo "Config: configs/experiments/helmholtz_270x180/mae_grad_w025.yaml"
+
+srun --ntasks=8 \
+     --ntasks-per-node=1 \
+     --gpus-per-node=1 \
+     python -m ocean_emulators.train \
+     configs/experiments/helmholtz_270x180/mae_grad_w025.yaml
+
+echo "Training complete!"
