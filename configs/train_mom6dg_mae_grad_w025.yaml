@@ -17,7 +17,7 @@ disk_mode: true
 pin_mem: true
 save_freq: 5
 epochs: 40
-batch_size: 4
+batch_size: 1
 learning_rate: 0.0002
 scheduler: { type: cosine }
 
@@ -48,7 +48,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: mom6_cobalt_bgc_clim_mae_grad_w025_helmholtz_h200
+  name: mom6_cobalt_bgc_clim_mae_grad_w025_helmholtz_l40
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
@@ -65,13 +65,14 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 32 # 16 for l40s ?
+  num_workers: 8 # 16 for l40s ?
   persistent_workers: true
   prefetch_factor: 8
   hist: 1
   concurrent_compute: true
 
 model:
+  checkpointing: 'all'
   pred_residuals: false
   last_kernel_size: 3
   pad: "constant"

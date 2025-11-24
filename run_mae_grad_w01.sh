@@ -1,15 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=train_mae_grad_w01
+#SBATCH --job-name=res_mae_grad_w01
 #SBATCH --output=logs/mae_grad_w01-%j.out
 #SBATCH --error=logs/mae_grad_w01-%j.err
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
-#SBATCH --nodes=4
+#SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=512G
-#SBATCH --time=8:00:00
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=150G
+#SBATCH --time=16:00:00
 
 ##########################################################################
 ### EXPERIMENT 1A: MAE + Weighted Gradient Loss (Conservative α=0.1)  ###

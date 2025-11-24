@@ -1,29 +1,16 @@
 # yaml-language-server: $schema=schemas/TrainConfig.json
-
-# =============================================================================
-# EXPERIMENT 1C: MAE + Gradient (Unweighted) with Extended Training
-# =============================================================================
-# Priority: HIGH - Test if training time is the issue
-#
-# Uses your current unweighted MAE+gradient implementation but trains for
-# 60 epochs (2x baseline). Dual-objective loss functions often need significantly
-# more training time to converge properly.
-#
-# Expected outcome: If bias decreases substantially from 30→60 epochs, this
-# suggests the loss function is fine but needs more optimization time. If bias
-# stays high, the loss formulation is the problem.
-# =============================================================================
+# YAML for FULL DOMAIN, MOM6 DG,  MAE only
 
 debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 60  # 2x baseline training time
-batch_size: 1 
+epochs: 40
+batch_size: 1
 learning_rate: 0.0002
 scheduler: { type: cosine }
 
-loss: mae_gradient  # my current unweighted implementation
+loss: mae
 
 finetune: false
 resume_ckpt_path: null
@@ -49,26 +36,26 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: mom6_cobalt_bgc_clim_mae_grad_60ep
+  name: mom6_cobalt_bgc_clim_mae_control_helmholtz_full
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
     mode: disabled
     project: ocean-emulators
     entity: m2lines
-    group: mom6-cobalt-train-mae-grad-experiments
-  prognostic_vars_key: full_state_all
+    group: mom6-cobalt-train-mae-grad-experiments_helmholtz
+  prognostic_vars_key: optimized_helmholtz_all
   boundary_vars_key: minimal_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL
 
 data:
   data_location: bgc_data.zarr
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 8
+  num_workers: 8 # 16 for l40s ?
   persistent_workers: true
-  prefetch_factor: 4
+  prefetch_factor: 8
   hist: 1
   concurrent_compute: true
 
@@ -78,7 +65,7 @@ model:
   pad: "constant"
 
   unet:
-    ch_width: [320, 440, 600]
+    ch_width: [160, 220, 300]
     dilation: [1, 2, 4]
     n_layers: [1, 1, 1]
 

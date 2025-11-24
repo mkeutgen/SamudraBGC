@@ -55,7 +55,7 @@ experiment:
     project: ocean-emulators
     entity: m2lines
     group: mom6-cobalt-train-mae-grad-experiments
-  prognostic_vars_key: full_state_all
+  prognostic_vars_key: optimized_helmholtz_skip2
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL
 
@@ -64,7 +64,7 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 16
+  num_workers: 8
   persistent_workers: true
   prefetch_factor: 4
   hist: 1

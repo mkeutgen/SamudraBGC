@@ -9,7 +9,7 @@
 #SBATCH --ntasks=1 # One task per GPU
 #SBATCH --cpus-per-task=16 # 16 CPUs per GPU 
 #SBATCH --mem=512G
-#SBATCH --time=24:00:00
+#SBATCH --time=6:00:00
 
 
 module purge

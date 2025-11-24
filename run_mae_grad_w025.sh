@@ -1,15 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=train_mae_grad_w025
+#SBATCH --job-name=restr_mae_grad_w025
 #SBATCH --output=logs/mae_grad_w025-%j.out
 #SBATCH --error=logs/mae_grad_w025-%j.err
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
-#SBATCH --nodes=4 
+#SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=512G
-#SBATCH --time=8:00:00
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=200G
+#SBATCH --time=20:00:00
 
 module purge
 module load anaconda3/2024.10

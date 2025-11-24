@@ -229,6 +229,7 @@ class Trainer:
             area_weights=self.area_weights,
             static_data=self.static_data,
         ).to(self.device)
+        logger.info(f"Model checkpointing mode: {cfg.model.checkpointing}")
 
         self.nets_dir = cfg.experiment.nets_dir
         self.network = self.model.__class__.__name__

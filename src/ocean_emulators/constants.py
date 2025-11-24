@@ -104,6 +104,8 @@ DEPTH_LEVELS = [
     699.24,
     998.605,
 ]
+
+
 # Depth thicknesses - computed from level interfaces
 DEPTH_THICKNESS = [
     2.000,  # Level 0: center at 1.000m
@@ -161,6 +163,10 @@ DEPTH_THICKNESS = [
 # Generate depth index levels for 50 levels
 DEPTH_I_LEVELS = [str(i) for i in range(50)]
 
+DEPTH_I_LEVELS_SKIP2 = [DEPTH_I_LEVELS[i] for i in range(0, 50, 2)]  # 25 levels
+
+
+
 # Mask variables for 50 levels
 MASK_VARS = [f"mask_{i}" for i in range(50)]
 
@@ -204,6 +210,18 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
         k + str(j) for k in ["temp_", "salt_", "o2_", "dic_"] for j in DEPTH_I_LEVELS
     ]
     + ["SSH"],
+    "optimized_helmholtz_all": [
+        k + str(j)
+        for k in ["dic_", "o2_", "temp_", "salt_", "psi_", "phi_"]  # removed pp_, removed chl from 3D
+        for j in DEPTH_I_LEVELS
+    ]
+    + ["SSH", "chl_0"],  # chl only at surface (level 0)
+    "optimized_helmholtz_25": [  # Must end with number
+        k + str(j)
+        for k in ["dic_", "o2_", "no3_", "temp_", "salt_", "psi_", "phi_"]
+        for j in DEPTH_I_LEVELS_SKIP2  # Use subsampled list!
+    ]
+    + ["SSH", "chl_0"],
 }
 
 BoundaryVarNames = list[str]
