@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
-# Experiment: helmholtz270_mae_grad_w025
+# Experiment: helmholtz270_mae_grad_60ep
 # Category: helmholtz_270x180
 # Domain: 270x180
 
@@ -7,13 +7,12 @@ debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 40
+epochs: 60
 batch_size: 1
 learning_rate: 0.0002
 scheduler:
   type: cosine
-loss: mae_gradient_weighted
-gradient_weight: 0.25
+loss: mae_gradient
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
@@ -36,14 +35,14 @@ steps:
 step_transition: []
 backend: auto
 experiment:
-  name: helmholtz270_mae_grad_w025
+  name: baseline_mae_grad_w10_60ep
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
     mode: disabled
     project: ocean-emulators
     entity: m2lines
-    group: mom6-cobalt-train-mae-grad-experiments_helmholtz
+    group: mom6-cobalt-train-mae-grad-experiments
   prognostic_vars_key: full_state_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
@@ -52,13 +51,12 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 12
+  num_workers: 8
   persistent_workers: true
-  prefetch_factor: 8
+  prefetch_factor: 4
   hist: 1
   concurrent_compute: true
 model:
-  checkpointing: all
   pred_residuals: false
   last_kernel_size: 3
   pad: constant

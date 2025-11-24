@@ -105,13 +105,16 @@ def init_distributed_mode() -> DistributedConfig:
             "Distributed mode requires SLURM or RANK environment variables;"
             " did you mean to use `torchrun`?"
         )
-
     cfg.dist_backend = "nccl"
+    # mkeutgen : increase timeout for large datasets...  (40 years of MOM6-JRA data)
+    os.environ['TORCH_DISTRIBUTED_TIMEOUT'] = '3600'  # 1 hour timeout
+
     torch.distributed.init_process_group(
         backend=cfg.dist_backend,
         init_method=cfg.dist_url,
         world_size=cfg.world_size,
         rank=cfg.rank,
+        timeout=datetime.timedelta(seconds=3600),
     )
     torch.cuda.set_device(cfg.gpu)
     logger.info(

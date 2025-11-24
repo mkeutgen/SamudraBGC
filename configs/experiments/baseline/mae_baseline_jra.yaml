@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
-# Experiment: helmholtz270_mae_grad_60ep
-# Category: helmholtz_270x180
+# Experiment: baseline_mae_jra
+# Category: baseline_jra
 # Domain: 270x180
 
 debug: false
@@ -12,22 +12,20 @@ batch_size: 1
 learning_rate: 0.0002
 scheduler:
   type: cosine
-loss: mae_gradient
+loss: mae
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
 data_percent: 1.0
 train_time:
-  start: '2016-01-01'
-  end: '2023-12-31'
+  start: '1960-01-01'
+  end: '1989-12-31'
 val_time:
-  start: '2024-01-01'
-  end: '2024-12-31'
+  start: '1990-01-01'
+  end: '1991-12-31'
 inference_times:
-- start: '2024-01-01'
-  end: '2024-06-30'
-- start: '2025-07-01'
-  end: '2025-12-31'
+- start: '1992-01-01'
+  end: '1992-06-30'
 data_stride:
 - 1
 steps:
@@ -35,23 +33,23 @@ steps:
 step_transition: []
 backend: auto
 experiment:
-  name: helmholtz270_mae_grad_60ep
+  name: baseline_mae_jra
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
     mode: disabled
     project: ocean-emulators
     entity: m2lines
-    group: mom6-cobalt-train-mae-grad-experiments
+    group: mom6-cobalt-train
   prognostic_vars_key: full_state_all
   boundary_vars_key: minimal_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA
 data:
   data_location: bgc_data.zarr
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 8
+  num_workers: 12
   persistent_workers: true
   prefetch_factor: 4
   hist: 1

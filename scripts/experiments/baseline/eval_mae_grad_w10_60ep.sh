@@ -7,12 +7,12 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=12:00:00
-#SBATCH --mem=80G
-#SBATCH --output=logs/helmholtz270_mae_control_60ep_eval_%j.out
-#SBATCH --error=logs/helmholtz270_mae_control_60ep_eval_%j.err
+#SBATCH --mem=80G 
+#SBATCH --output=logs/mae_grad_w10_60ep_eval_%j.out
+#SBATCH --error=logs/mae_grad_w10_60ep_eval_%j.err
 
-# Evaluation for: helmholtz270_mae_control_60ep
-# Category: helmholtz_270x180
+# Evaluation for: mae_grad_w10_60ep_eval_
+# Category: mae_grad_w10_60ep
 
 set -e
 
@@ -23,18 +23,18 @@ conda activate /scratch/cimes/maximek/envs/ocean-emulator
 cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
 # Evaluation
-echo "Starting evaluation: helmholtz270_mae_control_60ep"
-echo "Config: configs/eval/helmholtz_270x180/mae_control_60ep.yaml"
+echo "Starting evaluation: mae_gradw10_60ep"
+echo "Config: configs/eval/grad/mae_grad_w10_60ep.yaml"
 
 # Standard data root for evaluations
 DATA_PATH=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
 # Checkpoint for this experiment (outputs/<exp>/saved_nets/ema_ckpt.pt)
-CKPT_PATH="./outputs/helmholtz270_mae_control_60ep/saved_nets/ema_ckpt.pt"
+CKPT_PATH="./outputs/baseline_mae_grad_w10_60ep/saved_nets/ema_ckpt.pt"
 echo "Using checkpoint: ${CKPT_PATH}"
 echo "Using data from: ${DATA_PATH}"
 
 python -m ocean_emulators.eval \
-     configs/eval/helmholtz_270x180/mae_control_60ep.yaml \
+     configs/eval/grad/mae_grad_w10_60ep.yaml \
      --ckpt_path ${CKPT_PATH} \
      --experiment.data_root ${DATA_PATH}
 

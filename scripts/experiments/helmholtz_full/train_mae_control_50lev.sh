@@ -4,9 +4,10 @@
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=8
-#SBATCH --gpus-per-node=1
-#SBATCH --time=72:00:00
-#SBATCH --mem=100G
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=200G
+#SBATCH --time=16:00:00
 #SBATCH --output=logs/helmholtzfull_mae_control_50lev_train_%j.out
 #SBATCH --error=logs/helmholtzfull_mae_control_50lev_train_%j.err
 

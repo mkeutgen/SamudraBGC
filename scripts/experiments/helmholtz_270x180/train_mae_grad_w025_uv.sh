@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=baseline_mae_train
+#SBATCH --job-name=helmholtz270_mae_grad_w025_train
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -8,15 +8,15 @@
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=200G
 #SBATCH --time=16:00:00
-#SBATCH --output=logs/baseline_mae_train_%j.out
-#SBATCH --error=logs/baseline_mae_train_%j.err
+#SBATCH --output=logs/helmholtz270_mae_grad_w025_uv_train_%j.out
+#SBATCH --error=logs/helmholtz270_mae_grad_w025_uv_train_%j.err
 
-# Experiment: baseline_mae
-# Category: baseline
+# Experiment: helmholtz270_mae_grad_w025
+# Category: helmholtz_270x180
 # Domain: 270x180
-# Loss: mae
-
-# Epochs: 60
+# Loss: mae_gradient_weighted
+# Gradient weight: 0.25
+# Epochs: 40
 
 set -e
 
@@ -27,13 +27,13 @@ conda activate /scratch/cimes/maximek/envs/ocean-emulator
 cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
 # Training
-echo "Starting training: baseline_mae"
-echo "Config: configs/experiments/baseline/mae_baseline.yaml"
+echo "Starting training: helmholtz270_mae_grad_w025"
+echo "Config: configs/experiments/helmholtz_270x180/mae_grad_w025_uv.yaml"
 
 srun --ntasks=8 \
      --ntasks-per-node=1 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
-     configs/experiments/baseline/mae_baseline.yaml
+     configs/experiments/helmholtz_270x180/mae_grad_w025_uv.yaml
 
 echo "Training complete!"

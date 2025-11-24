@@ -51,7 +51,7 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 8
+  num_workers: 12
   persistent_workers: true
   prefetch_factor: 8
   hist: 1
