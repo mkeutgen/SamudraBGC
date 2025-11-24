@@ -2,7 +2,7 @@
 
 ## Overview
 
-This adaptation bridges the gap between MOM6 Double Gyre (MOM6-DG) ocean biogeochemical simulation outputs and the BGC emulator training pipeline developed by OpenAthena. The adaptation handles the specific data formats, variable naming conventions, and grid structures used in MOM6-DG simulations.
+This adaptation bridges the gap between MOM6 Double Gyre (MOM6-DG) ocean biogeochemical simulation outputs and the Ocean emulator training pipeline developed by OpenAthena. The adaptation handles the specific data formats, variable naming conventions, and grid structures used in MOM6-DG simulations.
 
 ## Components
 
