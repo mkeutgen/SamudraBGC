@@ -4,6 +4,8 @@
 
 This adaptation bridges the gap between MOM6 Double Gyre (MOM6-DG) ocean biogeochemical simulation outputs and the Ocean emulator training pipeline developed by OpenAthena. The adaptation handles the specific data formats, variable naming conventions, and grid structures used in MOM6-DG simulations.
 
+**Important Notice (2025-11-24):** A configuration issue was discovered where several training/evaluation configs used `boundary_vars_key: minimal_forcing`. All such configs in `configs/` have been updated to use `boundary_vars_key: standard_forcing`, and all existing simulation outputs were archived to `outputs/sim_wo_prcme/` to avoid accidental reuse. If you need the original outputs or configs, they are preserved in that folder.
+
 ## Components
 
 ### 1. Core Modules

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
-# Experiment: helmholtz270_mae_grad_60ep
-# Category: helmholtz_270x180
+# Experiment: mae_grad_60ep
+# Category: grad
 # Domain: 270x180
 
 debug: false
@@ -44,14 +44,14 @@ experiment:
     entity: m2lines
     group: mom6-cobalt-train-mae-grad-experiments
   prognostic_vars_key: full_state_all
-  boundary_vars_key: minimal_forcing
+  boundary_vars_key: standard_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
 data:
   data_location: bgc_data.zarr
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 8
+  num_workers: 12
   persistent_workers: true
   prefetch_factor: 4
   hist: 1

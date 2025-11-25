@@ -42,16 +42,16 @@ experiment:
     entity: m2lines
     group: mom6-cobalt-train
   prognostic_vars_key: full_state_all
-  boundary_vars_key: minimal_forcing
+  boundary_vars_key: standard_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA
 data:
   data_location: bgc_data.zarr
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 12
+  num_workers: 22
   persistent_workers: true
-  prefetch_factor: 4
+  prefetch_factor: 8
   hist: 1
   concurrent_compute: true
 model:

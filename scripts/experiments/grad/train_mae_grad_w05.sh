@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=restr_mae_grad_w025
-#SBATCH --output=logs/mae_grad_w025-%j.out
-#SBATCH --error=logs/mae_grad_w025-%j.err
+#SBATCH --job-name=mae_grad_w05_fullstate
+#SBATCH --output=logs/mae_grad_w05_fullstate-%j.out
+#SBATCH --error=logs/mae_grad_w05_fullstate-%j.err
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -24,10 +24,10 @@ export MASTER_PORT=29502
 GPUS_PER_NODE=$(echo $SLURM_GPUS_ON_NODE | tr ',' '\n' | wc -l)
 [ -z "$GPUS_PER_NODE" ] || [ "$GPUS_PER_NODE" -eq 0 ] && GPUS_PER_NODE=1
 
-echo "===== EXP 1B: MAE + Gradient (α=0.25) ====="
+echo "===== TRAIN: MAE + Gradient (α=0.5), full_state ====="
 srun torchrun \
     --nnodes=$SLURM_NNODES \
     --nproc_per_node=$GPUS_PER_NODE \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
-    src/ocean_emulators/train.py configs/train_mom6dg_mae_grad_w025.yaml
+    src/ocean_emulators/train.py configs/experiments/grad/mae_grad_w05_fullstate.yaml

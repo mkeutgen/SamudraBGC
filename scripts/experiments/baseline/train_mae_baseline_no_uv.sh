@@ -1,18 +1,17 @@
 #!/bin/bash
-#SBATCH --job-name=baseline_mae_train_jra
+#SBATCH --job-name=baseline_mae_no_uv_train
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=22
-#SBATCH --mem=100G
-#SBATCH --time=24:00:00
-#SBATCH --output=logs/baseline_mae_jra_train_%j.out
-#SBATCH --error=logs/baseline_mae_jra_train_%j.err
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=200G
+#SBATCH --time=16:00:00
+#SBATCH --output=logs/baseline_mae_train_no_uv%j.out
+#SBATCH --error=logs/baseline_mae_train_no_uv%j.err
 
-
-# Experiment: baseline_mae
+# Experiment: baseline_mae_no_uv
 # Category: baseline
 # Domain: 270x180
 # Loss: mae
@@ -29,12 +28,12 @@ cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
 # Training
 echo "Starting training: baseline_mae"
-echo "Config: configs/experiments/baseline/mae_baseline_jra.yaml"
+echo "Config: configs/experiments/baseline/mae_baseline_no_uv.yaml"
 
 srun --ntasks=8 \
      --ntasks-per-node=1 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
-     configs/experiments/baseline/mae_baseline_jra.yaml
+     configs/experiments/baseline/mae_baseline_no_uv.yaml
 
 echo "Training complete!"

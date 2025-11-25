@@ -1,18 +1,19 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
-# Experiment: baseline_mse
-# Category: baseline
+# Experiment: mae_grad_w025_fullstate
+# Category: grad
 # Domain: 270x180
 
 debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 50
+epochs: 60
 batch_size: 1
 learning_rate: 0.0002
 scheduler:
   type: cosine
-loss: mse
+loss: mae_gradient_weighted
+gradient_weight: 0.25
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
@@ -35,14 +36,14 @@ steps:
 step_transition: []
 backend: auto
 experiment:
-  name: baseline_mse
+  name: mae_grad_w025_fullstate_60ep
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
     mode: disabled
     project: ocean-emulators
     entity: m2lines
-    group: mom6-cobalt-train
+    group: mom6-cobalt-train-mae-grad-experiments
   prognostic_vars_key: full_state_all
   boundary_vars_key: standard_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
@@ -57,6 +58,7 @@ data:
   hist: 1
   concurrent_compute: true
 model:
+  checkpointing: all
   pred_residuals: false
   last_kernel_size: 3
   pad: constant

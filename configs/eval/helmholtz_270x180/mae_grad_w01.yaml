@@ -21,7 +21,7 @@ experiment:
     entity: m2lines
     group: helmholtz_270x180-eval
   prognostic_vars_key: full_state_all
-  boundary_vars_key: minimal_forcing
+  boundary_vars_key: standard_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
 data:
   data_location: bgc_data.zarr

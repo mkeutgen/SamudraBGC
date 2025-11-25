@@ -44,7 +44,7 @@ experiment:
     entity: m2lines
     group: mom6-cobalt-train-mae-grad-experiments_helmholtz
   prognostic_vars_key: optimized_helmholtz_all
-  boundary_vars_key: minimal_forcing
+  boundary_vars_key: standard_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL
 data:
   data_location: bgc_data.zarr

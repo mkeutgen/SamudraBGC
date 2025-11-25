@@ -1,49 +1,26 @@
-# yaml-language-server: $schema=../../schemas/TrainConfig.json
-# Experiment: baseline_mse
+# yaml-language-server: $schema=../../schemas/EvalConfig.json
+# Evaluation for: baseline_mae
 # Category: baseline
-# Domain: 270x180
 
 debug: false
+save_zarr: true
 disk_mode: true
-pin_mem: true
-save_freq: 5
-epochs: 50
-batch_size: 1
-learning_rate: 0.0002
-scheduler:
-  type: cosine
-loss: mse
-finetune: false
-resume_ckpt_path: null
-inference_epochs: []
-data_percent: 1.0
-train_time:
-  start: '2016-01-01'
-  end: '2023-12-31'
-val_time:
-  start: '2024-01-01'
-  end: '2024-12-31'
-inference_times:
-- start: '2024-01-01'
-  end: '2024-06-30'
-- start: '2025-07-01'
+ckpt_path: ./outputs/baseline_mae_no_uv/checkpoints/ema_ckpt.pt
+inference_time:
+  start: '2025-01-01'
   end: '2025-12-31'
-data_stride:
-- 1
-steps:
-- 4
-step_transition: []
+num_model_steps_forward: 10
 backend: auto
 experiment:
-  name: baseline_mse
+  name: baseline_mae_eval
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
     mode: disabled
     project: ocean-emulators
     entity: m2lines
-    group: mom6-cobalt-train
-  prognostic_vars_key: full_state_all
+    group: baseline-eval
+  prognostic_vars_key: bgc_thermo_all
   boundary_vars_key: standard_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
 data:
