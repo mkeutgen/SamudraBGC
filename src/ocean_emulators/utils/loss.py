@@ -231,8 +231,8 @@ def decomposed_mae_gradient_weighted(
     """
     MAE loss with WEIGHTED spatial gradient matching penalty.
     
-    This is the KEY fix for your bias problem. By controlling gradient_weight,
-    you can balance accuracy (MAE term) vs sharpness (gradient term).
+    By controlling gradient_weight,
+    we can balance accuracy (MAE term) vs sharpness (gradient term).
     
     Loss = MAE(pred, target) + α * gradient_penalty(pred, target)
     
@@ -240,10 +240,10 @@ def decomposed_mae_gradient_weighted(
     
     Recommended starting values:
     - α = 0.05: Very conservative, prioritize accuracy
-    - α = 0.1:  Conservative, good balance (EXP 1A)
-    - α = 0.25: Moderate, more sharpness (EXP 1B)
+    - α = 0.1:  Conservative, good balance 
+    - α = 0.25: Moderate, more sharpness 
     - α = 0.5:  Aggressive sharpening
-    - α = 1.0:  Equal weighting (my current unweighted version)
+    - α = 1.0:  Equal weighting 
     
     Args:
         pred: Predicted tensor [batch, channels, height, width]

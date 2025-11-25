@@ -165,6 +165,7 @@ DEPTH_I_LEVELS = [str(i) for i in range(50)]
 
 DEPTH_I_LEVELS_SKIP2 = [DEPTH_I_LEVELS[i] for i in range(0, 50, 2)]  # 25 levels
 
+DEPTH_I_LEVELS_WO_SURFACE = [str(i) for i in range(1,50)]  # 49 levels without surface level
 
 
 # Mask variables for 50 levels
@@ -184,6 +185,11 @@ PrognosticVarNames = list[str]
 
 
 PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
+    "full_state_assimilated_49": [
+        k + str(j)
+        for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_","uo_","vo_"]
+        for j in DEPTH_I_LEVELS_WO_SURFACE
+    ],
     "helmholtz_only_all": [
         k + str(j)
         for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_","psi_","phi_"]
@@ -238,6 +244,14 @@ BOUNDARY_VARS: dict[str, BoundaryVarNames] = {
     "standard_forcing": ["Qnet", "tauuo", "tauvo", "PRCmE"],
     # Minimal
     "minimal_forcing": ["Qnet", "tauuo", "tauvo"],
+    "surface_assimilated": [
+        # Forcing:
+        "Qnet", "tauuo", "tauvo", "PRCmE",
+        # ASSIMILATED OBSERVATIONS:
+        "chl_0",    # TODO : Assimilate From MODIS/VIIRS satellite
+        "temp_0",   # TODO : Assimilate From AVHRR/AMSR2 SST (also beneficial!)
+        # Potentially: "salt_0" from SMAP/SMOS
+    ]
 }
 
 DEFAULT_METADATA = {
