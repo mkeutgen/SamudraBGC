@@ -6,7 +6,7 @@
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
-#SBATCH --mem=200G
+#SBATCH --mem=400G
 #SBATCH --time=16:00:00
 #SBATCH --output=logs/baseline_mae_train_no_uv%j.out
 #SBATCH --error=logs/baseline_mae_train_no_uv%j.err
@@ -29,6 +29,12 @@ cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 # Training
 echo "Starting training: baseline_mae"
 echo "Config: configs/experiments/baseline/mae_baseline_no_uv.yaml"
+
+GPUS_PER_NODE=$(echo $SLURM_GPUS_ON_NODE | tr ',' '\n' | wc -l)
+[ -z "$GPUS_PER_NODE" ] || [ "$GPUS_PER_NODE" -eq 0 ] && GPUS_PER_NODE=1
+export MASTER_ADDR=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+export MASTER_PORT=29500
+export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 
 srun --ntasks=8 \
      --ntasks-per-node=1 \

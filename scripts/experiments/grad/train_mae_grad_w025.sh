@@ -18,13 +18,16 @@ cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
 mkdir -p logs
 
-export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
-export MASTER_PORT=29502
-
 GPUS_PER_NODE=$(echo $SLURM_GPUS_ON_NODE | tr ',' '\n' | wc -l)
 [ -z "$GPUS_PER_NODE" ] || [ "$GPUS_PER_NODE" -eq 0 ] && GPUS_PER_NODE=1
 
 echo "===== TRAIN: MAE + Gradient (α=0.25), full_state ====="
+
+# Distributed training environment (canonical)
+export MASTER_ADDR=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+export MASTER_PORT=29500
+export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
+
 srun torchrun \
     --nnodes=$SLURM_NNODES \
     --nproc_per_node=$GPUS_PER_NODE \

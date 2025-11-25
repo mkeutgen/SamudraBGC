@@ -30,6 +30,10 @@ cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 echo "Starting training: helmholtz270_mae_control_60ep"
 echo "Config: configs/experiments/helmholtz_270x180/mae_control_60ep.yaml"
 
+export MASTER_ADDR=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+export MASTER_PORT=29500
+export WORLD_SIZE=8
+
 srun --ntasks=8 \
      --ntasks-per-node=1 \
      --gpus-per-node=1 \
