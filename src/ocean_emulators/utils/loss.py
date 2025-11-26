@@ -172,21 +172,46 @@ class MseDynamic:
 ################################################
 
 
-def decomposed_mae_gradient(
-    pred: torch.Tensor, target: torch.Tensor, wet: torch.Tensor
+def decomposed_mae_gradient_weighted(
+    pred: torch.Tensor, 
+    target: torch.Tensor, 
+    wet: torch.Tensor,
+    gradient_weight: float = 0.1,
+    second_order_weight: float = 0.0  # NEW: Add second-order term
 ) -> torch.Tensor:
     """
-    MAE loss with spatial gradient matching penalty (unweighted version).
+    MAE loss with WEIGHTED spatial gradient matching penalty.
     
-    This is your current implementation made explicit. The gradient term
-    has implicit weight of 1.0 relative to the MAE term.
+    By controlling gradient_weight,
+    we can balance accuracy (MAE term) vs sharpness (gradient term).
     
-    Loss = MAE(pred, target) + gradient_penalty(pred, target)
+    Loss = MAE(pred, target) + α * gradient_penalty(pred, target) 
+           + β * second_order_penalty(pred, target)
+    
+    where α = gradient_weight and β = second_order_weight are tunable hyperparameters.
+    
+    Second-order penalty matches the Laplacian (curvature), which helps preserve:
+    - Eddy centers (local extrema)
+    - Curvature of fronts
+    - Spatial smoothness structure
+    
+    Recommended starting values:
+    - α = 0.05: Very conservative, prioritize accuracy
+    - α = 0.1:  Conservative, good balance 
+    - α = 0.25: Moderate, more sharpness 
+    - α = 0.5:  Aggressive sharpening
+    - α = 1.0:  Equal weighting
+    
+    - β = 0.0:  Disabled (default)
+    - β = 0.05: Very conservative second-order
+    - β = 0.1:  Moderate second-order penalty
     
     Args:
         pred: Predicted tensor [batch, channels, height, width]
         target: Target tensor [batch, channels, height, width]
         wet: Wet mask [batch, channels, height, width]
+        gradient_weight: Scaling factor α for first-order gradient penalty
+        second_order_weight: Scaling factor β for second-order (Laplacian) penalty
     
     Returns:
         Loss per channel [channels]
@@ -194,33 +219,55 @@ def decomposed_mae_gradient(
     pred = pred * wet
     target = target * wet
     
-    # MAE term
+    # MAE term (main accuracy objective)
     mae_loss = F.l1_loss(pred, target, reduction="none")
+    mae_per_channel = mae_loss.mean(dim=(0, 2, 3))
     
-    # Gradient penalty: Match spatial gradients
-    # Compute gradients in x and y directions using finite differences
-    pred_grad_y = pred[:, :, 1:, :] - pred[:, :, :-1, :]  # dy
-    pred_grad_x = pred[:, :, :, 1:] - pred[:, :, :, :-1]  # dx
+    # First-order gradient penalty: Match spatial gradients
+    pred_grad_y = pred[:, :, 1:, :] - pred[:, :, :-1, :]
+    pred_grad_x = pred[:, :, :, 1:] - pred[:, :, :, :-1]
     
     target_grad_y = target[:, :, 1:, :] - target[:, :, :-1, :]
     target_grad_x = target[:, :, :, 1:] - target[:, :, :, :-1]
     
-    # L1 loss on gradients
     grad_loss_y = F.l1_loss(pred_grad_y, target_grad_y, reduction="none")
     grad_loss_x = F.l1_loss(pred_grad_x, target_grad_x, reduction="none")
     
-    # Average gradient losses (need to pad to match spatial dims)
+    # Average gradient losses
     grad_loss = (
         F.pad(grad_loss_y, (0, 0, 0, 1), value=0).mean(dim=(0, 2, 3)) +
         F.pad(grad_loss_x, (0, 1, 0, 0), value=0).mean(dim=(0, 2, 3))
     ) / 2
     
-    # Combined loss (equal weighting)
-    mae_per_channel = mae_loss.mean(dim=(0, 2, 3))
-    total_loss = mae_per_channel + grad_loss
+    # NEW: Second-order penalty (Laplacian/curvature matching)
+    second_order_loss = 0.0
+    if second_order_weight > 0:
+        # Compute second derivatives (discrete Laplacian)
+        # ∂²/∂x² ≈ f[i,j+1] - 2*f[i,j] + f[i,j-1]
+        # ∂²/∂y² ≈ f[i+1,j] - 2*f[i,j] + f[i-1,j]
+        
+        # Second derivative in y-direction (requires 3 points)
+        pred_grad2_y = pred[:, :, 2:, :] - 2*pred[:, :, 1:-1, :] + pred[:, :, :-2, :]
+        target_grad2_y = target[:, :, 2:, :] - 2*target[:, :, 1:-1, :] + target[:, :, :-2, :]
+        
+        # Second derivative in x-direction
+        pred_grad2_x = pred[:, :, :, 2:] - 2*pred[:, :, :, 1:-1] + pred[:, :, :, :-2]
+        target_grad2_x = target[:, :, :, 2:] - 2*target[:, :, :, 1:-1] + target[:, :, :, :-2]
+        
+        # L1 loss on second derivatives
+        grad2_loss_y = F.l1_loss(pred_grad2_y, target_grad2_y, reduction="none")
+        grad2_loss_x = F.l1_loss(pred_grad2_x, target_grad2_x, reduction="none")
+        
+        # Average and pad to match dimensions
+        second_order_loss = (
+            F.pad(grad2_loss_y, (0, 0, 0, 2), value=0).mean(dim=(0, 2, 3)) +
+            F.pad(grad2_loss_x, (0, 2, 0, 0), value=0).mean(dim=(0, 2, 3))
+        ) / 2
+    
+    # Weighted combination
+    total_loss = mae_per_channel + gradient_weight * grad_loss + second_order_weight * second_order_loss
     
     return total_loss
-
 
 def decomposed_mae_gradient_weighted(
     pred: torch.Tensor, 
