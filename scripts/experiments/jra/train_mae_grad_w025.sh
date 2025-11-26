@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=baseline_mae_train_jra
+#SBATCH --job-name=mae_grad_w025_train_jra
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -7,15 +7,16 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=500G
-#SBATCH --time=240:00:00
-#SBATCH --output=logs/baseline_mae_jra_train_%j.out
-#SBATCH --error=logs/baseline_mae_jra_train_%j.err
+#SBATCH --time=24:00:00
+#SBATCH --output=logs/mae_grad_w025_jra_train_%j.out
+#SBATCH --error=logs/mae_grad_w025_jra_train_%j.err
 
 
-# Experiment: baseline_mae
-# Category: baseline
+# Experiment: mae_grad_w025_jra
+# Category: jra
 # Domain: 270x180
-# Loss: mae
+# Loss: mae_gradient_weighted
+# Gradient weight: 0.25
 
 # Epochs: 60
 
@@ -35,13 +36,13 @@ export MASTER_PORT=29500
 export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 
 # Training
-echo "Starting training: baseline_mae"
-echo "Config: configs/experiments/baseline/mae_baseline_jra.yaml"
+echo "Starting training: mae_grad_w025_jra"
+echo "Config: configs/experiments/jra/mae_grad_w025.yaml"
 
 srun --ntasks=8 \
      --ntasks-per-node=1 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
-     configs/experiments/baseline/mae_baseline_jra.yaml
+     configs/experiments/jra/mae_grad_w025.yaml
 
 echo "Training complete!"

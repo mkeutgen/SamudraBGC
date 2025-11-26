@@ -5,7 +5,7 @@
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/mae_grad_w05_fullstate_60ep/checkpoints/ema_ckpt.pt
+ckpt_path: ./outputs/mae_grad_w05_fullstate_60ep/saved_nets/ema_ckpt.pt
 inference_time:
   start: '2025-01-01'
   end: '2025-12-31'

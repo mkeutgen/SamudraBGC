@@ -1,27 +1,27 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# Evaluation for: baseline_mae_grad_w10_60ep
-# Category: baseline
+# Evaluation for: mae_grad_w05_fullstate
+# Category: grad
 
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/baseline_mae_grad_w10_60ep/checkpoints/ema_ckpt.pt
+ckpt_path: ./output
 inference_time:
   start: '2025-01-01'
   end: '2025-12-31'
 num_model_steps_forward: 10
 backend: auto
 experiment:
-  name: baseline_mae_grad_w10_60ep_eval
+  name: mae_grad_w05_fullstate_60ep_minimal_forcing_eval
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
     mode: disabled
     project: ocean-emulators
     entity: m2lines
-    group: mom6-cobalt-eval-baseline
+    group: mom6-cobalt-eval
   prognostic_vars_key: full_state_all
-  boundary_vars_key: standard_forcing
+  boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
 data:
   data_location: bgc_data.zarr

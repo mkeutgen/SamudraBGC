@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
-# Experiment: baseline_mae_jra
-# Category: baseline_jra
+# Experiment: mae_grad_w025_jra
+# Category: jra_grad
 # Domain: 270x180
 
 debug: false
@@ -12,7 +12,8 @@ batch_size: 1
 learning_rate: 0.0002
 scheduler:
   type: cosine
-loss: mae
+loss: mae_gradient_weighted
+gradient_weight: 0.25
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
@@ -22,9 +23,9 @@ train_time:
   end: '1988-12-31'
 val_time:
   start: '1989-01-01'
-  end: '1990-12-31'
+  end: '1989-12-31'
 inference_times:
-- start: '1992-01-01'
+- start: '1990-01-01'
   end: '1992-06-30'
 data_stride:
 - 1
@@ -33,14 +34,14 @@ steps:
 step_transition: []
 backend: auto
 experiment:
-  name: baseline_mae_jra
+  name: mae_grad_w025_jra
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
     mode: disabled
     project: ocean-emulators
     entity: m2lines
-    group: mom6-cobalt-train
+    group: mom6-cobalt-train-mae-grad-experiments
   prognostic_vars_key: full_state_all
   boundary_vars_key: standard_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA
@@ -49,12 +50,13 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 30
+  num_workers: 12
   persistent_workers: true
   prefetch_factor: 4
   hist: 1
   concurrent_compute: true
 model:
+  checkpointing: all
   pred_residuals: false
   last_kernel_size: 3
   pad: constant

@@ -5,7 +5,7 @@
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/helmholtz270_mae_grad_w025/checkpoints/ckpt_ema_epoch_040.pt
+ckpt_path: ./outputs/helmholtz270_mae_grad_w025/saved_nets/ckpt_ema_epoch_040.pt
 inference_time:
   start: '2025-01-01'
   end: '2025-12-31'
