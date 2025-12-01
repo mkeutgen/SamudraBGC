@@ -676,7 +676,8 @@ class TrainConfig(TopLevelConfig):
     learning_rate: float = 2e-4
     scheduler: SchedulerConfig | None = None
     loss: LossType = "mse"
-    gradient_weight: float = 0.1     
+    gradient_weight: float = 0.1
+    second_order_weight: float = 0.0  # Laplacian/curvature penalty for sharper features
     gradient_scales: Optional[List[float]] = None 
     finetune: bool = False
     resume_ckpt_path: str | None = None

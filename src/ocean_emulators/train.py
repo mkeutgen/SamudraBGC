@@ -289,11 +289,12 @@ class Trainer:
                 )
             
             case "mae_gradient_weighted":
-                logger.info(f"Using MAE loss with weighted gradient penalty (α={cfg.gradient_weight})")
+                logger.info(f"Using MAE loss with weighted gradient penalty (α={cfg.gradient_weight}, β={cfg.second_order_weight})")
                 self.loss_fn = partial(
                     decomposed_mae_gradient_weighted,
                     wet=self.wet,
-                    gradient_weight=cfg.gradient_weight
+                    gradient_weight=cfg.gradient_weight,
+                    second_order_weight=cfg.second_order_weight
                 )
             
             case "mae_gradient_multiscale":  # Tier 2
