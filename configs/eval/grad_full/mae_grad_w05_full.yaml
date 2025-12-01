@@ -1,33 +1,36 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# Evaluation for: mae_grad_w05_fullstate
-# Category: grad
+# Evaluation for: grad_full_mae_grad_w05
+# Category: grad_full
+# Dataset: MOM6_CobaltDG_Clim_FULL
+# State: full_state_25
+
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/mae_grad_w05_fullstate_60ep_minimal_forcing/saved_nets/ema_ckpt.pt
+ckpt_path: ./outputs/grad_full_mae_grad_w05/saved_nets/ckpt_ema_epoch_060.pt
 inference_time:
   start: '2025-01-01'
   end: '2025-12-31'
 num_model_steps_forward: 10
 backend: auto
 experiment:
-  name: mae_grad_w05_fullstate_60ep_minimal_forcing_eval
-  rand_seed: 15
+  name: grad_full_mae_grad_w05_eval
+  rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: disabled
     project: ocean-emulators
     entity: m2lines
-    group: mom6-cobalt-eval
-  prognostic_vars_key: full_state_all
-  boundary_vars_key: minimal_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim
+    group: grad_full-eval
+  prognostic_vars_key: full_state_25
+  boundary_vars_key: standard_forcing
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL
 data:
   data_location: bgc_data.zarr
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 8
+  num_workers: 4
   persistent_workers: true
   prefetch_factor: 4
   hist: 1

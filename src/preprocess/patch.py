@@ -142,28 +142,35 @@ def add_helmholtz_to_zarr_parallel(ds_path, dx, dy, n_workers=80):
     store = zarr.open(str(ds_path), mode='a')
     
     logger.info("Creating psi and phi arrays...")
+    # Delete existing psi/phi arrays if they exist
     for z in range(n_depths):
-        if f'psi_{z}' not in store:
-            arr = store.create_dataset(
-                f'psi_{z}',
-                shape=(n_times, ny, nx),
-                chunks=(time_chunk, lat_chunk, lon_chunk),
-                dtype='f4',
-                compressor=zarr.Blosc(cname='zstd', clevel=4)
-            )
-            arr.attrs['_ARRAY_DIMENSIONS'] = ['time', 'lat', 'lon']
-            
-        if f'phi_{z}' not in store:
-            arr = store.create_dataset(
-                f'phi_{z}',
-                shape=(n_times, ny, nx),
-                chunks=(time_chunk, lat_chunk, lon_chunk),
-                dtype='f4',
-                compressor=zarr.Blosc(cname='zstd', clevel=4)
-            )
-            arr.attrs['_ARRAY_DIMENSIONS'] = ['time', 'lat', 'lon']
-    
-    batch_size = 200
+        if f'psi_{z}' in store:
+            logger.info(f"  Deleting existing psi_{z}")
+            del store[f'psi_{z}']
+        if f'phi_{z}' in store:
+            logger.info(f"  Deleting existing phi_{z}")
+            del store[f'phi_{z}']
+
+    # Now create fresh arrays
+    for z in range(n_depths):
+        arr = store.create_dataset(
+            f'psi_{z}',
+            shape=(n_times, ny, nx),
+            chunks=(time_chunk, lat_chunk, lon_chunk),
+            dtype='f4',
+            compressor=zarr.Blosc(cname='zstd', clevel=4)
+        )
+        arr.attrs['_ARRAY_DIMENSIONS'] = ['time', 'lat', 'lon']
+        
+        arr = store.create_dataset(
+            f'phi_{z}',
+            shape=(n_times, ny, nx),
+            chunks=(time_chunk, lat_chunk, lon_chunk),
+            dtype='f4',
+            compressor=zarr.Blosc(cname='zstd', clevel=4)
+        )
+        arr.attrs['_ARRAY_DIMENSIONS'] = ['time', 'lat', 'lon']    
+    batch_size = 365
     total_batches = (n_times + batch_size - 1) // batch_size
     
     logger.info(f"Processing {n_times} timesteps in {total_batches} batches of {batch_size}")
@@ -189,9 +196,26 @@ def add_helmholtz_to_zarr_parallel(ds_path, dx, dy, n_workers=80):
         results = client.compute(tasks, sync=True)
         
         logger.info(f"  Writing {len(results)} results...")
+        # Organize results by depth for efficient writing
+        psi_by_depth = {z: [] for z in range(n_depths)}
+        phi_by_depth = {z: [] for z in range(n_depths)}
+        time_indices = {z: [] for z in range(n_depths)}
+
         for t_idx, z, psi, phi in results:
-            store[f'psi_{z}'][t_idx, :, :] = psi
-            store[f'phi_{z}'][t_idx, :, :] = phi
+            psi_by_depth[z].append(psi)
+            phi_by_depth[z].append(phi)
+            time_indices[z].append(t_idx)
+
+        # Write in larger chunks per depth level
+        for z in range(n_depths):
+            if psi_by_depth[z]:  # If we have data for this depth
+                t_indices = np.array(time_indices[z])
+                psi_stack = np.stack(psi_by_depth[z], axis=0)
+                phi_stack = np.stack(phi_by_depth[z], axis=0)
+                
+                # Single write operation per depth instead of one per timestep
+                store[f'psi_{z}'][t_indices, :, :] = psi_stack
+                store[f'phi_{z}'][t_indices, :, :] = phi_stack        
         
         batch_time = time.time() - batch_start_time
         remaining_batches = total_batches - (batch_idx + 1)
@@ -218,7 +242,7 @@ def flatten_stats(ds: xr.Dataset) -> xr.Dataset:
 
 
 def main():
-    data_dir = Path("/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL")
+    data_dir = Path("/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL")
     input_path = data_dir / "bgc_data.zarr"
     output_means = data_dir / "bgc_means.zarr"  
     output_stds = data_dir / "bgc_stds.zarr"

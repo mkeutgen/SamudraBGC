@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=mae_grad_w05_fullstate_eval
+#SBATCH --job-name=mae_grad_w05_fullstate_eval_minimal_forcing
 #SBATCH --output=logs/mae_grad_w05_fullstate_eval-%j.out
 #SBATCH --error=logs/mae_grad_w05_fullstate_eval-%j.err
 #SBATCH --partition=cimes

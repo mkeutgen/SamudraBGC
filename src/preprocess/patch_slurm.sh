@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=helmholtz-patch
+#SBATCH --job-name=new-helmholtz-patch
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBQTCH --memory=1000G
+#SBATCH --mem=980G
 #SBATCH --cpus-per-task=112        # More cores for parallelization!
-#SBATCH --time=10:00:00             # Should finish in 1-2 hours now
+#SBATCH --time=72:00:00             # Should finish in 1-2 hours now
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=mk0964@princeton.edu
 

@@ -1,7 +1,10 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
-# Experiment: mae_grad_w025_jra
-# Category: jra_grad
-# Domain: 270x180
+# Experiment: grad_full_mae_grad_w05_minimal
+# Category: grad_full
+# Domain: 360x360
+# Dataset: MOM6_CobaltDG_Clim_FULL (full climate forcing)
+# State: full_state_25 (25 vertical levels, full dynamics)
+# Boundary: minimal_forcing (only Qnet, tauuo, tauvo)
 
 debug: false
 disk_mode: true
@@ -13,20 +16,22 @@ learning_rate: 0.0002
 scheduler:
   type: cosine
 loss: mae_gradient_weighted
-gradient_weight: 0.25
+gradient_weight: 0.5
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
 data_percent: 1.0
 train_time:
-  start: '1960-01-01'
-  end: '1988-12-31'
+  start: '2016-01-01'
+  end: '2023-12-31'
 val_time:
-  start: '1989-01-01'
-  end: '1989-12-31'
+  start: '2024-01-01'
+  end: '2024-12-31'
 inference_times:
-- start: '1990-01-01'
-  end: '1992-06-30'
+- start: '2024-01-01'
+  end: '2024-06-30'
+- start: '2024-07-01'
+  end: '2024-12-31'
 data_stride:
 - 1
 steps:
@@ -34,25 +39,25 @@ steps:
 step_transition: []
 backend: auto
 experiment:
-  name: mae_grad_w025_jra
-  rand_seed: 15
+  name: grad_full_mae_grad_w05_minimal
+  rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: disabled
     project: ocean-emulators
     entity: m2lines
-    group: mom6-cobalt-train-mae-grad-experiments
-  prognostic_vars_key: full_state_all
-  boundary_vars_key: standard_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA
+    group: mom6-cobalt-train-mae-grad-experiments-grad_full
+  prognostic_vars_key: full_state_25
+  boundary_vars_key: minimal_forcing
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL
 data:
   data_location: bgc_data.zarr
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 12
+  num_workers: 4
   persistent_workers: true
-  prefetch_factor: 4
+  prefetch_factor: 8
   hist: 1
   concurrent_compute: true
 model:

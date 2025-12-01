@@ -1,34 +1,35 @@
 #!/bin/bash
-#SBATCH --job-name=helmholtzfull_mae_grad_w025_25lev_train
+#SBATCH --job-name=mae_grad_w025_train_jra
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=12
-#SBATCH --mem=500G
-#SBATCH --time=16:00:00
-#SBATCH --output=logs/helmholtzfull_mae_grad_w025_25lev_train_%j.out
-#SBATCH --error=logs/helmholtzfull_mae_grad_w025_25lev_train_%j.err
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=400G
+#SBATCH --time=72:00:00
+#SBATCH --output=logs/mae_grad_w025_jra_train_%j.out
+#SBATCH --error=logs/mae_grad_w025_jra_train_%j.err
 
-# Experiment: helmholtzfull_mae_grad_w025_25lev
-# Category: helmholtz_full
-# Domain: 360x360
+
+# Experiment: mae_grad_w025_jra
+# Category: jra
+# Domain: 270x180
 # Loss: mae_gradient_weighted
 # Gradient weight: 0.25
-# Epochs: 40
+
+# Epochs: 60
 
 set -e
+
+# Source bashrc for wandb API key
+source ~/.bashrc
 
 # Load modules
 module purge
 module load anaconda3/2024.10
 conda activate /scratch/cimes/maximek/envs/ocean-emulator
 cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
-
-# Training
-echo "Starting training: helmholtzfull_mae_grad_w025_25lev"
-echo "Config: configs/experiments/helmholtz_full/mae_grad_w025_25lev.yaml"
 
 # Distributed training environment (canonical)
 GPUS_PER_NODE=$(echo $SLURM_GPUS_ON_NODE | tr ',' '\n' | wc -l)
@@ -37,10 +38,15 @@ export MASTER_ADDR=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 export MASTER_PORT=29500
 export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 
+# Training
+echo "Starting training: mae_grad_w05_jra"
+echo "Config: configs/experiments/jra/mae_grad_w05.yaml"
+
 srun --ntasks=8 \
      --ntasks-per-node=1 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
-     configs/experiments/helmholtz_full/mae_grad_w025_25lev.yaml
+     configs/experiments/jra/mae_grad_w05.yaml \
+     --experiment.wandb.mode online
 
 echo "Training complete!"

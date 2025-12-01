@@ -6,7 +6,7 @@
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
-#SBATCH --mem=400G
+#SBATCH --mem=300G
 #SBATCH --time=20:00:00
 #SBATCH --output=logs/grad_full_mae_grad_w05_train_%j.out
 #SBATCH --error=logs/grad_full_mae_grad_w05_train_%j.err

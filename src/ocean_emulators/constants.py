@@ -196,6 +196,12 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
         for j in DEPTH_I_LEVELS
     ]
     + ["SSH"],
+    "full_state_25": [
+        k + str(j)
+        for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_", "uo_", "vo_"]
+        for j in DEPTH_I_LEVELS_SKIP2  # 25 levels
+    ]
+    + ["SSH"],
        # Keep the old one for backward compatibility if needed
     "full_state_all": [
         k + str(j)
@@ -230,10 +236,16 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
     + ["SSH", "chl_0"],  # chl only at surface (level 0)
     "optimized_helmholtz_25": [  # Must end with number
         k + str(j)
-        for k in ["dic_", "o2_", "no3_", "temp_", "salt_", "psi_", "phi_"]
+        for k in ["dic_", "o2_", "no3_", "temp_", "salt_", "psi_", "phi_","uo_","vo_"]  # added no3_, uo, vo
         for j in DEPTH_I_LEVELS_SKIP2  # Use subsampled list!
     ]
     + ["SSH", "chl_0"],
+     "big_friendly_model_all": [
+        k + str(j)
+        for k in ["dic_", "o2_", "no3_","chl_","pp_","temp_", "salt_", "psi_", "phi_","uo_","vo_"]  # removed pp_, removed chl from 3D
+        for j in DEPTH_I_LEVELS
+    ]
+    + ["SSH"],
 }
 
 BoundaryVarNames = list[str]

@@ -64,9 +64,9 @@ model:
   pad: constant
   unet:
     ch_width:
-    - 160
-    - 220
-    - 300
+    - 320
+    - 440
+    - 600
     dilation:
     - 1
     - 2

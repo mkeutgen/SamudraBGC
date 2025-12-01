@@ -24,13 +24,15 @@ export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export NUMEXPR_MAX_THREADS=$SLURM_CPUS_PER_TASK
 
+# full spatial subset : 19.94 60.06 -55.06 -14.94 
+# ds mini spatial subset 25.0 55.0 -45.0 -25.0
 srun python preprocess_mom6dg_parallelized.py \
   --input /scratch/cimes/maximek/INMOS/original_data/ \
-  --output /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL \
-  --spatial-subset 19.94 60.06 -55.06 -14.94 \
+  --output /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_Jan \
+  --spatial-subset 25.0 55.0 -45.0 -25.0 \
   --first-year 2016 \
-  --years 1-10 \
-  --months 1-12 \
+  --years 1 \
+  --months 1 \
   --compression 1 \
   --grid-spacing 9000.0 \
   --boundary-width 1 \

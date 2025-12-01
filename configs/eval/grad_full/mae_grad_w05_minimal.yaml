@@ -1,27 +1,30 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# Evaluation for: helmholtzfull_mae_control_50lev
-# Category: helmholtz_full
+# Evaluation for: grad_full_mae_grad_w05_minimal
+# Category: grad_full
+# Dataset: MOM6_CobaltDG_Clim_FULL
+# State: full_state_25
+# Boundary: minimal_forcing
 
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/helmholtzfull_mae_control_50lev/saved_nets/ckpt_ema_epoch_040.pt
+ckpt_path: ./outputs/grad_full_mae_grad_w05_minimal/saved_nets/ckpt_ema_epoch_060.pt
 inference_time:
   start: '2025-01-01'
   end: '2025-12-31'
 num_model_steps_forward: 10
 backend: auto
 experiment:
-  name: helmholtzfull_mae_control_50lev_eval
-  rand_seed: 15
+  name: grad_full_mae_grad_w05_minimal_eval
+  rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: disabled
     project: ocean-emulators
     entity: m2lines
-    group: helmholtz_full-eval
-  prognostic_vars_key: optimized_helmholtz_all
-  boundary_vars_key: standard_forcing
+    group: grad_full-eval
+  prognostic_vars_key: full_state_25
+  boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL
 data:
   data_location: bgc_data.zarr
@@ -34,14 +37,15 @@ data:
   hist: 1
   concurrent_compute: true
 model:
+  checkpointing: all
   pred_residuals: false
   last_kernel_size: 3
   pad: constant
   unet:
     ch_width:
-    - 160
-    - 220
-    - 300
+    - 320
+    - 440
+    - 600
     dilation:
     - 1
     - 2

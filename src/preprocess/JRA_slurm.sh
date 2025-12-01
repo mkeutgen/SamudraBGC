@@ -6,9 +6,9 @@
 #SBATCH --account=cimes3
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=512G
-#SBATCH --time=72:00:00
+#SBATCH --cpus-per-task=112
+#SBATCH --mem=970G
+#SBATCH --time=24:00:00
 
 module purge
 module load anaconda3/2024.10
@@ -24,13 +24,16 @@ export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export NUMEXPR_MAX_THREADS=$SLURM_CPUS_PER_TASK
 
-srun python preprocess_mom6dg_accelerated.py \
+# For full domain 19.94 60.06 -55.06 -14.94
+# For spatial subset 25.0 55.0 -45.0 -25.0
+
+srun python preprocess_mom6dg_parallelized.py \
   --input /scratch/cimes/maximek/MOM6_Double_Gyre/DG-MOM6-COBALTv2/ice_ocean_SIS2/OM4_DG_COBALT/MOM6COBALT_DG_JRA_60yr_raw/ \
-  --output /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA \
-  --spatial-subset 25.0 55.0 -45.0 -25.0 \
+  --output /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL \
+  --spatial-subset  19.94 60.06 -55.06 -14.94\
   --boundary-width 1 \
   --first-year 1960 \
-  --years 1-40 \
+  --years 1-60 \
   --months 1-12 \
   --compression 1 \
   --chunk-time 5 \

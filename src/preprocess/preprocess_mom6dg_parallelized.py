@@ -467,9 +467,12 @@ def load_mom6_monthly_files(data_dir: Path, year: int, month: int, target_chunks
 
     if not datasets:
         raise FileNotFoundError(f"No MOM6 files found for {year:04d}-{month:02d}")
-
-    ds = xr.merge(datasets, join="outer")
-
+    # Maxime changing to inner join to ensure only common coordinates are kept
+    ds = xr.merge(datasets, join="inner")
+    print(f"After merge - checking coordinates:")
+    for var in ['SSH', 'PRCmE', 'temp']:
+        if var in ds:
+            print(f"  {var}: dims={ds[var].dims}, shape={ds[var].shape}")
     # Log basic info
     if "time" in ds:
         logger.info(f"Loaded time axis: {len(ds.time)} entries, dtype={ds.time.dtype}")
@@ -852,7 +855,7 @@ def process_single_month_task(input_dir, actual_year, month, spatial_bounds,
         ds = create_masks(ds, boundary_width)
         ds = drop_unused_dimensions(ds)
         ds = drop_time_metadata_vars(ds)
-        
+        ds = ds.compute()  # Maxime : Force computation before returning, might be causing the bug? 
         return ds
         
     except FileNotFoundError as e:
@@ -1003,7 +1006,7 @@ def process_mom6_cobalt_data(
     os.makedirs(spill_dir, exist_ok=True)
 
     # Define cluster parameters
-    n_workers = 6
+    n_workers = 11
     threads_per_worker = 1  
     mem_per_worker = "85GB"
 
