@@ -46,7 +46,6 @@ srun --ntasks=8 \
      --ntasks-per-node=1 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
-     configs/experiments/jra/mae_grad_w05.yaml \
-     --experiment.wandb.mode online
+     configs/experiments/jra/mae_grad_w05.yaml
 
 echo "Training complete!"

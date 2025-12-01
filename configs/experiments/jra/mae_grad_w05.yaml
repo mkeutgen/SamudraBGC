@@ -38,7 +38,7 @@ experiment:
   rand_seed: 15
   base_output_dir: ./outputs
   wandb:
-    mode: online
+    mode: offline
     project: bgc-emulator
     entity: mkeutgen
     group: mom6-bgc-training

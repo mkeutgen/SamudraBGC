@@ -139,7 +139,7 @@ class Eval:
         # Initialize WandB
         self.wandb_logger = WandBLogger.init_instance()
         self.wandb_logger.configure(
-            cfg.experiment.wandb.mode == "online", is_main_process()
+            cfg.experiment.wandb.mode in ("online", "offline"), is_main_process()
         )
 
         # Set up wandb run
