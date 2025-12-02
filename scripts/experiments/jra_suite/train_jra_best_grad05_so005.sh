@@ -6,7 +6,7 @@
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=400G
+#SBATCH --mem=150G
 #SBATCH --time=72:00:00
 #SBATCH --output=logs/jra_best_grad05_so005_train_%j.out
 #SBATCH --error=logs/jra_best_grad05_so005_train_%j.err
@@ -36,9 +36,11 @@ export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 # Training
 echo "Starting training: jra_best_grad05_so005"
 echo "Config: configs/experiments/jra_suite/jra_best_grad05_so005.yaml"
+echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 
 srun --ntasks=8 \
      --ntasks-per-node=1 \
+     --cpus-per-task=16 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
      configs/experiments/jra_suite/jra_best_grad05_so005.yaml
