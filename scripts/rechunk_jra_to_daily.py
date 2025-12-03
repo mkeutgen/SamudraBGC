@@ -28,7 +28,9 @@ def rechunk_to_daily(
     max_mem: str = "60GB",
     compression_level: int = 1,
     backup: bool = True,
-    time_chunk_size: int = 5
+    time_chunk_size: int = 5,
+    output_path: Path | None = None,
+    temp_path: Path | None = None
 ):
     """
     Efficiently rechunk zarr store to specified time chunks using rechunker.
@@ -39,6 +41,8 @@ def rechunk_to_daily(
         compression_level: Compression level (1-9)
         backup: Whether to keep a backup of the original
         time_chunk_size: Time chunk size in days (default: 5)
+        output_path: Optional custom output path (default: zarr_path.parent/zarr_path.name.rechunked)
+        temp_path: Optional custom temp path (default: zarr_path.parent/zarr_path.name.rechunk_temp)
     """
     try:
         from rechunker import rechunk
@@ -85,8 +89,17 @@ def rechunk_to_daily(
     logger.info(f"Target chunking: time={time_chunk_size}, spatial dimensions=-1 (full)")
 
     # Setup paths
-    target_store = str(zarr_path.parent / f"{zarr_path.name}.rechunked")
-    temp_store = str(zarr_path.parent / f"{zarr_path.name}.rechunk_temp")
+    if output_path is None:
+        target_store = str(zarr_path.parent / f"{zarr_path.name}.rechunked")
+    else:
+        target_store = str(output_path)
+        logger.info(f"Using custom output path: {target_store}")
+
+    if temp_path is None:
+        temp_store = str(zarr_path.parent / f"{zarr_path.name}.rechunk_temp")
+    else:
+        temp_store = str(temp_path)
+        logger.info(f"Using custom temp path: {temp_store}")
 
     # Clean up any existing temp/target stores from previous runs
     for path in [target_store, temp_store]:
@@ -189,6 +202,18 @@ def main():
         default=5,
         help="Time chunk size in days (default: 5)"
     )
+    parser.add_argument(
+        "--output-path",
+        type=Path,
+        default=None,
+        help="Custom output path for rechunked data (default: same directory as input)"
+    )
+    parser.add_argument(
+        "--temp-path",
+        type=Path,
+        default=None,
+        help="Custom temporary storage path (default: same directory as input)"
+    )
 
     args = parser.parse_args()
 
@@ -205,6 +230,10 @@ def main():
     logger.info(f"Compression level: {args.compression}")
     logger.info(f"Time chunk size: {args.time_chunk_size} days")
     logger.info(f"Backup: {not args.no_backup}")
+    if args.output_path:
+        logger.info(f"Custom output path: {args.output_path}")
+    if args.temp_path:
+        logger.info(f"Custom temp path: {args.temp_path}")
 
     try:
         rechunk_to_daily(
@@ -212,7 +241,9 @@ def main():
             max_mem=args.max_mem,
             compression_level=args.compression,
             backup=not args.no_backup,
-            time_chunk_size=args.time_chunk_size
+            time_chunk_size=args.time_chunk_size,
+            output_path=args.output_path,
+            temp_path=args.temp_path
         )
         logger.info("\n✓ SUCCESS: Rechunking completed successfully!")
     except Exception as e:

@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
 # ============================================================================
-# Experiment: Balanced First and Second Order
-# Phase: 2.4 - Loss function
-# Hypothesis: Equal weighting of gradient and curvature gives best balance
-# Expected: Alternative winner - might balance accuracy and sharpness better
+# Experiment: Classical MAE Loss (No Gradient Penalty)
+# Phase: 2.1 - Loss function baseline
+# Hypothesis: Pure MAE without gradient penalty will produce blurrier predictions
+# Expected: Good R² but maximum blurriness in eddies/fronts (reference baseline)
 # NOTE: Update prognostic_vars_key and boundary_vars_key with Phase 1 winner
 # ============================================================================
 
@@ -16,9 +16,7 @@ batch_size: 1
 learning_rate: 0.0002
 scheduler:
   type: cosine
-loss: mae_gradient_weighted
-gradient_weight: 0.25   # Reduced first-order
-second_order_weight: 0.25  # Equal second-order
+loss: mae
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
@@ -43,7 +41,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: jra_best_grad025_so025
+  name: jra_classical_mae
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -53,10 +51,9 @@ experiment:
     group: mom6-bgc-training-jra60
     tags:
     - "phase2-loss"
-    - "balanced-penalties"
-    - "grad-0.25"
-    - "second-order-0.25"
-    - "alternative-balance"
+    - "classical-mae"
+    - "no-gradient-penalty"
+    - "baseline-reference"
   prognostic_vars_key: optimized_helmholtz_all  # TODO: Update with Phase 1 winner
   boundary_vars_key: standard_forcing            # TODO: Update with Phase 1 winner
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL
@@ -102,4 +99,4 @@ model:
     non_negative_corrector_names: null
     ocean_heat_corrector: false
 
-# Purpose: Test if reducing first-order while adding second-order improves balance
+# Purpose: Pure MAE baseline without any gradient penalty for maximum contrast with gradient-weighted experiments
