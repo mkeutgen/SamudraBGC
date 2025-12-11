@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=jra_best_grad05_so01_train
+#SBATCH --job-name=jra_best_grad025_so00_train
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -8,11 +8,11 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=300G
 #SBATCH --time=72:00:00
-#SBATCH --output=logs/jra_best_grad05_so01_train_%j.out
-#SBATCH --error=logs/jra_best_grad05_so01_train_%j.err
+#SBATCH --output=logs/jra_best_grad025_so00_train_%j.out
+#SBATCH --error=logs/jra_best_grad025_so00_train_%j.err
 
-# Experiment: Aggressive Second-Order (Max Sharpness)
-# Phase: 2.3
+# Experiment: Reduced Gradient (0.25) - No Second Order
+# Phase: 2.x - Loss refinement based on grad05 showing too much accuracy loss
 # Suite: JRA 60-year BGC Emulator Training
 
 set -e
@@ -34,8 +34,8 @@ export MASTER_PORT=29500
 export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 
 # Training
-echo "Starting training: jra_best_grad05_so01"
-echo "Config: configs/experiments/jra_suite/jra_best_grad05_so01.yaml"
+echo "Starting training: jra_best_grad025_so00"
+echo "Config: configs/experiments/jra_suite/jra_best_grad025_so00.yaml"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 
 srun --ntasks=8 \
@@ -43,6 +43,6 @@ srun --ntasks=8 \
      --cpus-per-task=16 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
-     configs/experiments/jra_suite/jra_best_grad05_so01.yaml
+     configs/experiments/jra_suite/jra_best_grad025_so00.yaml
 
 echo "Training complete!"

@@ -6,7 +6,7 @@
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=150G
+#SBATCH --mem=300G
 #SBATCH --time=72:00:00
 #SBATCH --output=logs/jra_best_grad05_so005_train_%j.out
 #SBATCH --error=logs/jra_best_grad05_so005_train_%j.err

@@ -3,11 +3,11 @@
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
-#SBATCH --nodes=16
+#SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=30
-#SBATCH --mem=500G
-#SBATCH --time=48:00:00
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=300G
+#SBATCH --time=72:00:00
 #SBATCH --output=logs/jra_fullstate_grad05_train_%j.out
 #SBATCH --error=logs/jra_fullstate_grad05_train_%j.err
 
@@ -38,9 +38,9 @@ echo "Starting training: jra_fullstate_grad05"
 echo "Config: configs/experiments/jra_suite/jra_fullstate_grad05.yaml"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 
-srun --ntasks=16 \
+srun --ntasks=8 \
      --ntasks-per-node=1 \
-     --cpus-per-task=16 \
+     --cpus-per-task=12 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
      configs/experiments/jra_suite/jra_fullstate_grad05.yaml

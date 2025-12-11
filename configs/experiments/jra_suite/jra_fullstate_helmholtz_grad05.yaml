@@ -48,7 +48,7 @@ experiment:
   wandb:
     mode: offline
     project: bgc-emulator
-    entity: mkeutgen
+    entity: m2lines
     group: mom6-bgc-training-jra60
     tags:
     - "phase1-prognostic"
@@ -59,14 +59,14 @@ experiment:
     - "wild-card"
   prognostic_vars_key: full_state_and_helmholtz_all
   boundary_vars_key: standard_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL
+  data_root: /scratch/gpfs/GEOCLIM/LRGROUP/maximek/MOM6_CobaltDG_JRA_FULL
 
 data:
   data_location: bgc_data.zarr
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 12
+  num_workers: 2
   persistent_workers: true
   prefetch_factor: 4
   hist: 1

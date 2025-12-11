@@ -34,8 +34,8 @@ export PYTHONUNBUFFERED=1
 JRA_ZARR="/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL/bgc_data.zarr"
 
 # Use GEOCLIM scratch for temp storage (much higher inode limit)
-TEMP_DIR="/scratch/gpfs/GEOCLIM/LRGROUP/maximek/rechunk_temp"
-OUTPUT_DIR="/scratch/gpfs/GEOCLIM/LRGROUP/maximek/rechunk_output"
+TEMP_DIR="/scratch/gpfs/GEOCLIM/LRGROUP/maximek/MOM6_CobaltDG_JRA_FULL"
+OUTPUT_DIR="/scratch/gpfs/GEOCLIM/LRGROUP/maximek/MOM6_CobaltDG_JRA_FULL"
 
 # Check if zarr exists
 if [ ! -d "$JRA_ZARR" ]; then

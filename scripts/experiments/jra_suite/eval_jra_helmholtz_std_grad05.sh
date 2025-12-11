@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=400G
-#SBATCH --time=24:00:00
+#SBATCH --time=8:00:00
 #SBATCH --output=logs/jra_helmholtz_std_grad05_eval_%j.out
 #SBATCH --error=logs/jra_helmholtz_std_grad05_eval_%j.err
 
@@ -28,13 +28,9 @@ cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
 # Evaluation
 echo "Starting evaluation: jra_helmholtz_std_grad05"
-echo "Config: configs/experiments/jra_suite/jra_helmholtz_std_grad05.yaml"
-
-# TODO: Update with correct checkpoint path after training
-CHECKPOINT_PATH="outputs/jra_helmholtz_std_grad05/checkpoints/checkpoint_epoch_60.pt"
+echo "Config: configs/eval/jra_suite/jra_helmholtz_std_grad05_eval.yaml"
 
 python -m ocean_emulators.eval \
-    configs/experiments/jra_suite/jra_helmholtz_std_grad05.yaml \
-    --ckpt_path $CHECKPOINT_PATH
+    configs/eval/jra_suite/jra_helmholtz_std_grad05_eval.yaml
 
 echo "Evaluation complete!"
