@@ -1,20 +1,19 @@
 #!/bin/bash
-#SBATCH --job-name=jra_fullstate_helmholtz_grad05_train
+#SBATCH --job-name=jra_fullstate_helmholtz_minimal_train
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=250G
-#SBATCH --time=48:00:00
-#SBATCH --output=logs/jra_fullstate_helmholtz_grad05_train_%j.out
-#SBATCH --error=logs/jra_fullstate_helmholtz_grad05_train_%j.err
+#SBATCH --mem=300G
+#SBATCH --time=72:00:00
+#SBATCH --output=logs/jra_fullstate_helmholtz_grad05_minimal_train_%j.out
+#SBATCH --error=logs/jra_fullstate_helmholtz_grad05_minimal_train_%j.err
 
-# Experiment: Full State + Helmholtz (Wild Card)
-# Phase: 1.4
+# Experiment: Full State + Helmholtz + Minimal Forcing
+# Phase: 1.x - Combination experiment
 # Suite: JRA 60-year BGC Emulator Training
-# Memory-optimized: 48 CPUs/task, 200GB RAM (matches 24 data workers)
 
 set -e
 
@@ -35,8 +34,8 @@ export MASTER_PORT=29500
 export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 
 # Training
-echo "Starting training: jra_fullstate_helmholtz_grad05"
-echo "Config: configs/experiments/jra_suite/jra_fullstate_helmholtz_grad05.yaml"
+echo "Starting training: jra_fullstate_helmholtz_grad05_minimal"
+echo "Config: configs/experiments/jra_suite/jra_fullstate_helmholtz_grad05_minimal.yaml"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 
 srun --ntasks=8 \
@@ -44,6 +43,6 @@ srun --ntasks=8 \
      --cpus-per-task=16 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
-     configs/experiments/jra_suite/jra_fullstate_helmholtz_grad05.yaml
+     configs/experiments/jra_suite/jra_fullstate_helmholtz_grad05_minimal.yaml
 
 echo "Training complete!"

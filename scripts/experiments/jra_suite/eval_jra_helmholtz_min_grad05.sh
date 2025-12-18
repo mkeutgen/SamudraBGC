@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=400G
-#SBATCH --time=8:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=logs/jra_helmholtz_min_grad05_eval_%j.out
 #SBATCH --error=logs/jra_helmholtz_min_grad05_eval_%j.err
 
