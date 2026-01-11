@@ -4,10 +4,12 @@
 # Experiments to compare (name: path to predictions.zarr)
 # Paths are relative to the Ocean_Emulator directory where you run the scripts
 experiments:
-  "Full MAE + Grad 0.5": "outputs/jra_fullstate_grad05_eval/predictions.zarr/"
-  "Helmholtz MAE + Grad 0.5": "outputs/jra_helmholtz_std_grad05_eval/predictions.zarr/"
-  "Helmholtz Minimal MAE + Grad 0.5": "outputs/jra_helmholtz_min_grad05_eval/predictions.zarr/"
-
+  "Full MAE + Grad 0.5": "outputs/jra_wo_poc/jra_fullstate_grad05_eval/predictions.zarr/"
+  "Helmholtz MAE + Grad 0.5": "outputs/jra_wo_poc/jra_helmholtz_std_grad05_eval/predictions.zarr/"
+  "Helmholtz Minimal MAE + Grad 0.5": "outputs/jra_wo_poc/jra_helmholtz_min_grad05_eval/predictions.zarr/"
+  "Full Helmholtz MAE + Grad 0.5": "outputs/jra_wo_poc/jra_fullstate_helmholtz_grad05_eval/predictions.zarr/"
+  "Full Helmholtz Minimal MAE + Grad 0.5": "outputs/jra_wo_poc/jra_fullstate_helmholtz_grad05_minimal_eval/predictions.zarr/"
+  "Best Grad 0.25 SO 0.0 Helmholtz Only": "outputs/jra_wo_poc/jra_best_grad025_so00_helmholtz_only_eval/predictions.zarr/"
   # Add more experiments here:
   # "Another Experiment": "outputs/another_experiment/predictions.zarr/"
 
@@ -39,7 +41,7 @@ save_spatial_fields: false  # Save spatial fields (can be large)
 # Visualization settings
 visualization:
   # Spring bloom progression: 1990-01-03, 1995-03/04/05-15, 1997-03/04/05-15
-  snapshot_times: [0, 1896, 1927, 1957, 2626, 2657, 2687, 3356, 3387, 3417]
+  snapshot_times: [1896, 1927, 1957, 2626, 2657, 2687, 3356, 3387, 3417]
 
   # Time index for spectral analysis
   spectral_time_idx: 2687  # Corresponds to 1995-05-15

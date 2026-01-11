@@ -144,6 +144,96 @@ def save_metrics_to_file(
         f.write(f"{metric_type.upper()} METRICS SUMMARY\n")
         f.write(f"{'='*80}\n\n")
 
+        # Add model-level averages and rankings for global metrics
+        if metric_type == "global":
+            # Compute model-level averages over variables
+            model_avgs = {}
+            metric_keys = ["r2", "correlation", "rmse", "mae", "mean_bias", "nrmse"]
+
+            for exp_name, exp_metrics in metrics.items():
+                model_avgs[exp_name] = {key: [] for key in metric_keys}
+
+                for varname, var_metrics in exp_metrics.items():
+                    if var_metrics is None:
+                        continue
+
+                    for key in metric_keys:
+                        if key in var_metrics:
+                            value = var_metrics[key]
+                            # Use absolute value for mean_bias
+                            if key == "mean_bias":
+                                value = abs(value)
+                            model_avgs[exp_name][key].append(value)
+
+            # Compute averages
+            for exp_name in model_avgs:
+                nvars = len(model_avgs[exp_name]["r2"]) if "r2" in model_avgs[exp_name] else 0
+                for key in metric_keys:
+                    values = model_avgs[exp_name][key]
+                    if values:
+                        model_avgs[exp_name][f"{key}_avg"] = sum(values) / len(values)
+                        model_avgs[exp_name]["nvars"] = nvars
+                    else:
+                        model_avgs[exp_name][f"{key}_avg"] = float('nan')
+                        model_avgs[exp_name]["nvars"] = 0
+
+            # Write model-level averages table
+            f.write("MODEL-LEVEL AVERAGES (mean over variables)\n")
+            f.write(f"{'-'*80}\n")
+            f.write(f"{'Model':<35} {'n':>3}  {'R²':>6}  {'Corr':>6}  {'RMSE':>7}  {'MAE':>7}  {'|Bias|':>7}  {'NRMSE':>7}\n")
+            f.write(f"{'-'*80}\n")
+
+            for exp_name in sorted(model_avgs.keys()):
+                avgs = model_avgs[exp_name]
+                nvars = avgs.get("nvars", 0)
+
+                # Truncate or pad model name to 35 chars
+                model_display = exp_name[:35].ljust(35)
+
+                f.write(
+                    f"{model_display} {nvars:3d}  "
+                    f"{avgs.get('r2_avg', float('nan')):6.4f}  "
+                    f"{avgs.get('correlation_avg', float('nan')):6.4f}  "
+                    f"{avgs.get('rmse_avg', float('nan')):7.4f}  "
+                    f"{avgs.get('mae_avg', float('nan')):7.4f}  "
+                    f"{avgs.get('mean_bias_avg', float('nan')):7.4f}  "
+                    f"{avgs.get('nrmse_avg', float('nan')):7.4f}\n"
+                )
+
+            f.write("\n")
+
+            # Write rankings for each metric
+            ranking_specs = [
+                ("r2_avg", "R²", True),  # higher is better
+                ("correlation_avg", "Correlation", True),
+                ("rmse_avg", "RMSE", False),  # lower is better
+                ("mae_avg", "MAE", False),
+                ("mean_bias_avg", "|Bias|", False),
+                ("nrmse_avg", "NRMSE", False),
+            ]
+
+            for metric_key, metric_label, higher_is_better in ranking_specs:
+                f.write(f"RANKING by mean {metric_label} (over variables):\n")
+                f.write(f"{'-'*60}\n")
+
+                # Sort models by metric
+                sorted_models = sorted(
+                    model_avgs.items(),
+                    key=lambda x: x[1].get(metric_key, float('inf') if not higher_is_better else float('-inf')),
+                    reverse=higher_is_better
+                )
+
+                for rank, (exp_name, avgs) in enumerate(sorted_models, 1):
+                    value = avgs.get(metric_key, float('nan'))
+                    f.write(f"  {rank}. {exp_name} ({metric_label}={value:.4f})\n")
+
+                f.write("\n")
+
+            f.write(f"{'='*80}\n")
+            f.write("PER-VARIABLE METRICS\n")
+            f.write(f"{'='*80}\n\n")
+
+        # Existing per-variable printing
         for exp_name, exp_metrics in metrics.items():
             f.write(f"\n{exp_name}:\n")
             f.write(f"{'-'*60}\n")
@@ -362,6 +452,14 @@ def main():
     config = load_config(args.config)
     validate_config(config)
 
+    # Get snapshot times from config for regional diagnostics
+    if 'visualization' in config and 'snapshot_times' in config['visualization']:
+        snapshot_times = config['visualization']['snapshot_times']
+        diagnostic_time_idx = snapshot_times[0]  # Use first snapshot for diagnostics
+    else:
+        diagnostic_time_idx = 0  # Fallback to first timestep
+        print("Warning: No visualization.snapshot_times in config, using time_idx=0 for diagnostics")
+
     # Setup output directory
     if args.output_dir:
         output_dir = Path(args.output_dir)
@@ -440,7 +538,7 @@ def main():
         old_stdout = sys.stdout
         sys.stdout = StringIO()
 
-        diagnose_regional_characteristics(ground_truth, variables, time_idx=0)
+        diagnose_regional_characteristics(ground_truth, variables, time_idx=diagnostic_time_idx)
 
         diagnostic_output = sys.stdout.getvalue()
         sys.stdout = old_stdout

@@ -414,8 +414,8 @@ def main():
         '--snapshot-times',
         type=int,
         nargs='+',
-        default=[0, 1974, 2704, 3526],
-        help='Time indices for spatial snapshots (default: 1990-01, 1995-06, 1997-06, 1999-09 to show bias accumulation)'
+        default=None,
+        help='Time indices for spatial snapshots (overrides config)'
     )
     parser.add_argument(
         '--variables',
@@ -436,6 +436,26 @@ def main():
     # Load config
     print(f"Loading configuration from: {args.config}")
     config = load_config(args.config)
+
+    # Get snapshot times from config or command line
+    if args.snapshot_times is not None:
+        snapshot_times = args.snapshot_times
+    elif 'visualization' in config and 'snapshot_times' in config['visualization']:
+        snapshot_times = config['visualization']['snapshot_times']
+    else:
+        raise ValueError(
+            "snapshot_times must be provided either via --snapshot-times argument "
+            "or in config.yaml under visualization.snapshot_times"
+        )
+
+    # Get spectral time index from config (defaults to first snapshot if not specified)
+    if 'visualization' in config and 'spectral_time_idx' in config['visualization']:
+        spectral_time_idx = config['visualization']['spectral_time_idx']
+    else:
+        spectral_time_idx = snapshot_times[0]
+
+    print(f"Using snapshot times: {snapshot_times}")
+    print(f"Using spectral time index: {spectral_time_idx}")
 
     # Setup output directory
     if args.output_dir:
@@ -502,7 +522,7 @@ def main():
 
                 # Spatial snapshots
                 if 'spatial' in plot_types:
-                    for time_idx in args.snapshot_times:
+                    for time_idx in snapshot_times:
                         # Get date string for filename from ground truth time coordinate
                         try:
                             time_value = ground_truth.time.isel(time=time_idx).values
@@ -528,7 +548,7 @@ def main():
                     spectra_file = output_dir / f'{varname}_spectra.png'
                     plot_power_spectrum(
                         varname, props, predictions, ground_truth,
-                        args.snapshot_times[0], dx_km, spectra_file
+                        spectral_time_idx, dx_km, spectra_file
                     )
 
             except Exception as e:

@@ -134,20 +134,28 @@ def rechunk_to_daily(
 
     rechunk_plan.execute()
 
-    # Replace original with rechunked version
-    logger.info("Replacing original zarr with rechunked version...")
-    if backup:
-        backup_store = str(zarr_path) + ".backup"
-        logger.info(f"Creating backup at {backup_store}")
-        if Path(backup_store).exists():
-            logger.info(f"Removing existing backup...")
-            shutil.rmtree(backup_store)
-        shutil.move(source_store, backup_store)
-    else:
-        logger.info("Removing original (no backup)")
-        shutil.rmtree(source_store)
+    # Replace original with rechunked version OR keep at output_path
+    if output_path is None:
+        # Default behavior: replace original in-place
+        logger.info("Replacing original zarr with rechunked version...")
+        if backup:
+            backup_store = str(zarr_path) + ".backup"
+            logger.info(f"Creating backup at {backup_store}")
+            if Path(backup_store).exists():
+                logger.info(f"Removing existing backup...")
+                shutil.rmtree(backup_store)
+            shutil.move(source_store, backup_store)
+        else:
+            logger.info("Removing original (no backup)")
+            shutil.rmtree(source_store)
 
-    shutil.move(target_store, source_store)
+        shutil.move(target_store, source_store)
+        final_store = source_store
+    else:
+        # Custom output path: leave original untouched, keep rechunked at output_path
+        logger.info(f"Keeping rechunked data at custom output path: {target_store}")
+        logger.info(f"Original data unchanged at: {source_store}")
+        final_store = target_store
 
     # Cleanup temp
     logger.info("Cleaning up temporary files...")
@@ -157,16 +165,18 @@ def rechunk_to_daily(
 
     # Consolidate metadata
     logger.info("Consolidating metadata...")
-    zarr.consolidate_metadata(source_store)
+    zarr.consolidate_metadata(final_store)
 
     # Verify
-    ds_new = xr.open_zarr(source_store, consolidated=True)
+    ds_new = xr.open_zarr(final_store, consolidated=True)
     logger.info(f"New chunks (first 3 vars): {list(ds_new.chunks.items())[:3]}")
     logger.info(f"New dataset size: {ds_new.nbytes / 1e9:.2f} GB")
 
-    if backup:
+    if output_path is None and backup:
         logger.info(f"\nBackup stored at: {backup_store}")
         logger.info(f"Remove backup with: rm -rf {backup_store}")
+
+    logger.info(f"\nFinal rechunked data location: {final_store}")
 
 
 def main():

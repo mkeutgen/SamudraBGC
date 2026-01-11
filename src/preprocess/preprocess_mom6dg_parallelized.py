@@ -136,6 +136,12 @@ def parse_arguments():
         default=9000.0,
         help="Grid spacing in meters (assumes dx=dy, default: 9000m)",
     )
+    parser.add_argument(
+        "--static-file",
+        type=str,
+        default=None,
+        help="Path to ocean_static.nc file containing wet masks (optional)",
+    )
     return parser.parse_args()
 
 
@@ -201,6 +207,7 @@ vars_keep = [
     "chl",
     "pp",
     "no3",
+    "poc",
     # Physics
     "temp",
     "salt",
@@ -358,101 +365,106 @@ def compute_gsw_variables(ds: xr.Dataset) -> xr.Dataset:
     Compute conservative temperature (CT) and absolute salinity (SA) using GSW.
     Replaces temp and salt with CT and SA.
     Based on working monthly processing pipeline.
+
+    COMMENTED OUT: Using raw temp and salt instead of CT and SA for now.
     """
-    try:
-        import gsw
-    except ImportError:
-        logger.error("gsw package not found. Install with: pip install gsw")
-        raise
-    
-    logger.info("Computing conservative temperature and absolute salinity...")
-    
-    # Check required variables exist
-    if "temp" not in ds or "salt" not in ds:
-        logger.warning("temp or salt not found - skipping GSW conversions")
-        return ds
-    
-    # Determine dimension names (before renaming)
-    z_dim = "z_l"
-    y_dim = "yh" 
-    x_dim = "xh"
-    
-    if z_dim not in ds.coords or y_dim not in ds.coords or x_dim not in ds.coords:
-        logger.error(f"Missing required coordinates: {z_dim}, {y_dim}, {x_dim}")
-        return ds
-    
-    # Get coordinates
-    z = ds[z_dim]   # depth (positive down)
-    yh = ds[y_dim]  # latitude
-    xh = ds[x_dim]  # longitude
-    
-    logger.info("  Broadcasting coordinates to 3D...")
-    # Broadcast to 3D: (z_l, yh, xh)
-    Z3, Y3, X3 = xr.broadcast(z, yh, xh)
-    
-    logger.info("  Computing pressure from depth...")
-    # Pressure in dbar from depth: p = gsw.p_from_z(z_negative_up, lat)
-    # z_l is positive down, so negate it for GSW
-    P3 = xr.apply_ufunc(
-        gsw.p_from_z, 
-        -Z3,  # GSW expects negative up
-        Y3,   # latitude
-        input_core_dims=[[z_dim, y_dim, x_dim], [z_dim, y_dim, x_dim]],
-        output_core_dims=[[z_dim, y_dim, x_dim]],
-        vectorize=True, 
-        dask="parallelized", 
-        dask_gufunc_kwargs={"allow_rechunk": True},  # Safe: z_l is small (50 levels)
-        output_dtypes=[float]
-    )
-    
-    logger.info("  Computing Absolute Salinity (SA)...")
-    # GSW expects (SP, p[dbar], lon[degE], lat[degN])
-    SA = xr.apply_ufunc(
-        gsw.SA_from_SP,
-        ds["salt"],  # Practical Salinity
-        P3,          # Pressure (dbar)
-        X3,          # Longitude
-        Y3,          # Latitude
-        input_core_dims=[[z_dim, y_dim, x_dim]] * 4,
-        output_core_dims=[[z_dim, y_dim, x_dim]],
-        vectorize=True,
-        dask="parallelized",
-        dask_gufunc_kwargs={"allow_rechunk": True},
-        output_dtypes=[float],
-    )
-    SA.attrs = {
-        "long_name": "Absolute Salinity",
-        "units": "g/kg",
-        "standard_name": "sea_water_absolute_salinity"
-    }
-    
-    logger.info("  Computing Conservative Temperature (CT)...")
-    # GSW expects (SA, t, p)
-    CT = xr.apply_ufunc(
-        gsw.CT_from_t,
-        SA,          # Absolute Salinity
-        ds["temp"],  # In-situ temperature
-        P3,          # Pressure (dbar)
-        input_core_dims=[[z_dim, y_dim, x_dim]] * 3,
-        output_core_dims=[[z_dim, y_dim, x_dim]],
-        vectorize=True,
-        dask="parallelized",
-        dask_gufunc_kwargs={"allow_rechunk": True},
-        output_dtypes=[float],
-    )
-    CT.attrs = {
-        "long_name": "Conservative Temperature",
-        "units": "°C",
-        "standard_name": "sea_water_conservative_temperature"
-    }
-    
-    # Replace temp and salt with CT and SA
-    ds["temp"] = CT
-    ds["salt"] = SA
-    
-    logger.info("  ✓ Replaced temp→CT and salt→SA")
-    
+    # try:
+    #     import gsw
+    # except ImportError:
+    #     logger.error("gsw package not found. Install with: pip install gsw")
+    #     raise
+
+    logger.info("Skipping GSW conversion - using raw temp and salt")
     return ds
+
+    # logger.info("Computing conservative temperature and absolute salinity...")
+    #
+    # # Check required variables exist
+    # if "temp" not in ds or "salt" not in ds:
+    #     logger.warning("temp or salt not found - skipping GSW conversions")
+    #     return ds
+    #
+    # # Determine dimension names (before renaming)
+    # z_dim = "z_l"
+    # y_dim = "yh"
+    # x_dim = "xh"
+    #
+    # if z_dim not in ds.coords or y_dim not in ds.coords or x_dim not in ds.coords:
+    #     logger.error(f"Missing required coordinates: {z_dim}, {y_dim}, {x_dim}")
+    #     return ds
+    #
+    # # Get coordinates
+    # z = ds[z_dim]   # depth (positive down)
+    # yh = ds[y_dim]  # latitude
+    # xh = ds[x_dim]  # longitude
+    #
+    # logger.info("  Broadcasting coordinates to 3D...")
+    # # Broadcast to 3D: (z_l, yh, xh)
+    # Z3, Y3, X3 = xr.broadcast(z, yh, xh)
+    #
+    # logger.info("  Computing pressure from depth...")
+    # # Pressure in dbar from depth: p = gsw.p_from_z(z_negative_up, lat)
+    # # z_l is positive down, so negate it for GSW
+    # P3 = xr.apply_ufunc(
+    #     gsw.p_from_z,
+    #     -Z3,  # GSW expects negative up
+    #     Y3,   # latitude
+    #     input_core_dims=[[z_dim, y_dim, x_dim], [z_dim, y_dim, x_dim]],
+    #     output_core_dims=[[z_dim, y_dim, x_dim]],
+    #     vectorize=True,
+    #     dask="parallelized",
+    #     dask_gufunc_kwargs={"allow_rechunk": True},  # Safe: z_l is small (50 levels)
+    #     output_dtypes=[float]
+    # )
+    #
+    # logger.info("  Computing Absolute Salinity (SA)...")
+    # # GSW expects (SP, p[dbar], lon[degE], lat[degN])
+    # SA = xr.apply_ufunc(
+    #     gsw.SA_from_SP,
+    #     ds["salt"],  # Practical Salinity
+    #     P3,          # Pressure (dbar)
+    #     X3,          # Longitude
+    #     Y3,          # Latitude
+    #     input_core_dims=[[z_dim, y_dim, x_dim]] * 4,
+    #     output_core_dims=[[z_dim, y_dim, x_dim]],
+    #     vectorize=True,
+    #     dask="parallelized",
+    #     dask_gufunc_kwargs={"allow_rechunk": True},
+    #     output_dtypes=[float],
+    # )
+    # SA.attrs = {
+    #     "long_name": "Absolute Salinity",
+    #     "units": "g/kg",
+    #     "standard_name": "sea_water_absolute_salinity"
+    # }
+    #
+    # logger.info("  Computing Conservative Temperature (CT)...")
+    # # GSW expects (SA, t, p)
+    # CT = xr.apply_ufunc(
+    #     gsw.CT_from_t,
+    #     SA,          # Absolute Salinity
+    #     ds["temp"],  # In-situ temperature
+    #     P3,          # Pressure (dbar)
+    #     input_core_dims=[[z_dim, y_dim, x_dim]] * 3,
+    #     output_core_dims=[[z_dim, y_dim, x_dim]],
+    #     vectorize=True,
+    #     dask="parallelized",
+    #     dask_gufunc_kwargs={"allow_rechunk": True},
+    #     output_dtypes=[float],
+    # )
+    # CT.attrs = {
+    #     "long_name": "Conservative Temperature",
+    #     "units": "°C",
+    #     "standard_name": "sea_water_conservative_temperature"
+    # }
+    #
+    # # Replace temp and salt with CT and SA
+    # ds["temp"] = CT
+    # ds["salt"] = SA
+    #
+    # logger.info("  ✓ Replaced temp→CT and salt→SA")
+    #
+    # return ds
 
 
 def rename_variables(ds: xr.Dataset) -> xr.Dataset:
@@ -480,29 +492,53 @@ def rename_dimensions(ds: xr.Dataset) -> xr.Dataset:
 
 
 
-def create_masks(ds: xr.Dataset, boundary_width: int = 1) -> xr.Dataset:
-    """Create 2D mask and 3D wetmask after dimensions have been renamed."""
+def create_masks(ds: xr.Dataset, boundary_width: int = 1, static_file: Path = None) -> xr.Dataset:
+    """
+    Create 2D mask and 3D wetmask from static file wet masks.
+
+    Args:
+        ds: Dataset to add masks to
+        boundary_width: Additional boundary masking (applied on top of wet mask)
+        static_file: Path to ocean_static.nc file containing wet masks
+    """
     # Use renamed dimensions (should be lat/lon/lev at this point)
     y_dim = "lat" if "lat" in ds.dims else ("y" if "y" in ds.dims else "yh")
     x_dim = "lon" if "lon" in ds.dims else ("x" if "x" in ds.dims else "xh")
     lev_dim = "lev" if "lev" in ds.dims else "z_l"
 
-    # base 2-D mask (surface)
-    mask2d = np.ones((ds.sizes[y_dim], ds.sizes[x_dim]), dtype=np.float32)
+    # Load wet mask from static file if provided
+    if static_file is not None and static_file.exists():
+        logger.info(f"Loading wet masks from {static_file}")
+        ds_static = xr.open_dataset(static_file)
+
+        # Get the tracer-point wet mask
+        if "wet" in ds_static:
+            mask2d = ds_static["wet"].values.astype(np.float32)
+            logger.info(f"Loaded wet mask from static file with shape {mask2d.shape}")
+        else:
+            logger.warning("'wet' variable not found in static file, using all-ocean mask")
+            mask2d = np.ones((ds.sizes[y_dim], ds.sizes[x_dim]), dtype=np.float32)
+    else:
+        logger.warning("No static file provided, using all-ocean mask")
+        mask2d = np.ones((ds.sizes[y_dim], ds.sizes[x_dim]), dtype=np.float32)
+
+    # Apply additional boundary masking if requested
     if boundary_width > 0:
+        logger.info(f"Applying additional boundary masking (width={boundary_width})")
         mask2d[:boundary_width, :] = 0
         mask2d[-boundary_width:, :] = 0
         mask2d[:, :boundary_width] = 0
         mask2d[:, -boundary_width:] = 0
+
     ds["mask"] = ((y_dim, x_dim), mask2d)
 
-    # 3-D wetmask (everywhere wet) - only if lev dimension exists
+    # 3-D wetmask - broadcast surface mask to all depths
     if lev_dim in ds.dims:
         Nz = ds.sizes[lev_dim]
         wetmask = np.broadcast_to(mask2d, (Nz, *mask2d.shape))
         ds["wetmask"] = ((lev_dim, y_dim, x_dim), wetmask.astype(np.float32))
         logger.info(
-            f"Created wetmask with shape ({Nz}, {ds.sizes[y_dim]}, {ds.sizes[x_dim]})"
+            f"Created 3D wetmask with shape ({Nz}, {ds.sizes[y_dim]}, {ds.sizes[x_dim]})"
         )
     else:
         logger.warning("No vertical dimension found - skipping wetmask creation")
@@ -635,14 +671,14 @@ def split_all_3d_vars(ds: xr.Dataset, zdim: str | None = None) -> xr.Dataset:
     # Keep the lev dimension even if no data variables use it (wetmask needs it)
     return ds
 
-def process_single_month_task(input_dir, actual_year, month, spatial_bounds, 
-                               boundary_width, chunk_sizes, add_helmholtz, grid_spacing):
+def process_single_month_task(input_dir, actual_year, month, spatial_bounds,
+                               boundary_width, chunk_sizes, add_helmholtz, grid_spacing, static_file):
     """
     Process a single month - designed for parallel execution.
     Returns the processed dataset or None if file not found.
     """
     load_chunks = {"time": -1, "z_l": -1}
-    
+
     try:
         ds = load_mom6_monthly_files(input_dir, actual_year, month, target_chunks=load_chunks)
         ds = interp_to_tracer_grid(ds)
@@ -653,7 +689,7 @@ def process_single_month_task(input_dir, actual_year, month, spatial_bounds,
         ds = rename_variables(ds)
         ds = select_depth_levels(ds, DEPTH_LEVELS)
         ds = rename_dimensions(ds)
-        
+
         target_chunks_pre_split = {
             "time": -1,
             "lev": -1,
@@ -662,16 +698,16 @@ def process_single_month_task(input_dir, actual_year, month, spatial_bounds,
         }
         target_chunks_pre_split = {k: v for k, v in target_chunks_pre_split.items() if k in ds.dims}
         ds = ds.chunk(target_chunks_pre_split)
-        
+
         ds = split_all_3d_vars(ds)
         if add_helmholtz:
             ds = add_helmholtz_decomposition(ds, dx=grid_spacing, dy=grid_spacing)
-        ds = create_masks(ds, boundary_width)
+        ds = create_masks(ds, boundary_width, static_file=static_file)
         ds = drop_unused_dimensions(ds)
         ds = drop_time_metadata_vars(ds)
-        ds = ds.compute()  # Maxime : Force computation before returning, might be causing the bug? 
+        ds = ds.compute()  # Maxime : Force computation before returning, might be causing the bug?
         return ds
-        
+
     except FileNotFoundError as e:
         logger.warning(f"Skipping {actual_year}-{month:02d}: {e}")
         return None
@@ -779,7 +815,8 @@ def process_mom6_cobalt_data(
     keep_yearly: bool = False,
     reset_year: int = None,
     add_helmholtz: bool = False,
-    grid_spacing: float = 9000.0) -> dict[str, Path]:
+    grid_spacing: float = 9000.0,
+    static_file: Path = None) -> dict[str, Path]:
     """
     Process MOM6-COBALT data with incremental writes to single consolidated zarr file.
 
@@ -892,7 +929,7 @@ def process_mom6_cobalt_data(
         for m in months:
             task = dask.delayed(process_single_month_task)(
                 input_dir, actual_year, m, spatial_bounds, boundary_width,
-                chunk_sizes, add_helmholtz, grid_spacing
+                chunk_sizes, add_helmholtz, grid_spacing, static_file
             )
             month_tasks.append(task)
         
@@ -1031,6 +1068,9 @@ def main():
     }
 
 
+    # Convert static file to Path if provided
+    static_file = Path(args.static_file) if args.static_file else None
+
     logger.info("=" * 60)
     logger.info("MOM6-COBALT DATA PREPROCESSOR")
     logger.info("=" * 60)
@@ -1044,6 +1084,7 @@ def main():
     logger.info(f"Add Helmholtz decomposition: {args.add_helmholtz}")
     if args.add_helmholtz:
         logger.info(f"Grid spacing: {args.grid_spacing}m")
+    logger.info(f"Static file for wet masks: {static_file if static_file else 'None (using all-ocean mask)'}")
     logger.info("=" * 60)
 
     try:
@@ -1060,7 +1101,8 @@ def main():
             keep_yearly=args.keep_yearly,
             reset_year=args.reset_year,
             add_helmholtz=args.add_helmholtz,
-            grid_spacing=args.grid_spacing
+            grid_spacing=args.grid_spacing,
+            static_file=static_file
         )
         logger.info("Validating processed data...")
         validate_processed_data(output_dir)

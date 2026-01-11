@@ -212,7 +212,7 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
     # Keep the old one for backward compatibility if needed
     "full_state_and_helmholtz_all": [
         k + str(j)
-        for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_","uo_","vo_","psi_","phi_"]
+        for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_","uo_","vo_","psi_","phi_","poc_"]
         for j in DEPTH_I_LEVELS
     ]
     + ["SSH"],
@@ -314,6 +314,10 @@ DEFAULT_METADATA = {
     "pp": {
         "long_name": "Primary Production",
         "units": "mol C/m3/day",
+    },
+    "poc": {
+        "long_name": "Particulate Organic Carbon",
+        "units": "mol/kg",
     },
     "tauuo": {
         "long_name": "Surface Downward X Stress",

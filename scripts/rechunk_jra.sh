@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=900GB
-#SBATCH --time=4:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=logs/rechunk-JRA-%j.out
 #SBATCH --error=logs/rechunk-JRA-%j.err
 
@@ -31,11 +31,7 @@ conda activate preprocess_env
 export PYTHONUNBUFFERED=1
 
 # Path to JRA processed data
-JRA_ZARR="/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL/bgc_data.zarr"
-
-# Use GEOCLIM scratch for temp storage (much higher inode limit)
-TEMP_DIR="/scratch/gpfs/GEOCLIM/LRGROUP/maximek/MOM6_CobaltDG_JRA_FULL"
-OUTPUT_DIR="/scratch/gpfs/GEOCLIM/LRGROUP/maximek/MOM6_CobaltDG_JRA_FULL"
+JRA_ZARR="/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC/bgc_data.zarr"
 
 # Check if zarr exists
 if [ ! -d "$JRA_ZARR" ]; then
@@ -43,27 +39,17 @@ if [ ! -d "$JRA_ZARR" ]; then
     exit 1
 fi
 
-# Create temp and output directories
-mkdir -p "$TEMP_DIR"
-mkdir -p "$OUTPUT_DIR"
-
 echo "Zarr store: $JRA_ZARR"
-echo "Temp storage: $TEMP_DIR"
-echo "Output storage: $OUTPUT_DIR"
-echo ""
-echo "NOTE: Using GEOCLIM scratch space to avoid inode limits on CIMES scratch"
+echo "Will rechunk in-place (original will be backed up)"
 echo ""
 
-# Run rechunking with massive memory for speed
-# Using 1-day chunks for efficiency in later processing
-# CRITICAL: Use GEOCLIM scratch for temp/output to avoid hitting 20M inode limit on CIMES
+# Run rechunking - no temp/output paths means it will rechunk in-place
+# Creates backup automatically, replaces original with rechunked version
 python rechunk_jra_to_daily.py \
     --zarr-path "$JRA_ZARR" \
     --max-mem 800GB \
     --compression 1 \
-    --time-chunk-size 1 \
-    --temp-path "$TEMP_DIR/bgc_data.zarr.rechunk_temp" \
-    --output-path "$OUTPUT_DIR/bgc_data.zarr"
+    --time-chunk-size 1
 
 echo ""
 echo "=================================================="

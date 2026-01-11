@@ -59,7 +59,7 @@ experiment:
     - "aggressive-sharp"
   prognostic_vars_key: optimized_helmholtz_all  # TODO: Update with Phase 1 winner
   boundary_vars_key: standard_forcing            # TODO: Update with Phase 1 winner
-  data_root: /scratch/gpfs/GEOCLIM/LRGROUP/maximek/MOM6_CobaltDG_JRA_FULL
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC
 
 data:
   data_location: bgc_data.zarr

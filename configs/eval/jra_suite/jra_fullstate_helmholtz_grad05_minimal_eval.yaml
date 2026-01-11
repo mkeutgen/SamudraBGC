@@ -29,7 +29,7 @@ experiment:
     - "evaluation"
   prognostic_vars_key: optimized_helmholtz_all
   boundary_vars_key: minimal_forcing
-  data_root: /scratch/gpfs/GEOCLIM/LRGROUP/maximek/MOM6_CobaltDG_JRA_FULL
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC
 
 data:
   data_location: bgc_data.zarr

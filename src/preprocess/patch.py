@@ -242,7 +242,7 @@ def flatten_stats(ds: xr.Dataset) -> xr.Dataset:
 
 
 def main():
-    data_dir = Path("/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL")
+    data_dir = Path("/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC")
     input_path = data_dir / "bgc_data.zarr"
     output_means = data_dir / "bgc_means.zarr"  
     output_stds = data_dir / "bgc_stds.zarr"
