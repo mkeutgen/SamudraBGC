@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=250G
-#SBATCH --time=48:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=logs/jra_fullstate_helmholtz_grad05_train_%j.out
 #SBATCH --error=logs/jra_fullstate_helmholtz_grad05_train_%j.err
 

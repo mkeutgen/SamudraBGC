@@ -715,7 +715,26 @@ class TrainConfig(TopLevelConfig):
 
 
 # See backend.py for how these are turned into concrete devices
-EvalBackendConfig = Literal["cpu", "cuda", "auto"]
+EvalBackendConfig = Literal["cpu", "cuda", "nccl", "auto"]
+
+
+class EnsembleConfig(BaseConfig):
+    """Configuration for ensemble initial condition perturbations."""
+
+    enabled: bool = False
+    n_ensemble: int = 20
+    depth_max_m: float = 100.0
+    dx_km: float = 9.0
+    corr_sigma_km: float = 90.0
+    pert_std_temp: float = 0.1
+    pert_rel_dic: float = 0.1
+    pert_rel_o2: float = 0.1
+    pert_rel_salt: float = 0.1
+    use_vertical_taper: bool = True
+    seed_offset: int = 0
+    output_individual_members: bool = True
+    output_ensemble_mean: bool = True
+    output_ensemble_std: bool = True
 
 
 class EvalConfig(TopLevelConfig):
@@ -728,6 +747,10 @@ class EvalConfig(TopLevelConfig):
     ckpt_path: str | None = None
     num_model_steps_forward: int = 200
     backend: EvalBackendConfig = "auto"
+    distributed: bool = Field(
+        default=False,
+        description="Enable distributed evaluation across multiple GPUs for ensemble runs",
+    )
 
     # Config components
     inference_time: TimeConfig = TimeConfig(
@@ -736,6 +759,7 @@ class EvalConfig(TopLevelConfig):
     experiment: ExperimentConfig
     data: DataConfig
     model: AnyModelConfig = SamudraConfig()
+    ensemble: EnsembleConfig = Field(default_factory=EnsembleConfig)
 
     def prepare_output_dirs(self) -> None:
         self.experiment.output_dir.mkdir(parents=True, exist_ok=True)

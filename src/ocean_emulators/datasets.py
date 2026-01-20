@@ -23,6 +23,10 @@ from ocean_emulators.constants import (
     PrognosticMask,
     PrognosticVarNames,
 )
+from ocean_emulators.ensemble_perturbation import (
+    EnsemblePerturbationConfig,
+    PerturbationGenerator,
+)
 from ocean_emulators.utils.data import DataSource, LoadStats, conditional_rearrange
 from ocean_emulators.utils.device import get_device, using_gpu
 from ocean_emulators.utils.logging import elapsed
@@ -56,6 +60,7 @@ class InferenceDataset(Dataset):
         normalize_before_mask,
         masked_fill_value,
         long_rollout,
+        ensemble_config: EnsemblePerturbationConfig | None = None,
     ):
         super().__init__()
         self.device = get_device()
@@ -69,6 +74,16 @@ class InferenceDataset(Dataset):
         self._times = data.time
         self.normalize_before_mask = normalize_before_mask
         self.masked_fill_value = masked_fill_value
+
+        # Store prognostic variable names for ensemble perturbation
+        self._prognostic_var_names = prognostic_var_names
+
+        # Initialize ensemble perturbation generator if configured
+        self.ensemble_config = ensemble_config
+        self._perturbation_generator = None
+        if ensemble_config and ensemble_config.enabled:
+            self._perturbation_generator = PerturbationGenerator(ensemble_config)
+            logger.info(f"Ensemble perturbation enabled (seed_offset={ensemble_config.seed_offset})")
 
         time_indices = np.arange(data.time.size)
         indices = xr.DataArray(
@@ -109,6 +124,16 @@ class InferenceDataset(Dataset):
     def initial_prognostic(self):
         x_index = self._get_x_index(0)
         data_in = self._get_prognostic(x_index)
+
+        # Apply ensemble perturbation if configured
+        if self._perturbation_generator is not None:
+            logger.debug("Applying ensemble perturbations to initial conditions")
+            data_in = self._perturbation_generator.perturb_initial_conditions(
+                data_in,
+                wet_mask=self.wet,
+                prognostic_var_names=self._prognostic_var_names,
+            )
+
         return data_in
 
     def inference_target(self, step: int | slice):

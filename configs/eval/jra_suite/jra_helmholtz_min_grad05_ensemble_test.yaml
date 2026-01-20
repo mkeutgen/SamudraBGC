@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../../schemas/EvalConfig.json
+# Test ensemble evaluation with 3 members and 1 month
+# For quick validation of ensemble system
+
+debug: false
+save_zarr: true
+disk_mode: true
+ckpt_path: ./outputs/jra_optimized_helmholtz_grad05_minimal/saved_nets/ema_ckpt.pt
+inference_time:
+  start: '1990-01-01'
+  end: '1990-01-31'  # Just one month for testing
+num_model_steps_forward: 5
+backend: auto
+
+# Ensemble configuration - small for testing
+ensemble:
+  enabled: true
+  n_ensemble: 3  # Only 3 members for quick test
+  depth_max_m: 100.0
+  dx_km: 9.0
+  corr_sigma_km: 90.0
+  pert_std_temp: 0.1
+  pert_rel_dic: 0.1
+  pert_rel_o2: 0.1
+  pert_rel_salt: 0.1
+  use_vertical_taper: true
+  seed_offset: 0
+  output_individual_members: true
+  output_ensemble_mean: true
+  output_ensemble_std: true
+
+experiment:
+  name: jra_helmholtz_min_grad05_ensemble_test
+  rand_seed: 42
+  base_output_dir: ./outputs
+  wandb:
+    mode: offline
+    project: bgc-emulator
+    entity: m2lines
+    group: mom6-bgc-eval-jra60-ensemble
+    tags:
+    - "ensemble"
+    - "test"
+  prognostic_vars_key: optimized_helmholtz_all
+  boundary_vars_key: minimal_forcing
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC
+
+data:
+  data_location: bgc_data.zarr
+  data_means_location: bgc_means.zarr
+  data_stds_location: bgc_stds.zarr
+  scaling_residuals_file: null
+  num_workers: 2
+  persistent_workers: true
+  prefetch_factor: 3
+  hist: 1
+  concurrent_compute: true
+
+model:
+  checkpointing: all
+  pred_residuals: false
+  last_kernel_size: 3
+  pad: constant
+  unet:
+    ch_width:
+    - 320
+    - 440
+    - 600
+    dilation:
+    - 1
+    - 2
+    - 4
+    n_layers:
+    - 1
+    - 1
+    - 1
+    core_block:
+      block_type: conv_next_block
+      kernel_size: 3
+      activation: capped_gelu
+      upscale_factor: 2
+      norm: batch
+    down_sampling_block: avg_pool
+    up_sampling_block: bilinear_upsample
+  corrector:
+    non_negative_corrector_names: null
+    ocean_heat_corrector: false

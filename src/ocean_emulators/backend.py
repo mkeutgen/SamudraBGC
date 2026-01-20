@@ -53,20 +53,49 @@ def init_train_backend(
     return device, dist_cfg
 
 
-def init_eval_backend(backend: EvalBackendConfig) -> torch.device:
-    """Given evaluation backend config, get the device."""
+def init_eval_backend(
+    backend: EvalBackendConfig,
+    distributed: bool = False,
+) -> tuple[torch.device, DistributedConfig | None]:
+    """Given evaluation backend config, get the device and optionally distributed config.
+
+    Args:
+        backend: The backend configuration ("cpu", "cuda", "nccl", or "auto").
+        distributed: If True, attempt to initialize distributed mode for multi-GPU evaluation.
+
+    Returns:
+        A tuple of (device, distributed_config). distributed_config is None if not using
+        distributed mode.
+    """
+    dist_cfg = None
+
     match backend:
         case "cpu":
             device = torch.device("cpu")
         case "cuda":
             device = torch.device("cuda")
+        case "nccl":
+            device = torch.device("cuda")
+            dist_cfg = init_distributed_mode()
+            logger.info("Initialized distributed mode for evaluation (nccl backend)")
         case "auto" if torch.cuda.is_available():
             logger.info("auto backend detected CUDA")
             device = torch.device("cuda")
+            if distributed:
+                try:
+                    dist_cfg = init_distributed_mode()
+                    logger.info("Initialized distributed mode for evaluation")
+                except RuntimeError as e:
+                    logger.info(
+                        f"Failed to initialize distributed mode for evaluation, "
+                        f"running on single GPU.",
+                        exc_info=e,
+                    )
         case "auto":
             logger.info("auto backend: cuda not found, using CPU")
             device = torch.device("cpu")
         case _:
             raise ValueError(f"Invalid backend: {backend}")
 
-    return device
+    set_device(device)
+    return device, dist_cfg
