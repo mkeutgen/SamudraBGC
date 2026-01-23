@@ -463,9 +463,6 @@ def get_aggregator_dicts(
     hist: int = 1,
 ) -> tuple[DictSingleChannelVar, DictSingleChannelVar]:
     normalize = Normalize.get_instance()
-    # Move to CPU to keep GPU memory low during logging/postprocessing
-    data = data.detach().to("cpu")
-    wet = wet.to("cpu")
     # Remove boundary data if input
     if input_type == "input":
         data = data[:, :num_prognostic_channels]

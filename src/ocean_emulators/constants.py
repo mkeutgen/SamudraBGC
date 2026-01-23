@@ -192,7 +192,7 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
     ],
     "helmholtz_only_all": [
         k + str(j)
-        for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_","psi_","phi_"]
+        for k in ["dic_", "o2_", "no3_", "chl_", "temp_", "salt_","psi_","phi_"]
         for j in DEPTH_I_LEVELS
     ]
     + ["SSH"],
@@ -213,6 +213,12 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
     "full_state_and_helmholtz_all": [
         k + str(j)
         for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_","uo_","vo_","psi_","phi_","poc_"]
+        for j in DEPTH_I_LEVELS
+    ]
+    + ["SSH"],
+    "full_state_and_helmholtz_all": [
+        k + str(j)
+        for k in ["dic_", "o2_", "no3_", "chl_", "temp_", "salt_","uo_","vo_","psi_","phi_","poc_"]
         for j in DEPTH_I_LEVELS
     ]
     + ["SSH"],

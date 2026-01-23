@@ -981,9 +981,10 @@ class EnsembleGroundTruthComparison:
         n_phys = len(phys_members)
 
         # Get time indices if not specified
+        # Start at day 5 (not 0) to avoid initial condition artifacts
         n_times = len(ml_ensemble_members[0].time)
         if time_indices is None:
-            time_indices = [0, n_times // 2, n_times - 1]
+            time_indices = [5, n_times // 2, n_times - 1]
 
         # Decode ML times for labels
         ml_times = self._decode_time_for_comparison(ml_ensemble_members[0].time)

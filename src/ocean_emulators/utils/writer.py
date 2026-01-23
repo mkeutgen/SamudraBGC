@@ -36,8 +36,6 @@ class ZarrWriter:
         pred_tensor = rearrange(
             pred_tensor, "n (hi c) h w -> (n hi) c h w", hi=self.hist + 1
         )
-        # Offload unnormalize to CPU to avoid large GPU spikes
-        pred_tensor = pred_tensor.detach().to("cpu")
         pred_tensor = self.normalize.unnormalize_tensor_prognostic(
             pred_tensor, fill_value=0.0
         )

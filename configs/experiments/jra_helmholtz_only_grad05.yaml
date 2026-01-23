@@ -1,9 +1,10 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
 # ============================================================================
-# Experiment: Helmholtz Decomposition with Minimal Forcing
-# Phase: 1.3 - Forcing comparison
-# Hypothesis: Test if corrected PRCmE normalization helps on 60yr dataset
-# Expected: Slightly worse than standard_forcing, especially for salinity
+# Experiment: Helmholtz-Only Decomposition (Full BGC + Physical)
+# Phase: Paper experiment
+# Hypothesis: Helmholtz decomposition (psi, phi) replaces velocity (uo, vo)
+#             for improved physical consistency and eddy representation
+# Variables: dic, o2, no3, chl, temp, salt, psi, phi @ 50 levels + SSH
 # ============================================================================
 
 debug: false
@@ -23,16 +24,16 @@ resume_ckpt_path: null
 inference_epochs: []
 data_percent: 1.0
 
-# Time configuration (excludes 1990 to prevent data leakage)
+# Phase 1: Paper validation
 train_time:
   start: '1960-01-01'
   end: '2009-12-31'    # 50 years training
 val_time:
   start: '2010-01-01'
-  end: '2014-12-31'    # 5 years validation (skips 1990)
+  end: '2014-12-31'    # 5 years validation
 inference_times:
 - start: '2015-01-01'
-  end: '2019-12-31'    # 19 years paper holdout
+  end: '2019-12-31'    # 5 years test
 
 data_stride:
 - 1
@@ -42,7 +43,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: jra_helmholtz_min_grad05
+  name: jra_helmholtz_only_grad05
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -51,11 +52,10 @@ experiment:
     entity: m2lines
     group: mom6-bgc-training-jra60
     tags:
-    - "phase1-forcing"
-    - "helmholtz-decomposition"
-    - "minimal-forcing-no-prcme"
+    - "paper"
+    - "helmholtz-only"
+    - "full-bgc"
     - "grad-0.5"
-    - "ablation"
   prognostic_vars_key: helmholtz_only_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC
@@ -101,6 +101,6 @@ model:
     non_negative_corrector_names: null
     ocean_heat_corrector: false
 
-# Expected output channels: ~301
-# Variables: dic, o2, temp, salt, psi, phi @ 50 levels + SSH + chl_0
-# Forcing: Only Qnet, tauuo, tauvo (no PRCmE)
+# Expected output channels: 401
+# Variables: dic, o2, no3, chl, temp, salt, psi, phi @ 50 levels + SSH
+# Forcing: Qnet, tauuo, tauvo (minimal)

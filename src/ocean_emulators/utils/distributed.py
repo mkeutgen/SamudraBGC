@@ -91,7 +91,17 @@ def init_distributed_mode() -> DistributedConfig:
         cfg.dist_url = "env://"
     elif "SLURM_PROCID" in os.environ:
         cfg.rank = int(os.environ["SLURM_PROCID"])
-        tasks_per_node = int(os.environ["SLURM_NTASKS_PER_NODE"])
+        tasks_per_node = int(os.environ.get("SLURM_NTASKS_PER_NODE", 1))
+        if tasks_per_node < torch.cuda.device_count():
+            raise RuntimeError(
+                f"SLURM_NTASKS_PER_NODE is {tasks_per_node}, but this node has {torch.cuda.device_count()} GPUs; the remainder will be idle. "
+                "You probably want to allocate the same number of GPUs and tasks per node, or else use `torchrun` on a single node; please see CONTRIBUTING.md.",
+            )
+        elif tasks_per_node > torch.cuda.device_count():
+            raise RuntimeError(
+                f"SLURM_NTASKS_PER_NODE is {tasks_per_node}, but this node has {torch.cuda.device_count()} GPUs, so there aren't enough "
+                "GPUs for all the tasks. You probably want to allocate the same number of GPUs and tasks per node; please see CONTRIBUTING.md."
+            )
         n_nodes = int(os.environ["SLURM_NNODES"])
         cfg.world_size = tasks_per_node * n_nodes
         cfg.gpu = cfg.rank % torch.cuda.device_count()
@@ -105,16 +115,14 @@ def init_distributed_mode() -> DistributedConfig:
             "Distributed mode requires SLURM or RANK environment variables;"
             " did you mean to use `torchrun`?"
         )
-    cfg.dist_backend = "nccl"
-    # mkeutgen : increase timeout for large datasets...  (40 years of MOM6-JRA data)
-    os.environ['TORCH_DISTRIBUTED_TIMEOUT'] = '3600'  # 1 hour timeout
 
+    cfg.dist_backend = "nccl"
     torch.distributed.init_process_group(
         backend=cfg.dist_backend,
         init_method=cfg.dist_url,
         world_size=cfg.world_size,
         rank=cfg.rank,
-        timeout=datetime.timedelta(seconds=3600),
+        device_id=cfg.gpu,
     )
     torch.cuda.set_device(cfg.gpu)
     logger.info(
