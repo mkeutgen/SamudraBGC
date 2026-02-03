@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=../../schemas/EvalConfig.json
+# Evaluation for: jra_helmholtz_min_grad05
+# Phase: 1.3 - Helmholtz + Minimal Forcing (Ablation)
+
+debug: false
+save_zarr: true
+disk_mode: true
+ckpt_path: ./outputs/jra_helmholtz_min_grad05/saved_nets/ema_ckpt.pt
+inference_time:
+  start: '2015-01-01'
+  end: '2019-12-31'
+num_model_steps_forward: 5
+backend: auto
+
+experiment:
+  name: jra_helmholtz_min_grad05_eval
+  rand_seed: 42
+  base_output_dir: ./outputs
+  wandb:
+    mode: offline
+    project: bgc-emulator
+    entity: m2lines
+    group: mom6-bgc-eval-jra60
+    tags:
+    - "phase1-forcing"
+    - "helmholtz-decomposition"
+    - "minimal-forcing"
+    - "grad-0.5"
+    - "ablation"
+    - "evaluation"
+  prognostic_vars_key: helmholtz_only_all
+  boundary_vars_key: minimal_forcing
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+
+data:
+  data_location: bgc_data.zarr
+  data_means_location: bgc_means.zarr
+  data_stds_location: bgc_stds.zarr
+  scaling_residuals_file: null
+  num_workers: 2
+  persistent_workers: true
+  prefetch_factor: 3
+  hist: 1
+  concurrent_compute: true
+
+model:
+  checkpointing: all
+  pred_residuals: false
+  last_kernel_size: 3
+  pad: constant
+  unet:
+    ch_width:
+    - 320
+    - 440
+    - 600
+    dilation:
+    - 1
+    - 2
+    - 4
+    n_layers:
+    - 1
+    - 1
+    - 1
+    core_block:
+      block_type: conv_next_block
+      kernel_size: 3
+      activation: capped_gelu
+      upscale_factor: 2
+      norm: batch
+    down_sampling_block: avg_pool
+    up_sampling_block: bilinear_upsample
+  corrector:
+    non_negative_corrector_names: null
+    ocean_heat_corrector: false

@@ -126,17 +126,6 @@ def parse_arguments():
         help="Calendar year to resume from (e.g., 2024). Will append to existing zarr file.",
     )
     parser.add_argument(
-        "--add-helmholtz",
-        action="store_true",
-        help="Compute Helmholtz decomposition (streamfunction ψ and velocity potential φ)",
-    )
-    parser.add_argument(
-        "--grid-spacing",
-        type=float,
-        default=9000.0,
-        help="Grid spacing in meters (assumes dx=dy, default: 9000m)",
-    )
-    parser.add_argument(
         "--static-file",
         type=str,
         default=None,
@@ -220,6 +209,9 @@ vars_keep = [
     "tauy",
     "Qnet",
     "PRCmE",
+    # Helmholtz decomposition
+    "psi",    # streamfunction (interpolated to T-grid)
+    "phi",    # velocity potential (on T-grid)
 ]
 
 
@@ -322,17 +314,39 @@ def interp_to_tracer_grid(ds: xr.Dataset) -> xr.Dataset:
         for var in vars_with_yq:
             ds[var] = ds[var].interp(yq=ds["yh"], method="linear")
 
-    vars_to_drop = ["xq", "yq", "nv", "z_i", "time_bnds", "dzRegrid"]
+    # Drop auxiliary variables and unused dimensions
+    vars_to_drop = ["nv", "z_i", "time_bnds", "dzRegrid"]
     present = [v for v in vars_to_drop if v in ds.variables]
     if present:
         ds = ds.drop_vars(present, errors="ignore")
 
-    for dim in ["xq", "yq", "nv", "z_i"]:
+    for dim in ["nv", "z_i", "xq", "yq"]:
         if dim in ds.dims:
             used = any(dim in ds[v].dims for v in ds.data_vars)
             if not used:
                 ds = ds.drop_dims(dim)
-    
+
+    return ds
+
+
+def process_helmholtz_variables(ds: xr.Dataset) -> xr.Dataset:
+    """
+    Process Helmholtz decomposition variables from MOM6 output.
+    - psi on F points (xq, yq) will be interpolated to T points by interp_to_tracer_grid
+    - phi is already on T points (xh, yh)
+
+    This function should be called AFTER interp_to_tracer_grid.
+    """
+    logger.info("Processing Helmholtz decomposition variables...")
+
+    # Verify psi was interpolated correctly (T-grid version for emulator)
+    if "psi" in ds:
+        logger.info(f"  ✓ psi (T-grid) present with dims: {ds['psi'].dims}")
+
+    # Verify phi is present
+    if "phi" in ds:
+        logger.info(f"  ✓ phi (T-grid) present with dims: {ds['phi'].dims}")
+
     return ds
 
 
@@ -547,7 +561,9 @@ def create_masks(ds: xr.Dataset, boundary_width: int = 1, static_file: Path = No
 
 
 def drop_unused_dimensions(ds: xr.Dataset) -> xr.Dataset:
-    """Drop any remaining unused staggered dimensions."""
+    """Drop any remaining unused staggered dimensions.
+
+    """
     dims_to_drop = []
     for dim in ["xq", "yq"]:
         if dim in ds.dims:
@@ -555,6 +571,9 @@ def drop_unused_dimensions(ds: xr.Dataset) -> xr.Dataset:
             used = any(dim in ds[var].dims for var in ds.data_vars)
             if not used:
                 dims_to_drop.append(dim)
+            else:
+                vars_using = [v for v in ds.data_vars if dim in ds[v].dims]
+                logger.info(f"Keeping dimension {dim} (used by: {vars_using})")
 
     if dims_to_drop:
         logger.info(f"Dropping unused dimensions: {dims_to_drop}")
@@ -613,11 +632,6 @@ def validate_processed_data(output_dir: Path) -> bool:
             return False
         logger.info(f"✓ wetmask found with shape {ds['wetmask'].shape}")
 
-        # Check for unwanted dimensions
-        unwanted_dims = [d for d in ["xq", "yq"] if d in ds.dims]
-        if unwanted_dims:
-            logger.warning(f"Found unwanted dimensions: {unwanted_dims}")
-
     except Exception as e:
         logger.error(f"Error validating data: {e}")
         return False
@@ -672,7 +686,7 @@ def split_all_3d_vars(ds: xr.Dataset, zdim: str | None = None) -> xr.Dataset:
     return ds
 
 def process_single_month_task(input_dir, actual_year, month, spatial_bounds,
-                               boundary_width, chunk_sizes, add_helmholtz, grid_spacing, static_file):
+                               boundary_width, chunk_sizes, static_file):
     """
     Process a single month - designed for parallel execution.
     Returns the processed dataset or None if file not found.
@@ -681,15 +695,18 @@ def process_single_month_task(input_dir, actual_year, month, spatial_bounds,
 
     try:
         ds = load_mom6_monthly_files(input_dir, actual_year, month, target_chunks=load_chunks)
-        ds = interp_to_tracer_grid(ds)
+        ds = interp_to_tracer_grid(ds)  # Interpolates psi from F to T points
+
         ds = compute_derived_fields(ds)
         ds = compute_gsw_variables(ds)
         ds = apply_spatial_subset(ds, spatial_bounds)
-        ds = ds[vars_keep]
-        ds = rename_variables(ds)
+        ds = ds[vars_keep]  # Filter variables
+        ds = process_helmholtz_variables(ds)  # Rename chi to phi after filtering
+        ds = rename_variables(ds)  # Rename u→uo, v→vo, etc.
         ds = select_depth_levels(ds, DEPTH_LEVELS)
         ds = rename_dimensions(ds)
 
+        # Chunking for T-grid variables (lat, lon)
         target_chunks_pre_split = {
             "time": -1,
             "lev": -1,
@@ -700,8 +717,6 @@ def process_single_month_task(input_dir, actual_year, month, spatial_bounds,
         ds = ds.chunk(target_chunks_pre_split)
 
         ds = split_all_3d_vars(ds)
-        if add_helmholtz:
-            ds = add_helmholtz_decomposition(ds, dx=grid_spacing, dy=grid_spacing)
         ds = create_masks(ds, boundary_width, static_file=static_file)
         ds = drop_unused_dimensions(ds)
         ds = drop_time_metadata_vars(ds)
@@ -814,8 +829,6 @@ def process_mom6_cobalt_data(
     first_year: int = 1,
     keep_yearly: bool = False,
     reset_year: int = None,
-    add_helmholtz: bool = False,
-    grid_spacing: float = 9000.0,
     static_file: Path = None) -> dict[str, Path]:
     """
     Process MOM6-COBALT data with incremental writes to single consolidated zarr file.
@@ -857,9 +870,11 @@ def process_mom6_cobalt_data(
     os.makedirs(spill_dir, exist_ok=True)
 
     # Define cluster parameters
-    n_workers = 11
-    threads_per_worker = 1  
-    mem_per_worker = "85GB"
+    # Reduced from 11 workers to 8 to give more memory headroom per worker
+    # and avoid OOM when processing monthly batches
+    n_workers = 8
+    threads_per_worker = 1
+    mem_per_worker = "110GB"
 
     cluster = LocalCluster(
         n_workers=n_workers,
@@ -877,7 +892,7 @@ def process_mom6_cobalt_data(
     logger.info(f"  Workers: {n_workers}")
     logger.info(f"  Threads/worker: {threads_per_worker}")
     logger.info(f"  Memory/worker: {mem_per_worker}")
-    logger.info(f"  Total memory allocated: {n_workers * 85}GB / 512GB")
+    logger.info(f"  Total memory allocated: {n_workers * 110}GB / 970GB")
     logger.info(f"  Dashboard: {client.dashboard_link}")
     logger.info("=" * 60)
 
@@ -924,18 +939,25 @@ def process_mom6_cobalt_data(
         }
         logger.info(f"Loading files with chunks: {load_chunks}")
         
-        # Process all months in parallel
-        month_tasks = []
-        for m in months:
-            task = dask.delayed(process_single_month_task)(
-                input_dir, actual_year, m, spatial_bounds, boundary_width,
-                chunk_sizes, add_helmholtz, grid_spacing, static_file
-            )
-            month_tasks.append(task)
-        
-        logger.info(f"  Processing {len(months)} months in parallel...")
-        with ProgressBar():
-            monthly_results = dask.compute(*month_tasks)
+        # Process months in batches to avoid OOM
+        # Each month ~12-15GB when materialized, process 4 at a time
+        BATCH_SIZE = 4
+        monthly_results = []
+
+        for batch_start in range(0, len(months), BATCH_SIZE):
+            batch_months = months[batch_start:batch_start + BATCH_SIZE]
+            month_tasks = []
+            for m in batch_months:
+                task = dask.delayed(process_single_month_task)(
+                    input_dir, actual_year, m, spatial_bounds, boundary_width,
+                    chunk_sizes, static_file
+                )
+                month_tasks.append(task)
+
+            logger.info(f"  Processing months {batch_months} (batch {batch_start // BATCH_SIZE + 1}/{(len(months) + BATCH_SIZE - 1) // BATCH_SIZE})...")
+            with ProgressBar():
+                batch_results = dask.compute(*month_tasks)
+            monthly_results.extend(batch_results)
         
         # Filter out None results (failed months)
         yearly_datasets = [ds for ds in monthly_results if ds is not None]
@@ -1081,9 +1103,6 @@ def main():
     logger.info(f"First year (offset): {args.first_year}")
     logger.info(f"Chunk sizes: {chunk_sizes}")
     logger.info(f"Keep yearly files: {args.keep_yearly}")
-    logger.info(f"Add Helmholtz decomposition: {args.add_helmholtz}")
-    if args.add_helmholtz:
-        logger.info(f"Grid spacing: {args.grid_spacing}m")
     logger.info(f"Static file for wet masks: {static_file if static_file else 'None (using all-ocean mask)'}")
     logger.info("=" * 60)
 
@@ -1100,8 +1119,6 @@ def main():
             first_year=args.first_year,
             keep_yearly=args.keep_yearly,
             reset_year=args.reset_year,
-            add_helmholtz=args.add_helmholtz,
-            grid_spacing=args.grid_spacing,
             static_file=static_file
         )
         logger.info("Validating processed data...")

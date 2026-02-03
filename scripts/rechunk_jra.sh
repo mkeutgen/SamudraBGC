@@ -49,7 +49,7 @@ python rechunk_jra_to_daily.py \
     --zarr-path "$JRA_ZARR" \
     --max-mem 800GB \
     --compression 1 \
-    --time-chunk-size 1
+    --time-chunk-size 5
 
 echo ""
 echo "=================================================="

@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=../../schemas/TrainConfig.json
+# ============================================================================
+# Experiment: Helmholtz Decomposition with Minimal Forcing - Gradient Ablation
+# Ablation: Gradient penalty weight = 0.25 (reduced from 0.5)
+# Hypothesis: Lower gradient penalty may allow more flexibility
+# Expected: May improve or degrade depending on gradient importance
+# ============================================================================
+
+debug: false
+disk_mode: true
+pin_mem: true
+save_freq: 5
+epochs: 60
+batch_size: 1
+learning_rate: 0.0002
+scheduler:
+  type: cosine
+loss: mae_gradient_weighted
+gradient_weight: 0.25
+second_order_weight: 0.0
+finetune: false
+resume_ckpt_path: null
+inference_epochs: []
+data_percent: 1.0
+
+# Time configuration (excludes 1990 to prevent data leakage)
+train_time:
+  start: '1960-01-01'
+  end: '2009-12-31'    # 50 years training
+val_time:
+  start: '2010-01-01'
+  end: '2014-12-31'    # 5 years validation (skips 1990)
+inference_times:
+- start: '2015-01-01'
+  end: '2019-12-31'    # 5 years paper holdout
+
+data_stride:
+- 1
+steps:
+- 4
+step_transition: []
+backend: auto
+
+experiment:
+  name: jra_helmholtz_min_grad025
+  rand_seed: 42
+  base_output_dir: ./outputs
+  wandb:
+    mode: offline
+    project: bgc-emulator
+    entity: m2lines
+    group: mom6-bgc-training-jra60
+    tags:
+    - "phase1-ablation"
+    - "helmholtz-decomposition"
+    - "minimal-forcing"
+    - "grad-0.25"
+    - "ablation"
+  prognostic_vars_key: helmholtz_only_all
+  boundary_vars_key: minimal_forcing
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+
+data:
+  data_location: bgc_data.zarr
+  data_means_location: bgc_means.zarr
+  data_stds_location: bgc_stds.zarr
+  scaling_residuals_file: null
+  num_workers: 2
+  persistent_workers: true
+  prefetch_factor: 4
+  hist: 1
+  concurrent_compute: true
+
+model:
+  checkpointing: all
+  pred_residuals: false
+  last_kernel_size: 3
+  pad: constant
+  unet:
+    ch_width:
+    - 320
+    - 440
+    - 600
+    dilation:
+    - 1
+    - 2
+    - 4
+    n_layers:
+    - 1
+    - 1
+    - 1
+    core_block:
+      block_type: conv_next_block
+      kernel_size: 3
+      activation: capped_gelu
+      upscale_factor: 2
+      norm: batch
+    down_sampling_block: avg_pool
+    up_sampling_block: bilinear_upsample
+  corrector:
+    non_negative_corrector_names: null
+    ocean_heat_corrector: false
+
+# Expected output channels: ~401
+# Variables: dic, o2, no3, chl, temp, salt, psi, phi @ 50 levels + SSH
+# Forcing: Only Qnet, tauuo, tauvo (no PRCmE)
