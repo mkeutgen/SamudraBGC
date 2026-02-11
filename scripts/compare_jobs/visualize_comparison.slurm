@@ -29,12 +29,11 @@ conda activate preprocess_env
 cd /scratch/cimes/maximek/INMOS/Ocean_Emulator || exit 1
 
 # Generate all visualizations
-echo "Creating plots (timeseries, spatial snapshots, power spectra)..."
+echo "Creating plots (using plot_types from config)..."
 echo
 
 python scripts/visualize_comparison.py \
-    --config configs/eval/jra_suite/jra_comparison.yaml \
-    --plot-types timeseries spatial spectra \
+    --config configs/eval/paper_ablations/jra_comparison.yaml \
     --batch-size 20
 
 exit_code=$?

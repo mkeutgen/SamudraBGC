@@ -252,6 +252,25 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
         for j in DEPTH_I_LEVELS
     ]
     + ["SSH"],
+    # Log-transformed variants for Phase 1.5 ablation study
+    "helmholtz_log_all": [
+        k + str(j)
+        for k in ["log_dic_", "log_o2_", "log_no3_", "log_chl_", "temp_", "salt_", "psi_", "phi_"]
+        for j in DEPTH_I_LEVELS
+    ]
+    + ["SSH"],
+    "fullstate_log_all": [
+        k + str(j)
+        for k in ["log_dic_", "log_o2_", "log_no3_", "pp_", "log_chl_", "temp_", "salt_", "uo_", "vo_"]
+        for j in DEPTH_I_LEVELS
+    ]
+    + ["SSH"],
+    "fullstate_helmholtz_log_all": [
+        k + str(j)
+        for k in ["log_dic_", "log_o2_", "log_no3_", "log_chl_", "temp_", "salt_", "uo_", "vo_", "psi_", "phi_", "poc_"]
+        for j in DEPTH_I_LEVELS
+    ]
+    + ["SSH"],
 }
 
 BoundaryVarNames = list[str]

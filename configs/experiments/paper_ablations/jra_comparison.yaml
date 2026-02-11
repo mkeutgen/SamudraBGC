@@ -1,0 +1,154 @@
+# Configuration for ocean emulator evaluation
+#
+# Supports two scripts:
+#   1. compare_rollouts.py — global/regional/seasonal/interannual/gradient metrics
+#   2. compute_collaborative_metrics.py — lead-time RMSE, ACC, CRPS
+#
+# Usage:
+#   python scripts/compare_rollouts.py --config configs/eval/jra_comparison.yaml
+#   python scripts/compute_collaborative_metrics.py --config configs/eval/jra_comparison.yaml
+
+# ═══════════════════════════════════════════════════════════════════
+# DATA
+# ═══════════════════════════════════════════════════════════════════
+
+experiments:
+  helmholtz_grad05: /scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/jra_helmholtz_min_grad05_eval_rollout2010_2019/predictions.zarr
+  #fullstate_grad05: /scratch/cimes/maximek/INMOS/experiments/jra_fullstate_grad05/rollout_predictions.zarr
+  #classical_mae: /scratch/cimes/maximek/INMOS/experiments/jra_classical_mae/rollout_predictions.zarr
+
+ground_truth_path: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr
+
+time_slice:
+  - "2010-01-03"
+  - "2014-12-29"
+
+# Grid spacing in km (for spectral analysis)
+dx_km: 9.0
+
+variables:
+  - temp_0      # Sea Surface Temperature
+  - salt_0      # Sea Surface Salinity
+  - uo_0        # Zonal Velocity
+  - vo_0        # Meridional Velocity
+  - psi_0       # Streamfunction
+  - phi_0       # Velocity Potential
+  - dic_0       # Dissolved Inorganic Carbon
+  - o2_0        # Dissolved Oxygen
+  - no3_0       # Nitrate
+  - chl_0       # Chlorophyll
+
+# Variables to exclude from compare_rollouts (optional)
+# exclude_variables:
+#   - psi_0
+#   - phi_0
+
+output_dir: outputs/collaborative_metrics
+
+# ═══════════════════════════════════════════════════════════════════
+# REGIONAL ANALYSIS (compare_rollouts.py)
+# ═══════════════════════════════════════════════════════════════════
+
+# Double-gyre biome boundaries (degrees North, index-based for idealized domain)
+regional_boundaries:
+  subtropical_jet: 37
+  jet_subpolar: 43
+
+# ═══════════════════════════════════════════════════════════════════
+# METRICS — compare_rollouts.py
+# ═══════════════════════════════════════════════════════════════════
+
+# Each can be disabled via CLI: --skip-seasonal, --skip-interannual, --skip-gradient
+metrics:
+  # --- Original ---
+  compute_rmse: true
+  compute_acc: true
+  compute_mae: true
+  compute_bias: true
+  compute_time_series: true
+
+  # --- NEW: seasonal cycle fidelity ---
+  # Computes: seasonal_r2, amplitude_ratio, phase_error_days, clim_rmse
+  compute_seasonal: true
+
+  # --- NEW: interannual variability ---
+  # Computes: anomaly_r2, anomaly_correlation, anomaly_std_ratio, annual_mean_r2
+  compute_interannual: true
+
+  # --- NEW: gradient fidelity ---
+  # Computes: grad_rmse, grad_correlation, grad_mean_ratio,
+  #           strong_grad_bias (dampened fronts?), weak_grad_bias (spurious gradients?),
+  #           grad_sharpness_score, + per-region gradient ratios
+  compute_gradient: true
+  gradient_n_samples: 12   # Number of timesteps to sample for gradient stats
+
+  # --- Regional metrics ---
+  compute_regional: true
+
+  # --- Ensemble/probabilistic (collaborative_metrics.py only) ---
+  compute_ensemble: false
+
+# ═══════════════════════════════════════════════════════════════════
+# VISUALIZATION — visualize_comparison.py
+# ═══════════════════════════════════════════════════════════════════
+
+visualization:
+  # Time indices for spatial snapshots / gradient diagnostics
+  # Pick dates that span seasons: winter, spring bloom, summer
+  # e.g. ~2012-01-15, 2012-04-15, 2012-07-15
+  snapshot_times: [730, 820, 910]
+
+  # Time index for spectral analysis
+  spectral_time_idx: 820
+
+  dpi: 150
+
+  # Plot types to generate (use --plot-types all to get everything)
+  # Original: timeseries, spatial, spectra
+  # New:      seasonal, interannual, gradient_scatter, gradient_pdf,
+  #           regional_ts, taylor
+  plot_types:
+    - timeseries
+    - spatial
+    - spectra
+    - seasonal
+    - interannual
+    - gradient_scatter
+    - gradient_pdf
+    - regional_ts
+    - taylor
+
+# ═══════════════════════════════════════════════════════════════════
+# LEAD-TIME METRICS — compute_collaborative_metrics.py
+# ═══════════════════════════════════════════════════════════════════
+
+lead_days:
+  - 1
+  - 3
+  - 5
+  - 10
+  - 20
+
+# ═══════════════════════════════════════════════════════════════════
+# ANIMATIONS (optional)
+# ═══════════════════════════════════════════════════════════════════
+
+animations:
+  create: false
+  start_frame: 730
+  n_frames: 90
+  fps: 7
+  variables:
+    - temp_0
+    - salt_0
+    - chl_0
+    - no3_0
+    - dic_0
+
+# ═══════════════════════════════════════════════════════════════════
+# MEMORY MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════
+
+memory:
+  batch_size: 40
+  clear_cache_between_batches: true

@@ -237,6 +237,16 @@ class DataConfig(BaseConfig):
     normalize_before_mask: bool = True
     masked_fill_value: float = 0.0
     concurrent_compute: bool = False
+    log_transform_vars: list[str] | None = Field(
+        default=None,
+        description="List of variable base names (e.g., 'dic', 'o2', 'chl') to apply "
+        "log(x + epsilon) transform. Applied to all depth levels of each variable. "
+        "Transform is applied before normalization.",
+    )
+    log_transform_epsilon: float = Field(
+        default=1e-10,
+        description="Small constant added before log transform for numerical stability",
+    )
 
     def build(
         self,

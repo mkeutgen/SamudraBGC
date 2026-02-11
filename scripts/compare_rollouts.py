@@ -7,6 +7,14 @@ and emulator predictions, computing metrics, generating visualizations, and
 saving results to disk. It's designed to be memory-efficient by processing data
 in batches and saving intermediate results.
 
+Evaluation dimensions:
+  - Mean state (bias, RMSE, R²)
+  - Seasonal cycle fidelity (climatological monthly means)
+  - Interannual variability (anomalies after removing seasonal cycle)
+  - Mesoscale structure (power spectra, gradient statistics)
+  - Regional performance (subtropical gyre, jet, subpolar gyre)
+  - Gradient sharpness (spatial gradient RMSE, correlation, conditional stats)
+
 Usage:
     python scripts/compare_rollouts.py --config configs/eval/jra_comparison.yaml
     python scripts/compare_rollouts.py --config configs/eval/jra_comparison.yaml --output-dir outputs/comparison
@@ -19,6 +27,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 import yaml
 
@@ -29,6 +38,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "notebooks"))
 from eval_helpers import (
     VARIABLES,
     load_experiments,
+    get_variable,
+    compute_gradient_magnitude,
     print_metrics_summary,
     print_regional_metrics_summary,
     diagnose_regional_characteristics,
@@ -42,7 +53,6 @@ try:
     )
     print("Using optimized functions with progress tracking")
 except ImportError:
-    # Fall back to standard versions
     from eval_helpers import (
         compute_metrics_all_experiments,
         compute_regional_metrics,
@@ -52,517 +62,669 @@ except ImportError:
 warnings.filterwarnings('ignore')
 
 
+# ---------------------------------------------------------------------------
+# Region helpers
+# ---------------------------------------------------------------------------
+
+def _get_regions(config: dict) -> dict:
+    """Build region dict from config boundaries."""
+    if 'regional_boundaries' in config:
+        b = config['regional_boundaries']
+        sj = b.get('subtropical_jet', 37)
+        js = b.get('jet_subpolar', 43)
+    else:
+        sj, js = 37, 43
+    return {
+        'subtropical': {'lat_min': 0, 'lat_max': sj, 'name': 'Subtropical Gyre'},
+        'jet':         {'lat_min': sj, 'lat_max': js, 'name': 'Jet Region'},
+        'subpolar':    {'lat_min': js, 'lat_max': 90, 'name': 'Subpolar Gyre'},
+    }
+
+
+def _select_region(da: xr.DataArray, lat_min: float, lat_max: float) -> xr.DataArray:
+    """Select a latitude band from a DataArray."""
+    if 'lat' in da.coords and not np.issubdtype(da.coords['lat'].dtype, np.integer):
+        return da.sel(lat=slice(lat_min, lat_max))
+    # Index-based fallback
+    n_lat = da.sizes.get('lat', da.shape[-2])
+    idx_min = int(lat_min / 90 * n_lat)
+    idx_max = min(int(lat_max / 90 * n_lat), n_lat)
+    return da.isel({da.dims[-2]: slice(idx_min, idx_max)})
+
+
+# ---------------------------------------------------------------------------
+# Config / IO helpers
+# ---------------------------------------------------------------------------
+
 def load_config(config_path: str) -> dict:
-    """
-    Load configuration from YAML file.
-
-    Parameters:
-    -----------
-    config_path : str
-        Path to YAML configuration file
-
-    Returns:
-    --------
-    dict
-        Configuration dictionary
-    """
     with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    return config
+        return yaml.safe_load(f)
 
 
 def validate_config(config: dict) -> None:
-    """
-    Validate that required config fields are present.
-
-    Parameters:
-    -----------
-    config : dict
-        Configuration dictionary
-
-    Raises:
-    -------
-    ValueError
-        If required fields are missing
-    """
     required = ['experiments', 'ground_truth_path']
-    missing = [field for field in required if field not in config]
-
+    missing = [f for f in required if f not in config]
     if missing:
         raise ValueError(f"Missing required config fields: {missing}")
-
     if not config['experiments']:
         raise ValueError("At least one experiment must be specified")
 
 
 def setup_output_directory(output_dir: Path) -> Dict[str, Path]:
-    """
-    Create output directory structure.
-
-    Parameters:
-    -----------
-    output_dir : Path
-        Base output directory
-
-    Returns:
-    --------
-    Dict[str, Path]
-        Dictionary of output subdirectories
-    """
     dirs = {
         'base': output_dir,
         'metrics': output_dir / 'metrics',
         'figures': output_dir / 'figures',
         'data': output_dir / 'data',
     }
-
-    for dir_path in dirs.values():
-        dir_path.mkdir(parents=True, exist_ok=True)
-
+    for d in dirs.values():
+        d.mkdir(parents=True, exist_ok=True)
     return dirs
 
 
-def save_metrics_to_file(
-    metrics: Dict,
-    output_file: Path,
-    metric_type: str = "global"
+# ---------------------------------------------------------------------------
+# Scalar metric helpers
+# ---------------------------------------------------------------------------
+
+def _r2(pred: np.ndarray, true: np.ndarray) -> float:
+    mask = np.isfinite(pred) & np.isfinite(true)
+    if mask.sum() < 2:
+        return np.nan
+    ss_res = np.sum((pred[mask] - true[mask]) ** 2)
+    ss_tot = np.sum((true[mask] - true[mask].mean()) ** 2)
+    return float(1.0 - ss_res / ss_tot) if ss_tot > 0 else np.nan
+
+
+def _corr(a: np.ndarray, b: np.ndarray) -> float:
+    mask = np.isfinite(a) & np.isfinite(b)
+    if mask.sum() < 2:
+        return np.nan
+    return float(np.corrcoef(a[mask], b[mask])[0, 1])
+
+
+def _rmse(a: np.ndarray, b: np.ndarray) -> float:
+    mask = np.isfinite(a) & np.isfinite(b)
+    return float(np.sqrt(np.mean((a[mask] - b[mask]) ** 2))) if mask.sum() > 0 else np.nan
+
+
+# ---------------------------------------------------------------------------
+# NEW: Seasonal cycle metrics
+# ---------------------------------------------------------------------------
+
+def compute_seasonal_metrics(
+    predictions: Dict[str, xr.Dataset],
+    ground_truth: xr.Dataset,
+    variables: Dict[str, dict],
+) -> Dict[str, Dict[str, dict]]:
+    """
+    Compare the climatological seasonal cycle (monthly means).
+
+    Metrics per variable per experiment:
+      - seasonal_r2: R² of the 12-month climatological spatial-mean cycle
+      - seasonal_amplitude_ratio: pred/true seasonal amplitude (1.0 = perfect)
+      - seasonal_phase_error_days: phase shift of annual harmonic
+      - seasonal_rmse: RMSE of monthly climatological means
+    """
+    print("\n  Computing seasonal cycle metrics...")
+    results = {}
+
+    for exp_name, ds_pred in predictions.items():
+        exp_results = {}
+        for varname, props in variables.items():
+            try:
+                true = get_variable(ground_truth, varname, props['scale_factor'])
+                pred = get_variable(ds_pred, varname, props['scale_factor'])
+
+                true_ts = true.mean(dim=['lat', 'lon'])
+                pred_ts = pred.mean(dim=['lat', 'lon'])
+
+                true_clim = true_ts.groupby('time.month').mean('time').values
+                pred_clim = pred_ts.groupby('time.month').mean('time').values
+
+                r2 = _r2(pred_clim, true_clim)
+
+                true_amp = true_clim.max() - true_clim.min()
+                pred_amp = pred_clim.max() - pred_clim.min()
+                amp_ratio = float(pred_amp / true_amp) if true_amp > 0 else np.nan
+
+                # Phase error via circular cross-correlation
+                cc = np.correlate(
+                    pred_clim - pred_clim.mean(),
+                    np.tile(true_clim - true_clim.mean(), 3),
+                    mode='valid'
+                )
+                lag_months = np.argmax(cc) - 12
+                phase_error_days = lag_months * 30.44
+
+                clim_rmse = float(np.sqrt(np.mean((pred_clim - true_clim) ** 2)))
+
+                exp_results[varname] = {
+                    'seasonal_r2': r2,
+                    'seasonal_amplitude_ratio': amp_ratio,
+                    'seasonal_phase_error_days': phase_error_days,
+                    'seasonal_rmse': clim_rmse,
+                }
+            except Exception as e:
+                exp_results[varname] = None
+                print(f"    Warning: seasonal metrics failed for {varname}: {e}")
+        results[exp_name] = exp_results
+    return results
+
+
+# ---------------------------------------------------------------------------
+# NEW: Interannual variability metrics
+# ---------------------------------------------------------------------------
+
+def compute_interannual_metrics(
+    predictions: Dict[str, xr.Dataset],
+    ground_truth: xr.Dataset,
+    variables: Dict[str, dict],
+) -> Dict[str, Dict[str, dict]]:
+    """
+    Assess interannual variability after removing the seasonal cycle.
+
+    Metrics:
+      - anomaly_r2: R² of deseasoned spatial-mean time series
+      - anomaly_correlation: temporal correlation of anomalies
+      - anomaly_std_ratio: pred/true anomaly std (1.0 = perfect)
+      - annual_mean_r2: R² of year-by-year annual means
+    """
+    print("\n  Computing interannual variability metrics...")
+    results = {}
+
+    for exp_name, ds_pred in predictions.items():
+        exp_results = {}
+        for varname, props in variables.items():
+            try:
+                true = get_variable(ground_truth, varname, props['scale_factor'])
+                pred = get_variable(ds_pred, varname, props['scale_factor'])
+
+                true_ts = true.mean(dim=['lat', 'lon'])
+                pred_ts = pred.mean(dim=['lat', 'lon'])
+
+                true_clim = true_ts.groupby('time.month').mean('time')
+                pred_clim = pred_ts.groupby('time.month').mean('time')
+                true_anom = (true_ts.groupby('time.month') - true_clim).values
+                pred_anom = (pred_ts.groupby('time.month') - pred_clim).values
+
+                anom_r2 = _r2(pred_anom, true_anom)
+                anom_corr = _corr(pred_anom, true_anom)
+
+                true_std = np.nanstd(true_anom)
+                pred_std = np.nanstd(pred_anom)
+                std_ratio = float(pred_std / true_std) if true_std > 0 else np.nan
+
+                true_annual = true_ts.groupby('time.year').mean('time').values
+                pred_annual = pred_ts.groupby('time.year').mean('time').values
+                annual_r2 = _r2(pred_annual, true_annual)
+
+                exp_results[varname] = {
+                    'anomaly_r2': anom_r2,
+                    'anomaly_correlation': anom_corr,
+                    'anomaly_std_ratio': std_ratio,
+                    'annual_mean_r2': annual_r2,
+                }
+            except Exception as e:
+                exp_results[varname] = None
+                print(f"    Warning: interannual metrics failed for {varname}: {e}")
+        results[exp_name] = exp_results
+    return results
+
+
+# ---------------------------------------------------------------------------
+# NEW: Gradient fidelity metrics
+# ---------------------------------------------------------------------------
+
+def compute_gradient_metrics(
+    predictions: Dict[str, xr.Dataset],
+    ground_truth: xr.Dataset,
+    variables: Dict[str, dict],
+    time_indices: Optional[List[int]] = None,
+    n_samples: int = 12,
+    regions: Optional[dict] = None,
+) -> Dict[str, Dict[str, dict]]:
+    """
+    Quantitative gradient fidelity — addresses the concern that emulators can
+    create weak gradients at wrong locations while dampening strong gradients
+    at correct locations (a failure mode spectra cannot detect).
+
+    Metrics (averaged over sampled timesteps):
+      - grad_rmse: RMSE of gradient magnitude fields
+      - grad_correlation: spatial correlation of gradient magnitude
+      - grad_mean_ratio: mean(|∇pred|)/mean(|∇true|) — <1 means dampening
+      - strong_grad_bias: bias where true gradient > p90 (neg = dampening fronts)
+      - weak_grad_bias: bias where true gradient < p50 (pos = spurious gradients)
+      - grad_sharpness_score: composite (higher = better gradient placement)
+    """
+    print("\n  Computing gradient fidelity metrics...")
+    results = {}
+
+    for exp_name, ds_pred in predictions.items():
+        exp_results = {}
+        for varname, props in variables.items():
+            try:
+                true = get_variable(ground_truth, varname, props['scale_factor'])
+                pred = get_variable(ds_pred, varname, props['scale_factor'])
+
+                n_time = len(true.time)
+                if time_indices is not None:
+                    idxs = [i for i in time_indices if i < n_time]
+                else:
+                    idxs = np.linspace(0, n_time - 1, min(n_samples, n_time), dtype=int).tolist()
+
+                acc = {k: [] for k in ['grad_rmse', 'grad_corr', 'grad_mean_ratio',
+                                        'strong_grad_bias', 'weak_grad_bias']}
+                regional_acc = {}
+
+                for ti in idxs:
+                    ft = true.isel(time=ti).values
+                    fp = pred.isel(time=ti).values
+                    gt = compute_gradient_magnitude(ft)
+                    gp = compute_gradient_magnitude(fp)
+
+                    # Normalize gradients by true gradient std for scale-independent metrics
+                    gt_std = np.nanstd(gt)
+                    if gt_std > 0:
+                        gt_norm = gt / gt_std
+                        gp_norm = gp / gt_std
+                    else:
+                        gt_norm = gt
+                        gp_norm = gp
+
+                    acc['grad_rmse'].append(_rmse(gp_norm, gt_norm))
+                    acc['grad_corr'].append(_corr(gp_norm.ravel(), gt_norm.ravel()))
+
+                    gt_mean = np.nanmean(gt)
+                    gp_mean = np.nanmean(gp)
+                    acc['grad_mean_ratio'].append(gp_mean / gt_mean if gt_mean > 0 else np.nan)
+
+                    p90 = np.nanpercentile(gt_norm, 90)
+                    p50 = np.nanpercentile(gt_norm, 50)
+
+                    strong = gt_norm > p90
+                    if strong.sum() > 0:
+                        acc['strong_grad_bias'].append(float(np.nanmean(gp_norm[strong] - gt_norm[strong])))
+                    weak = gt_norm < p50
+                    if weak.sum() > 0:
+                        acc['weak_grad_bias'].append(float(np.nanmean(gp_norm[weak] - gt_norm[weak])))
+
+                    # Per-region gradients
+                    if regions:
+                        for rname, rp in regions.items():
+                            if rname not in regional_acc:
+                                regional_acc[rname] = {'grad_rmse': [], 'grad_corr': [], 'grad_mean_ratio': []}
+                            i0 = int(rp['lat_min'] / 90 * gt.shape[0])
+                            i1 = min(int(rp['lat_max'] / 90 * gt.shape[0]), gt.shape[0])
+                            gt_r, gp_r = gt_norm[i0:i1, :], gp_norm[i0:i1, :]
+                            regional_acc[rname]['grad_rmse'].append(_rmse(gp_r, gt_r))
+                            regional_acc[rname]['grad_corr'].append(_corr(gp_r.ravel(), gt_r.ravel()))
+                            m = np.nanmean(gt[i0:i1, :])
+                            regional_acc[rname]['grad_mean_ratio'].append(np.nanmean(gp[i0:i1, :]) / m if m > 0 else np.nan)
+
+                vm = {
+                    'grad_rmse': float(np.nanmean(acc['grad_rmse'])),
+                    'grad_correlation': float(np.nanmean(acc['grad_corr'])),
+                    'grad_mean_ratio': float(np.nanmean(acc['grad_mean_ratio'])),
+                    'strong_grad_bias': float(np.nanmean(acc['strong_grad_bias'])) if acc['strong_grad_bias'] else np.nan,
+                    'weak_grad_bias': float(np.nanmean(acc['weak_grad_bias'])) if acc['weak_grad_bias'] else np.nan,
+                }
+                vm['grad_sharpness_score'] = vm['grad_mean_ratio'] - abs(vm['weak_grad_bias']) if not np.isnan(vm['grad_mean_ratio']) else np.nan
+
+                if regions:
+                    vm['regional_gradients'] = {
+                        rn: {k: float(np.nanmean(v)) for k, v in rv.items()}
+                        for rn, rv in regional_acc.items()
+                    }
+
+                exp_results[varname] = vm
+            except Exception as e:
+                exp_results[varname] = None
+                print(f"    Warning: gradient metrics failed for {varname}: {e}")
+        results[exp_name] = exp_results
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Regional time series (by biome)
+# ---------------------------------------------------------------------------
+
+def save_regional_time_series(
+    predictions: Dict[str, xr.Dataset],
+    ground_truth: xr.Dataset,
+    variables: Dict[str, dict],
+    regions: dict,
+    output_dir: Path,
 ) -> None:
-    """
-    Save metrics to a text file.
+    """Save spatial-mean time series per region to CSV."""
+    print("\n  Saving regional time series...")
+    ts_dir = output_dir / 'time_series_regional'
+    ts_dir.mkdir(exist_ok=True)
 
-    Parameters:
-    -----------
-    metrics : Dict
-        Metrics dictionary
-    output_file : Path
-        Output file path
-    metric_type : str
-        Type of metrics ('global' or 'regional')
-    """
+    for varname, props in variables.items():
+        try:
+            true = get_variable(ground_truth, varname, props['scale_factor'])
+            for rname, rprops in regions.items():
+                true_r = _select_region(true, rprops['lat_min'], rprops['lat_max'])
+                true_mean = true_r.mean(dim=['lat', 'lon']).values
+                data = {'time_index': np.arange(len(true.time)), 'ground_truth': true_mean}
+                for exp_name, ds_pred in predictions.items():
+                    pred = get_variable(ds_pred, varname, props['scale_factor'])
+                    pred_r = _select_region(pred, rprops['lat_min'], rprops['lat_max'])
+                    data[exp_name] = pred_r.mean(dim=['lat', 'lon']).values
+                pd.DataFrame(data).to_csv(ts_dir / f'{varname}_{rname}_timeseries.csv', index=False)
+        except Exception as e:
+            print(f"    Warning: regional ts failed for {varname}: {e}")
+        gc.collect()
+    print(f"  Regional time series saved to: {ts_dir}")
+
+
+# ---------------------------------------------------------------------------
+# File writers for new metric types
+# ---------------------------------------------------------------------------
+
+def save_metrics_to_file(metrics: Dict, output_file: Path, metric_type: str = "global") -> None:
+    """Save metrics to a text file (original logic preserved)."""
     with open(output_file, 'w') as f:
-        f.write(f"{'='*80}\n")
-        f.write(f"{metric_type.upper()} METRICS SUMMARY\n")
-        f.write(f"{'='*80}\n\n")
+        f.write(f"{'='*80}\n{metric_type.upper()} METRICS SUMMARY\n{'='*80}\n\n")
 
-        # Add model-level averages and rankings for global metrics
         if metric_type == "global":
-            # Compute model-level averages over variables
             model_avgs = {}
             metric_keys = ["r2", "correlation", "rmse", "mae", "mean_bias", "nrmse"]
 
             for exp_name, exp_metrics in metrics.items():
                 model_avgs[exp_name] = {key: [] for key in metric_keys}
-
                 for varname, var_metrics in exp_metrics.items():
                     if var_metrics is None:
                         continue
-
                     for key in metric_keys:
                         if key in var_metrics:
-                            value = var_metrics[key]
-                            # Use absolute value for mean_bias
-                            if key == "mean_bias":
-                                value = abs(value)
+                            value = abs(var_metrics[key]) if key == "mean_bias" else var_metrics[key]
                             model_avgs[exp_name][key].append(value)
 
-            # Compute averages
             for exp_name in model_avgs:
-                nvars = len(model_avgs[exp_name]["r2"]) if "r2" in model_avgs[exp_name] else 0
+                nvars = len(model_avgs[exp_name].get("r2", []))
                 for key in metric_keys:
-                    values = model_avgs[exp_name][key]
-                    if values:
-                        model_avgs[exp_name][f"{key}_avg"] = sum(values) / len(values)
-                        model_avgs[exp_name]["nvars"] = nvars
-                    else:
-                        model_avgs[exp_name][f"{key}_avg"] = float('nan')
-                        model_avgs[exp_name]["nvars"] = 0
+                    vals = model_avgs[exp_name][key]
+                    model_avgs[exp_name][f"{key}_avg"] = sum(vals) / len(vals) if vals else float('nan')
+                    model_avgs[exp_name]["nvars"] = nvars if vals else 0
 
-            # Write model-level averages table
             f.write("MODEL-LEVEL AVERAGES (mean over variables)\n")
             f.write(f"{'-'*80}\n")
             f.write(f"{'Model':<35} {'n':>3}  {'R²':>6}  {'Corr':>6}  {'RMSE':>7}  {'MAE':>7}  {'|Bias|':>7}  {'NRMSE':>7}\n")
             f.write(f"{'-'*80}\n")
-
             for exp_name in sorted(model_avgs.keys()):
-                avgs = model_avgs[exp_name]
-                nvars = avgs.get("nvars", 0)
-
-                # Truncate or pad model name to 35 chars
-                model_display = exp_name[:35].ljust(35)
-
-                f.write(
-                    f"{model_display} {nvars:3d}  "
-                    f"{avgs.get('r2_avg', float('nan')):6.4f}  "
-                    f"{avgs.get('correlation_avg', float('nan')):6.4f}  "
-                    f"{avgs.get('rmse_avg', float('nan')):7.4f}  "
-                    f"{avgs.get('mae_avg', float('nan')):7.4f}  "
-                    f"{avgs.get('mean_bias_avg', float('nan')):7.4f}  "
-                    f"{avgs.get('nrmse_avg', float('nan')):7.4f}\n"
-                )
+                a = model_avgs[exp_name]
+                f.write(f"{exp_name[:35]:<35} {a.get('nvars',0):3d}  "
+                        f"{a.get('r2_avg',float('nan')):6.4f}  {a.get('correlation_avg',float('nan')):6.4f}  "
+                        f"{a.get('rmse_avg',float('nan')):7.4f}  {a.get('mae_avg',float('nan')):7.4f}  "
+                        f"{a.get('mean_bias_avg',float('nan')):7.4f}  {a.get('nrmse_avg',float('nan')):7.4f}\n")
 
             f.write("\n")
-
-            # Write rankings for each metric
-            ranking_specs = [
-                ("r2_avg", "R²", True),  # higher is better
-                ("correlation_avg", "Correlation", True),
-                ("rmse_avg", "RMSE", False),  # lower is better
-                ("mae_avg", "MAE", False),
-                ("mean_bias_avg", "|Bias|", False),
-                ("nrmse_avg", "NRMSE", False),
-            ]
-
-            for metric_key, metric_label, higher_is_better in ranking_specs:
-                f.write(f"RANKING by mean {metric_label} (over variables):\n")
-                f.write(f"{'-'*60}\n")
-
-                # Sort models by metric
-                sorted_models = sorted(
-                    model_avgs.items(),
-                    key=lambda x: x[1].get(metric_key, float('inf') if not higher_is_better else float('-inf')),
-                    reverse=higher_is_better
-                )
-
-                for rank, (exp_name, avgs) in enumerate(sorted_models, 1):
-                    value = avgs.get(metric_key, float('nan'))
-                    f.write(f"  {rank}. {exp_name} ({metric_label}={value:.4f})\n")
-
+            for mk, ml, hb in [("r2_avg","R²",True),("correlation_avg","Corr",True),
+                                ("rmse_avg","RMSE",False),("mae_avg","MAE",False),
+                                ("mean_bias_avg","|Bias|",False),("nrmse_avg","NRMSE",False)]:
+                f.write(f"RANKING by mean {ml}:\n{'-'*60}\n")
+                for rank, (en, a) in enumerate(sorted(model_avgs.items(),
+                    key=lambda x: x[1].get(mk, float('inf') if not hb else float('-inf')), reverse=hb), 1):
+                    f.write(f"  {rank}. {en} ({ml}={a.get(mk,float('nan')):.4f})\n")
                 f.write("\n")
 
-            f.write(f"{'='*80}\n")
-            f.write("PER-VARIABLE METRICS\n")
-            f.write(f"{'='*80}\n\n")
+            f.write(f"{'='*80}\nPER-VARIABLE METRICS\n{'='*80}\n\n")
 
-        # Existing per-variable printing
         for exp_name, exp_metrics in metrics.items():
-            f.write(f"\n{exp_name}:\n")
-            f.write(f"{'-'*60}\n")
-
+            f.write(f"\n{exp_name}:\n{'-'*60}\n")
             for varname, var_metrics in exp_metrics.items():
                 if var_metrics is None:
                     continue
-
                 f.write(f"\n{varname}:\n")
-
                 if metric_type == "global":
-                    f.write(f"  R²:          {var_metrics['r2']:.4f}\n")
-                    f.write(f"  Correlation: {var_metrics['correlation']:.4f}\n")
-                    f.write(f"  RMSE:        {var_metrics['rmse']:.4f}\n")
-                    f.write(f"  MAE:         {var_metrics['mae']:.4f}\n")
-                    f.write(f"  Bias:        {var_metrics['mean_bias']:.4f}\n")
-                    f.write(f"  NRMSE:       {var_metrics['nrmse']:.4f}\n")
-                else:  # regional
-                    for region, region_metrics in var_metrics.items():
-                        f.write(f"  {region}:\n")
-                        f.write(f"    R²:   {region_metrics['r2']:.4f}\n")
-                        f.write(f"    RMSE: {region_metrics['rmse']:.4f}\n")
+                    for k in ["r2","correlation","rmse","mae","mean_bias","nrmse"]:
+                        if k in var_metrics:
+                            f.write(f"  {k:<14} {var_metrics[k]:.4f}\n")
+                else:
+                    for region, rm in var_metrics.items():
+                        f.write(f"  {region}:\n    R²: {rm['r2']:.4f}  RMSE: {rm['rmse']:.4f}\n")
 
 
-def compute_and_save_metrics(
-    predictions: Dict[str, xr.Dataset],
-    ground_truth: xr.Dataset,
-    variables: Dict[str, dict],
-    output_dirs: Dict[str, Path],
-    compute_regional: bool = True
-) -> tuple:
-    """
-    Compute metrics and save to files.
+def _save_tabular_metrics(metrics: Dict, output_file: Path, title: str, header: str, row_fmt) -> None:
+    """Generic tabular metric writer."""
+    with open(output_file, 'w') as f:
+        f.write(f"{'='*80}\n{title}\n{'='*80}\n{header}\n{'='*80}\n\n")
+        for exp_name, exp_m in metrics.items():
+            f.write(f"\n{exp_name}:\n{'-'*60}\n")
+            for varname, vm in exp_m.items():
+                if vm is None:
+                    continue
+                f.write(row_fmt(varname, vm))
 
-    Parameters:
-    -----------
-    predictions : Dict[str, xr.Dataset]
-        Prediction datasets
-    ground_truth : xr.Dataset
-        Ground truth dataset
-    variables : Dict[str, dict]
-        Variable definitions
-    output_dirs : Dict[str, Path]
-        Output directories
-    compute_regional : bool
-        Whether to compute regional metrics
 
-    Returns:
-    --------
-    tuple
-        (global_metrics, regional_metrics)
-    """
+def save_seasonal_metrics_to_file(metrics: Dict, output_file: Path) -> None:
+    def fmt(vn, vm):
+        return (f"  {vn:<30} {vm['seasonal_r2']:8.4f} {vm['seasonal_amplitude_ratio']:10.3f} "
+                f"{vm['seasonal_phase_error_days']:9.1f} {vm['seasonal_rmse']:9.4f}\n")
+    _save_tabular_metrics(metrics, output_file,
+        "SEASONAL CYCLE METRICS",
+        "seasonal_r2: R² of 12-month climatology | amp_ratio: pred/true amplitude | phase_err: days | clim_rmse",
+        fmt)
+
+
+def save_interannual_metrics_to_file(metrics: Dict, output_file: Path) -> None:
+    def fmt(vn, vm):
+        return (f"  {vn:<30} {vm['anomaly_r2']:7.4f} {vm['anomaly_correlation']:9.4f} "
+                f"{vm['anomaly_std_ratio']:9.3f} {vm['annual_mean_r2']:7.4f}\n")
+    _save_tabular_metrics(metrics, output_file,
+        "INTERANNUAL VARIABILITY METRICS",
+        "anomaly_r2: deseasoned R² | anom_corr: anomaly correlation | std_ratio: anomaly std ratio | annual_r2",
+        fmt)
+
+
+def save_gradient_metrics_to_file(metrics: Dict, output_file: Path) -> None:
+    with open(output_file, 'w') as f:
+        f.write(f"{'='*80}\nGRADIENT FIDELITY METRICS\n{'='*80}\n")
+        f.write("grad_rmse: RMSE of gradient magnitude fields\n")
+        f.write("grad_corr: spatial correlation of gradient magnitude\n")
+        f.write("grad_mean_ratio: mean(|∇pred|)/mean(|∇true|) — <1 = dampening\n")
+        f.write("strong_bias: bias where true grad > p90 — neg = dampening fronts\n")
+        f.write("weak_bias: bias where true grad < p50 — pos = spurious gradients\n")
+        f.write("sharpness: composite (higher = better gradient placement)\n")
+        f.write(f"{'='*80}\n\n")
+
+        for exp_name, exp_m in metrics.items():
+            f.write(f"\n{exp_name}:\n{'-'*80}\n")
+            f.write(f"  {'Variable':<20} {'GradRMSE':>9} {'GradCorr':>9} {'GradMeanRatio':>10} "
+                    f"{'StrongBias':>11} {'WeakBias':>9} {'Sharpness':>10}\n")
+            f.write(f"  {'-'*78}\n")
+            for varname, vm in exp_m.items():
+                if vm is None:
+                    continue
+                f.write(f"  {varname:<20} {vm['grad_rmse']:9.5f} {vm['grad_correlation']:9.4f} "
+                        f"{vm['grad_mean_ratio']:10.4f} {vm['strong_grad_bias']:11.5f} "
+                        f"{vm['weak_grad_bias']:9.5f} {vm['grad_sharpness_score']:10.4f}\n")
+
+            # Regional gradient table
+            first_var = next((v for v in exp_m.values() if v and 'regional_gradients' in v), None)
+            if first_var:
+                f.write(f"\n  Regional gradient ratios (mean |∇pred|/|∇true|):\n")
+                rnames = list(first_var['regional_gradients'].keys())
+                f.write(f"  {'Variable':<20}" + "".join(f" {r:>15}" for r in rnames) + "\n")
+                f.write(f"  {'-'*65}\n")
+                for varname, vm in exp_m.items():
+                    if vm is None or 'regional_gradients' not in vm:
+                        continue
+                    f.write(f"  {varname:<20}")
+                    for rn in rnames:
+                        f.write(f" {vm['regional_gradients'][rn]['grad_mean_ratio']:15.4f}")
+                    f.write("\n")
+
+
+# ---------------------------------------------------------------------------
+# Original metrics pipeline (preserved)
+# ---------------------------------------------------------------------------
+
+def compute_and_save_metrics(predictions, ground_truth, variables, output_dirs, compute_regional=True):
     import time
 
-    print("\n" + "="*80)
-    print("COMPUTING METRICS")
-    print("="*80)
+    print("\n" + "="*80 + "\nCOMPUTING METRICS\n" + "="*80)
     print(f"\nProcessing {len(variables)} variables for {len(predictions)} experiment(s)")
     print(f"Dataset size: {len(ground_truth.time)} timesteps")
 
-    # Estimate computation time
-    n_computations = len(variables) * len(predictions)
-    print(f"\nThis will compute metrics for {n_computations} variable-experiment pairs")
-    print("(Progress bars will show if tqdm is installed)")
-
-    # Compute global metrics
     print("\nComputing global metrics...")
-    start_time = time.time()
-    global_metrics = compute_metrics_all_experiments(
-        predictions, ground_truth, variables
-    )
-    elapsed = time.time() - start_time
-    print(f"\nGlobal metrics computed in {elapsed:.1f} seconds")
+    t0 = time.time()
+    global_metrics = compute_metrics_all_experiments(predictions, ground_truth, variables)
+    print(f"\nGlobal metrics computed in {time.time()-t0:.1f} seconds")
 
-    # Save global metrics
-    metrics_file = output_dirs['metrics'] / 'global_metrics.txt'
-    save_metrics_to_file(global_metrics, metrics_file, "global")
-    print(f"Saved global metrics to: {metrics_file}")
-
-    # Print summary
+    save_metrics_to_file(global_metrics, output_dirs['metrics'] / 'global_metrics.txt', "global")
     print_metrics_summary(global_metrics, variables)
 
-    # Compute regional metrics if requested
     regional_metrics = None
     if compute_regional:
         print("\nComputing regional metrics...")
-        print("(This computes metrics for 3 regions + global, 4x slower than global only)")
-        start_time = time.time()
-        regional_metrics = compute_regional_metrics(
-            predictions, ground_truth, variables
-        )
-        elapsed = time.time() - start_time
-        print(f"\nRegional metrics computed in {elapsed:.1f} seconds")
-
-        # Save regional metrics
-        regional_file = output_dirs['metrics'] / 'regional_metrics.txt'
-        save_metrics_to_file(regional_metrics, regional_file, "regional")
-        print(f"Saved regional metrics to: {regional_file}")
-
-        # Print summary
+        t0 = time.time()
+        regional_metrics = compute_regional_metrics(predictions, ground_truth, variables)
+        print(f"\nRegional metrics computed in {time.time()-t0:.1f} seconds")
+        save_metrics_to_file(regional_metrics, output_dirs['metrics'] / 'regional_metrics.txt', "regional")
         print_regional_metrics_summary(regional_metrics, variables)
 
     return global_metrics, regional_metrics
 
 
-def save_time_series_data(
-    predictions: Dict[str, xr.Dataset],
-    ground_truth: xr.Dataset,
-    variables: Dict[str, dict],
-    output_dirs: Dict[str, Path]
-) -> None:
-    """
-    Save spatial mean time series to CSV files for later plotting.
-
-    Parameters:
-    -----------
-    predictions : Dict[str, xr.Dataset]
-        Prediction datasets
-    ground_truth : xr.Dataset
-        Ground truth dataset
-    variables : Dict[str, dict]
-        Variable definitions
-    output_dirs : Dict[str, Path]
-        Output directories
-    """
-    print("\n" + "="*80)
-    print("SAVING TIME SERIES DATA")
-    print("="*80)
-
+def save_time_series_data(predictions, ground_truth, variables, output_dirs):
+    print("\n" + "="*80 + "\nSAVING TIME SERIES DATA\n" + "="*80)
     ts_dir = output_dirs['data'] / 'time_series'
     ts_dir.mkdir(exist_ok=True)
 
     for varname, props in variables.items():
-        print(f"Processing {varname}...")
-
         try:
-            # Get ground truth
-            from eval_helpers import get_variable
             true = get_variable(ground_truth, varname, props['scale_factor'])
             true_mean = true.mean(dim=['lat', 'lon']).values
-
-            # Create dataframe-like structure
-            data = {
-                'time_index': np.arange(len(true.time)),
-                'ground_truth': true_mean
-            }
-
-            # Add predictions
+            data = {'time_index': np.arange(len(true.time)), 'ground_truth': true_mean}
             for exp_name, ds_pred in predictions.items():
                 pred = get_variable(ds_pred, varname, props['scale_factor'])
                 pred_mean = pred.mean(dim=['lat', 'lon']).values
                 data[exp_name] = pred_mean
                 data[f'{exp_name}_bias'] = pred_mean - true_mean
-
-            # Save to CSV
-            import pandas as pd
-            df = pd.DataFrame(data)
-            csv_file = ts_dir / f'{varname}_timeseries.csv'
-            df.to_csv(csv_file, index=False)
-
+            pd.DataFrame(data).to_csv(ts_dir / f'{varname}_timeseries.csv', index=False)
         except Exception as e:
             print(f"Warning: Could not process {varname}: {e}")
-
-        # Clear memory
         gc.collect()
-
     print(f"\nTime series data saved to: {ts_dir}")
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
 def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Compare ocean emulator rollouts with ground truth"
-    )
-    parser.add_argument(
-        '--config',
-        type=str,
-        required=True,
-        help='Path to YAML configuration file'
-    )
-    parser.add_argument(
-        '--output-dir',
-        type=str,
-        default=None,
-        help='Output directory (overrides config)'
-    )
-    parser.add_argument(
-        '--skip-regional',
-        action='store_true',
-        help='Skip regional metrics computation'
-    )
-    parser.add_argument(
-        '--time-slice-start',
-        type=str,
-        default=None,
-        help='Override time slice start (YYYY-MM-DD)'
-    )
-    parser.add_argument(
-        '--time-slice-end',
-        type=str,
-        default=None,
-        help='Override time slice end (YYYY-MM-DD)'
-    )
-    parser.add_argument(
-        '--variables',
-        type=str,
-        nargs='+',
-        default=None,
-        help='Specific variables to analyze (default: all)'
-    )
+    parser = argparse.ArgumentParser(description="Compare ocean emulator rollouts with ground truth")
+    parser.add_argument('--config', type=str, required=True, help='Path to YAML config file')
+    parser.add_argument('--output-dir', type=str, default=None, help='Output directory (overrides config)')
+    parser.add_argument('--skip-regional', action='store_true', help='Skip regional metrics')
+    parser.add_argument('--skip-seasonal', action='store_true', help='Skip seasonal cycle metrics')
+    parser.add_argument('--skip-interannual', action='store_true', help='Skip interannual metrics')
+    parser.add_argument('--skip-gradient', action='store_true', help='Skip gradient fidelity metrics')
+    parser.add_argument('--time-slice-start', type=str, default=None)
+    parser.add_argument('--time-slice-end', type=str, default=None)
+    parser.add_argument('--variables', type=str, nargs='+', default=None)
 
     args = parser.parse_args()
 
-    # Load and validate config
     print(f"Loading configuration from: {args.config}")
     config = load_config(args.config)
     validate_config(config)
+    regions = _get_regions(config)
 
-    # Get snapshot times from config for regional diagnostics
     if 'visualization' in config and 'snapshot_times' in config['visualization']:
         snapshot_times = config['visualization']['snapshot_times']
-        diagnostic_time_idx = snapshot_times[0]  # Use first snapshot for diagnostics
+        diagnostic_time_idx = snapshot_times[0]
     else:
-        diagnostic_time_idx = 0  # Fallback to first timestep
-        print("Warning: No visualization.snapshot_times in config, using time_idx=0 for diagnostics")
+        snapshot_times = None
+        diagnostic_time_idx = 0
 
-    # Setup output directory
-    if args.output_dir:
-        output_dir = Path(args.output_dir)
-    else:
-        output_dir = Path(config.get('output_dir', 'outputs/comparison'))
-
+    output_dir = Path(args.output_dir) if args.output_dir else Path(config.get('output_dir', 'outputs/comparison'))
     print(f"Output directory: {output_dir}")
     output_dirs = setup_output_directory(output_dir)
 
-    # Save config to output directory
-    config_out = output_dirs['base'] / 'config.yaml'
-    with open(config_out, 'w') as f:
+    with open(output_dirs['base'] / 'config.yaml', 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
-    print(f"Saved config to: {config_out}")
 
-    # Determine time slice
     time_slice = None
     if args.time_slice_start and args.time_slice_end:
         time_slice = (args.time_slice_start, args.time_slice_end)
     elif 'time_slice' in config:
         time_slice = tuple(config['time_slice'])
 
-    # Load data
-    print("\n" + "="*80)
-    print("LOADING DATA")
-    print("="*80)
-
+    print("\n" + "="*80 + "\nLOADING DATA\n" + "="*80)
     predictions, ground_truth = load_experiments(
-        config['experiments'],
-        config['ground_truth_path'],
-        time_slice=time_slice
+        config['experiments'], config['ground_truth_path'], time_slice=time_slice
     )
 
-    # Filter variables if specified
     variables = VARIABLES.copy()
     if args.variables:
         variables = {k: v for k, v in variables.items() if k in args.variables}
-        print(f"\nAnalyzing variables: {list(variables.keys())}")
-
-    # Exclude specific variables if configured
     if 'exclude_variables' in config:
         excluded = set(config['exclude_variables'])
         variables = {k: v for k, v in variables.items() if k not in excluded}
-        print(f"\nExcluded variables: {excluded}")
 
-    # Compute and save metrics
+    # ── 1. Global + Regional metrics ──
     global_metrics, regional_metrics = compute_and_save_metrics(
-        predictions,
-        ground_truth,
-        variables,
-        output_dirs,
+        predictions, ground_truth, variables, output_dirs,
         compute_regional=not args.skip_regional
     )
 
-    # Save time series data for later visualization
-    save_time_series_data(
-        predictions,
-        ground_truth,
-        variables,
-        output_dirs
-    )
+    # ── 2. Seasonal cycle metrics (NEW) ──
+    if not args.skip_seasonal:
+        print("\n" + "="*80 + "\nSEASONAL CYCLE METRICS\n" + "="*80)
+        seasonal_metrics = compute_seasonal_metrics(predictions, ground_truth, variables)
+        save_seasonal_metrics_to_file(seasonal_metrics, output_dirs['metrics'] / 'seasonal_metrics.txt')
 
-    # Regional characteristics diagnostic
+    # ── 3. Interannual variability metrics (NEW) ──
+    if not args.skip_interannual:
+        print("\n" + "="*80 + "\nINTERANNUAL VARIABILITY METRICS\n" + "="*80)
+        interannual_metrics = compute_interannual_metrics(predictions, ground_truth, variables)
+        save_interannual_metrics_to_file(interannual_metrics, output_dirs['metrics'] / 'interannual_metrics.txt')
+
+    # ── 4. Gradient fidelity metrics (NEW) ──
+    if not args.skip_gradient:
+        print("\n" + "="*80 + "\nGRADIENT FIDELITY METRICS\n" + "="*80)
+        gradient_metrics = compute_gradient_metrics(
+            predictions, ground_truth, variables,
+            time_indices=snapshot_times,
+            regions=regions if not args.skip_regional else None,
+        )
+        save_gradient_metrics_to_file(gradient_metrics, output_dirs['metrics'] / 'gradient_metrics.txt')
+
+    # ── 5. Time series (global + regional) ──
+    save_time_series_data(predictions, ground_truth, variables, output_dirs)
     if not args.skip_regional:
-        print("\n" + "="*80)
-        print("REGIONAL CHARACTERISTICS")
-        print("="*80)
+        save_regional_time_series(predictions, ground_truth, variables, regions, output_dirs['data'])
 
-        # Save diagnostic to file
+    # ── 6. Regional characteristics diagnostic ──
+    if not args.skip_regional:
+        print("\n" + "="*80 + "\nREGIONAL CHARACTERISTICS\n" + "="*80)
         diag_file = output_dirs['metrics'] / 'regional_characteristics.txt'
-
-        # Redirect stdout to capture diagnostics
-        import sys
         from io import StringIO
-
         old_stdout = sys.stdout
         sys.stdout = StringIO()
-
         diagnose_regional_characteristics(ground_truth, variables, time_idx=diagnostic_time_idx)
-
         diagnostic_output = sys.stdout.getvalue()
         sys.stdout = old_stdout
-
         print(diagnostic_output)
-
         with open(diag_file, 'w') as f:
             f.write(diagnostic_output)
 
-        print(f"\nSaved regional characteristics to: {diag_file}")
-
     # Summary
-    print("\n" + "="*80)
-    print("COMPARISON COMPLETE")
-    print("="*80)
+    print("\n" + "="*80 + "\nCOMPARISON COMPLETE\n" + "="*80)
     print(f"\nResults saved to: {output_dir}")
     print(f"  - Metrics:     {output_dirs['metrics']}")
+    for mf in ["global_metrics.txt",
+                "regional_metrics.txt" if not args.skip_regional else None,
+                "seasonal_metrics.txt" if not args.skip_seasonal else None,
+                "interannual_metrics.txt" if not args.skip_interannual else None,
+                "gradient_metrics.txt" if not args.skip_gradient else None]:
+        if mf:
+            print(f"    • {mf}")
     print(f"  - Data:        {output_dirs['data']}")
     print(f"  - Figures:     {output_dirs['figures']} (use visualization script)")
-
-    print("\nNext steps:")
-    print(f"  1. Review metrics in: {output_dirs['metrics']}")
-    print(f"  2. Generate plots: python scripts/visualize_comparison.py --data-dir {output_dirs['data']}")
-    print(f"  3. Create animations: python scripts/create_animations.py --config {config_out}")
 
 
 if __name__ == '__main__':

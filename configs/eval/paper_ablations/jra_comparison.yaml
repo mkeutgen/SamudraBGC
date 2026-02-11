@@ -4,34 +4,29 @@
 # Experiments to compare (name: path to predictions.zarr)
 # Paths are relative to the Ocean_Emulator directory where you run the scripts
 experiments:
-  "Full MAE + Grad 0.5": "outputs/jra_wo_poc/jra_fullstate_grad05_eval/predictions.zarr/"
-  "Helmholtz MAE + Grad 0.5": "outputs/jra_wo_poc/jra_helmholtz_std_grad05_eval/predictions.zarr/"
-  "Helmholtz Minimal MAE + Grad 0.5": "outputs/jra_wo_poc/jra_helmholtz_min_grad05_eval/predictions.zarr/"
-  "Full Helmholtz MAE + Grad 0.5": "outputs/jra_wo_poc/jra_fullstate_helmholtz_grad05_eval/predictions.zarr/"
-  "Full Helmholtz Minimal MAE + Grad 0.5": "outputs/jra_wo_poc/jra_fullstate_helmholtz_grad05_minimal_eval/predictions.zarr/"
-  "Best Grad 0.25 SO 0.0 Helmholtz Only": "outputs/jra_wo_poc/jra_best_grad025_so00_helmholtz_only_eval/predictions.zarr/"
-  # Add more experiments here:
-  # "Another Experiment": "outputs/another_experiment/predictions.zarr/"
+  # 10-year deterministic rollout (validation + test) for helmholtz_min_grad05
+  "Helmholtz Minimal MAE + Grad 0.5 (2010-2019 rollout)": "outputs/jra_helmholtz_min_grad05_eval_rollout2010_2019/predictions.zarr/"
+  # Add ensemble/baselines as they finish:
+  # "Helmholtz Minimal MAE + Grad 0.5 (2015-2019 ensemble mean)": "outputs/jra_helmholtz_min_grad05_ensemble_eval_test/predictions.zarr/"
+  # "Fullstate baseline": "outputs/another_experiment/predictions.zarr/"
 
 # Path to ground truth data
-ground_truth_path: "/scratch/gpfs/GEOCLIM/LRGROUP/maximek/MOM6_CobaltDG_JRA_FULL/bgc_data.zarr/"
+ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
 
 # Output directory for results
-output_dir: "outputs/jra_comparison"
+output_dir: "outputs/jra_comparison_rollout2010_2019"
 
 # Time slice for evaluation (YYYY-MM-DD)
 # Set to null to use full time range
 time_slice:
-  - "1990-01-01"
-  - "1999-12-31"  # 10 years for full rollout comparison
+  - "2010-01-01"
+  - "2014-12-31"  # EXTREMELY IMPORTANT exclude LAST 5 years BECAUSE IT IS TEST DATA
 
 # Grid spacing in kilometers (for spectral analysis)
 dx_km: 9.0
 
 # Variables to exclude from analysis (optional)
-exclude_variables:
-  - "psi_0"  # Streamfunction
-  - "phi_0"  # Velocity potential
+# exclude_variables: []  # include all variables (psi/phi kept)
 
 # Analysis options
 compute_regional: false  # Compute metrics for different ocean regions (SLOW - disable for speed)
@@ -40,21 +35,30 @@ save_spatial_fields: false  # Save spatial fields (can be large)
 
 # Visualization settings
 visualization:
-  # Spring bloom progression: 1990-01-03, 1995-03/04/05-15, 1997-03/04/05-15
-  snapshot_times: [1896, 1927, 1957, 2626, 2657, 2687, 3356, 3387, 3417]
+  # Spring bloom progression: March-May each year
+  # Time indices RELATIVE TO ROLLOUT START (2010-01-01 = 0, no-leap, daily):
+  # Jan 1: 0, Mar 15: 74, Apr 15: 105, May 15: 135 (and repeat for each year)
+  snapshot_times: [0, 74, 105, 135, 440, 471, 501, 806, 837, 867, 1172, 1203, 1233]
 
   # Time index for spectral analysis
-  spectral_time_idx: 2687  # Corresponds to 1995-05-15
+  spectral_time_idx: 1096  # 2013-01-01 (relative index, middle of validation period)
 
   # Figure DPI
   dpi: 150
 
   # Plot types to generate
   plot_types:
-    - timeseries
-    - spatial
-    - spectra
-    - regional
+    - seasonal
+    - interannual
+    - gradient_scatter
+    - gradient_pdf
+    - regional_ts
+
+
+#     - timeseries
+#    - spatial
+#    - spectra
+#     - taylor
 
 # Animation settings (optional)
 animations:

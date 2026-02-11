@@ -7,7 +7,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16         # More CPUs for full analysis
 #SBATCH --mem=780G                # Maximum memory for 3 experiments
-#SBATCH --partition=cpu
+#SBATCH --partition=cimes
 #SBATCH --account=cimes3
 
 # Full comparison with all variables and regional analysis
@@ -38,7 +38,7 @@ echo "Running full comparison (all variables + regional analysis)..."
 echo
 
 time python scripts/compare_rollouts.py \
-    --config configs/eval/jra_suite/jra_comparison.yaml
+    --config configs/eval/paper_ablations/jra_comparison.yaml
 
 exit_code=$?
 

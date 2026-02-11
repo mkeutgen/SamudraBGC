@@ -2,9 +2,9 @@
 #SBATCH --job-name=jra_helmholtz_min_grad025_train
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
-#SBATCH --gres=gpu:l40s:1
-#SBATCH --nodes=8
-#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:h200:4
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=300G
 #SBATCH --time=72:00:00
@@ -38,10 +38,10 @@ echo "Starting training: jra_helmholtz_min_grad025"
 echo "Config: configs/experiments/paper_ablations/jra_helmholtz_min_grad025.yaml"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 
-srun --ntasks=8 \
-     --ntasks-per-node=1 \
+srun --ntasks=4 \
+     --ntasks-per-node=4 \
      --cpus-per-task=16 \
-     --gpus-per-node=1 \
+     --gpus-per-node=4 \
      python -m ocean_emulators.train \
      configs/experiments/paper_ablations/jra_helmholtz_min_grad025.yaml
 
