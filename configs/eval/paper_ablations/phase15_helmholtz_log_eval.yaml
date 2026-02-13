@@ -36,14 +36,14 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 4
-  persistent_workers: true
+  num_workers: 2
+  persistent_workers: false
   prefetch_factor: 2
   hist: 1
   concurrent_compute: true
 
 model:
-  checkpointing: all
+  checkpointing: null
   pred_residuals: false
   last_kernel_size: 3
   pad: constant

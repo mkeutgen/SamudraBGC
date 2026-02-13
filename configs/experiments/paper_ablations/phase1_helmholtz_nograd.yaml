@@ -9,7 +9,7 @@ debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 50
+epochs: 30
 batch_size: 1
 learning_rate: 0.0002
 scheduler:
@@ -63,7 +63,7 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 4
+  num_workers: 2
   persistent_workers: true
   prefetch_factor: 2
   hist: 1

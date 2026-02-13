@@ -3,18 +3,18 @@
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
-#SBATCH --nodes=8
+#SBATCH --nodes=16
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=600G
-#SBATCH --time=10:00:00
+#SBATCH --mem=400G
+#SBATCH --time=3-00:00:00
 #SBATCH --output=logs/paper_ablations/phase15_helmholtz_log_train_%j.out
 #SBATCH --error=logs/paper_ablations/phase15_helmholtz_log_train_%j.err
 
 # Paper Ablation Study - Phase 1.5: Log Transform Ablation
 # Configuration: Helmholtz decomposition - LOG space
 # Baseline: Use phase1_helmholtz_nograd results (linear space)
-# Expected runtime: ~4 days (50 epochs)
+# Expected runtime: ~1-1.5 days with 32 GPUs (~2 hours/epoch × 45 remaining epochs)
 
 set -e
 
@@ -40,9 +40,9 @@ echo "Config: configs/experiments/paper_ablations/phase15_helmholtz_log_all.yaml
 echo "Baseline: phase1_helmholtz_nograd (linear space)"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 
-srun --ntasks=8 \
+srun --ntasks=16 \
      --ntasks-per-node=1 \
-     --cpus-per-task=16 \
+     --cpus-per-task=12 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
      configs/experiments/paper_ablations/phase15_helmholtz_log_all.yaml
