@@ -7,9 +7,9 @@ save_zarr: true
 disk_mode: true
 ckpt_path: ./outputs/phase1_helmholtz_nograd/saved_nets/ema_ckpt.pt
 inference_time:
-  start: '2015-01-01'
-  end: '2019-12-31'
-num_model_steps_forward: 5
+  start: '2010-01-01'
+  end: '2014-12-31'
+num_model_steps_forward: 20
 backend: auto
 
 experiment:

@@ -1,0 +1,51 @@
+# Configuration for comparing Phase 1 (linear) vs Phase 1.5 (log transform) ablations
+# Compares: phase1_helmholtz_nograd (baseline, linear space)
+#       vs: phase15_helmholtz_log (treatment, log-transformed BGC variables)
+
+# Experiments to compare (name: path to predictions.zarr)
+experiments:
+  "Phase 1: Helmholtz (Linear Space)": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_helmholtz_nograd_eval/predictions.zarr/"
+  "Phase 1.5: Helmholtz (Log-Transformed BGC)": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase15_helmholtz_log_eval_linear/predictions.zarr/"
+
+# Path to ground truth data
+ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+
+# Output directory for results
+output_dir: "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_vs_phase15_comparison"
+
+# Time slice for evaluation (YYYY-MM-DD)
+# Use 2010-2014 validation period (5 years)
+time_slice:
+  - "2010-01-01"
+  - "2014-12-31"
+
+# Grid spacing in kilometers (for spectral analysis)
+dx_km: 9.0
+
+# Analysis options
+compute_regional: false  # Regional metrics (SLOW)
+save_time_series: true  # Save time series to CSV for plotting
+save_spatial_fields: false  # Save spatial fields
+
+# Visualization settings
+visualization:
+  # Spring bloom progression: March-May each year (relative to 2015-01-01)
+  snapshot_times: [0, 74, 105, 135, 440, 471, 501, 806, 837, 867, 1172, 1203, 1233]
+
+  # Time index for spectral analysis (middle of test period, relative index)
+  spectral_time_idx: 730  # 2017-01-01
+
+  # Figure DPI
+  dpi: 150
+
+  # Plot types to generate
+  plot_types:
+    - seasonal
+    - interannual
+    - gradient_scatter
+    - gradient_pdf
+
+# Memory management
+memory:
+  batch_size: 40
+  clear_cache_between_batches: true

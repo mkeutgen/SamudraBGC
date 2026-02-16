@@ -2,7 +2,7 @@
 #SBATCH --job-name=phase15_helmholtz_log_eval
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
-#SBATCH --gres=gpu:l40s:1
+#SBATCH --gres=gpu:h200:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16

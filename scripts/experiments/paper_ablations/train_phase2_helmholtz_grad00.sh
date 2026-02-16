@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=phase2_helmholtz_grad050
+#SBATCH --job-name=phase2_helmholtz_grad00
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -8,11 +8,11 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=300G
 #SBATCH --time=120:00:00
-#SBATCH --output=logs/paper_ablations/phase2_helmholtz_grad050_train_%j.out
-#SBATCH --error=logs/paper_ablations/phase2_helmholtz_grad050_train_%j.err
+#SBATCH --output=logs/paper_ablations/phase2_helmholtz_grad00_train_%j.out
+#SBATCH --error=logs/paper_ablations/phase2_helmholtz_grad00_train_%j.err
 
 # Paper Ablation Study - Phase 2: Gradient Penalty Ablation
-# Configuration: Helmholtz with gradient_weight = 0.50
+# Configuration: Helmholtz with gradient_weight = 0.0 (BASELINE)
 # Expected runtime: ~100 hours (50 epochs @ 2h/epoch with 8 L40S GPUs)
 
 set -e
@@ -34,8 +34,8 @@ export MASTER_PORT=29500
 export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 
 # Training
-echo "Starting training: phase2_helmholtz_grad050"
-echo "Config: configs/experiments/paper_ablations/phase2_helmholtz_grad050.yaml"
+echo "Starting training: phase2_helmholtz_grad00 (BASELINE)"
+echo "Config: configs/experiments/paper_ablations/phase2_helmholtz_grad00.yaml"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 
 srun --ntasks=8 \
@@ -43,6 +43,6 @@ srun --ntasks=8 \
      --cpus-per-task=16 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
-     configs/experiments/paper_ablations/phase2_helmholtz_grad050.yaml
+     configs/experiments/paper_ablations/phase2_helmholtz_grad00.yaml
 
 echo "Training complete!"

@@ -27,7 +27,7 @@ experiment:
     - "helmholtz-decomposition"
     - "grad-0.25"
     - "evaluation"
-  prognostic_vars_key: helmholtz_only_all
+  prognostic_vars_key: helmholtz_log_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 

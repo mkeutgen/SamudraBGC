@@ -3,17 +3,18 @@
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
-#SBATCH --nodes=16
+#SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=300G
 #SBATCH --time=120:00:00
 #SBATCH --output=logs/paper_ablations/phase2_helmholtz_grad025_train_%j.out
 #SBATCH --error=logs/paper_ablations/phase2_helmholtz_grad025_train_%j.err
+#SBATCH --exclude=tiger-i06g8
 
 # Paper Ablation Study - Phase 2: Gradient Penalty Ablation
 # Configuration: Helmholtz with gradient_weight = 0.25
-# Expected runtime: ~4 days (60 epochs)
+# Expected runtime: ~100 hours (50 epochs @ 2h/epoch with 8 L40S GPUs)
 
 set -e
 
@@ -38,7 +39,7 @@ echo "Starting training: phase2_helmholtz_grad025"
 echo "Config: configs/experiments/paper_ablations/phase2_helmholtz_grad025.yaml"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 
-srun --ntasks=16 \
+srun --ntasks=8 \
      --ntasks-per-node=1 \
      --cpus-per-task=16 \
      --gpus-per-node=1 \

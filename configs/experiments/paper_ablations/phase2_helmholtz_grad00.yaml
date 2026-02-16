@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
 # ============================================================================
 # Paper Ablation Study - Phase 2: Gradient Penalty Ablation
-# Configuration: Helmholtz with gradient_weight = 0.50
-# Hypothesis: Strong gradient penalty emphasizes spatial structure over point-wise accuracy
+# Configuration: Helmholtz with gradient_weight = 0.0 (BASELINE - no gradient penalty)
+# Hypothesis: Baseline with log-transformed BGC, no spatial gradient regularization
 # ============================================================================
 
 debug: false
@@ -15,7 +15,7 @@ learning_rate: 0.0002
 scheduler:
   type: cosine
 loss: mae_gradient_weighted
-gradient_weight: 0.50
+gradient_weight: 0.0
 second_order_weight: 0.0
 finetune: false
 resume_ckpt_path: null
@@ -41,7 +41,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: phase2_helmholtz_grad050
+  name: phase2_helmholtz_grad00
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -53,7 +53,8 @@ experiment:
     - "paper-ablation"
     - "phase2-gradient-penalty"
     - "helmholtz-decomposition"
-    - "grad-0.50"
+    - "grad-0.0"
+    - "baseline"
   prognostic_vars_key: helmholtz_log_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
@@ -99,5 +100,7 @@ model:
     non_negative_corrector_names: null
     ocean_heat_corrector: false
 
-# Variables: dic, o2, no3, chl, temp, salt, psi, phi, poc @ 50 levels + SSH
+# Variables: log_dic, log_o2, log_no3, log_chl, temp, salt, psi, phi @ 50 levels + SSH
 # Forcing: Qnet, tauuo, tauvo (minimal forcing)
+# Transform: LOG space for BGC variables
+# Gradient penalty: NONE (baseline for Phase 2 ablation)

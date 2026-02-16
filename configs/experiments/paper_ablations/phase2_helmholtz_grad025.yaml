@@ -9,7 +9,7 @@ debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 60
+epochs: 50
 batch_size: 1
 learning_rate: 0.0002
 scheduler:
@@ -54,7 +54,7 @@ experiment:
     - "phase2-gradient-penalty"
     - "helmholtz-decomposition"
     - "grad-0.25"
-  prognostic_vars_key: helmholtz_only_all
+  prognostic_vars_key: helmholtz_log_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 

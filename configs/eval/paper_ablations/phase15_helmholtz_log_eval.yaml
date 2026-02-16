@@ -7,9 +7,9 @@ save_zarr: true
 disk_mode: true
 ckpt_path: ./outputs/phase15_helmholtz_log/saved_nets/ema_ckpt.pt
 inference_time:
-  start: '2015-01-01'
-  end: '2019-12-31'
-num_model_steps_forward: 5
+  start: '2010-01-01'
+  end: '2014-12-31'
+num_model_steps_forward: 20
 backend: auto
 
 experiment:
@@ -36,14 +36,14 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 2
-  persistent_workers: false
+  num_workers: 4
+  persistent_workers: true
   prefetch_factor: 2
   hist: 1
   concurrent_compute: true
 
 model:
-  checkpointing: null
+  checkpointing: all
   pred_residuals: false
   last_kernel_size: 3
   pad: constant
