@@ -334,7 +334,7 @@ DEFAULT_METADATA = {
     },
     "chl": {
         "long_name": "Chlorophyll Concentration",
-        "units": "mg/m3",
+        "units": "ug/kg",
     },
     "pp": {
         "long_name": "Primary Production",
@@ -342,7 +342,7 @@ DEFAULT_METADATA = {
     },
     "poc": {
         "long_name": "Particulate Organic Carbon",
-        "units": "mol/kg",
+        "units": "mol/m3",
     },
     "tauuo": {
         "long_name": "Surface Downward X Stress",
@@ -362,7 +362,7 @@ DEFAULT_METADATA = {
     },
     "chl_surface": {
         "long_name": "Surface Chlorophyll (satellite)",
-        "units": "mg/m3",
+        "units": "ug/kg",
     },
 }
 

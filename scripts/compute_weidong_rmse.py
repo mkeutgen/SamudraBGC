@@ -103,6 +103,10 @@ def compute_area_weighted_rmse(pred, target, area_weights, wet_mask_channel):
     mask = wet_mask_channel
     diff_sq = (pred - target) ** 2
 
+    # Zero out NaN values (land cells) before weighted sum
+    # NaN * 0 = NaN in IEEE, so we must explicitly zero them
+    diff_sq = torch.nan_to_num(diff_sq, nan=0.0)
+
     # Apply mask and area weights
     masked_weights = area_weights * mask.float()
     weight_sum = masked_weights.sum()
@@ -259,12 +263,14 @@ def main():
                 logger.warning(f"IC date {ic_date} not found in data, skipping")
                 continue
 
-            # Need at least hist days before IC and n_leads days after
             hist = cfg.data.hist
-            # The IC date is where we initialize. We need hist+1 time steps for the
-            # initial input (hist past + current), then n_leads steps to predict
+            # With hist=1, InferenceDataset uses rolling windows of size 3
+            # with stride 2 (hist+1). To get n_leads steps we need:
+            #   n_times = 2 * n_leads + 2*hist (empirically verified)
+            # Start from hist steps before IC date.
             start_idx = ic_time_idx - hist
-            end_idx = ic_time_idx + n_leads
+            n_times_needed = 2 * n_leads + 2 * hist
+            end_idx = start_idx + n_times_needed - 1
 
             if start_idx < 0 or end_idx >= len(all_times):
                 logger.warning(
