@@ -107,14 +107,16 @@ pytest tests/ -m cuda                             # GPU tests (needs GPU node)
 
 ## Paper Experiments
 
-The ablation study explores two research questions:
+The paper ablations span multiple phases (see `code_paper/FIGURES.md` for the registry):
 
-1. **Velocity representation**: Helmholtz-only (psi/phi) vs full-state (u/v) vs both
-2. **Gradient penalty weight**: 0.0, 0.10, 0.25, 0.50
+1. **Phase 1: Velocity representation** — Helmholtz-only (psi/phi) vs full-state (u/v) vs both (u/v + psi/phi).
+1. **Phase 1.5: Log-transform ablation** — linear vs log BGC state for the Phase 1 winner.
+1. **Phase 2: Loss ablation** — gradient penalty weights `0.0`, `0.10`, `0.25`, `0.50` (Helmholtz-only, minimal forcing).
+1. **Phase 3: Architecture ablation** — alternate architectures (placeholders in figure registry).
 
 All experiments share: `batch_size=1`, `lr=0.0002`, cosine schedule, 50 epochs, 16 L40S GPUs.
 
-See [PAPER_EXPERIMENTS.md](PAPER_EXPERIMENTS.md) for full details.
+See [PAPER_EXPERIMENTS.md](PAPER_EXPERIMENTS.md) and `code_paper/FIGURES.md` for full details.
 
 ## Configuration
 
