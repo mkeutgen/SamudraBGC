@@ -5,6 +5,9 @@ Compute RMSE array for collaborative comparison with Weidong.
 Output: rmse_results.pkl containing a numpy array of shape (n_variables, n_lead_times)
 where RMSE is area-weighted and averaged over all IC dates.
 
+Also computes persistence RMSE (forecast = IC state for all lead times) using the
+same area-weighted method and IC dates, and generates comparison plots.
+
 Variables (22 of Weidong's 28 — we don't have uo, vo, pp):
     SSH, temp_0, temp_10, temp_38, salt_0, salt_10, salt_38,
     dic_0, dic_10, dic_38, o2_0, o2_10, o2_38,
@@ -17,8 +20,9 @@ IC dates: loaded from scripts/ic_dates.npy (288 dates, every 5 days from 2016-20
 For each IC date:
   1. Initialize model from ground truth at that date
   2. Run 20 autoregressive forward steps
-  3. Compare predictions vs ground truth at each lead time
-  4. Compute area-weighted RMSE per variable
+  3. Compare predictions vs ground truth at each lead time (model RMSE)
+  4. Compare IC state vs ground truth at each lead time (persistence RMSE)
+  5. Compute area-weighted RMSE per variable
 
 Usage:
     python scripts/compute_weidong_rmse.py --config configs/eval/paper_ablations/jra_helmholtz_min_grad05_eval_rollout2010_2019.yaml
@@ -32,6 +36,9 @@ from collections import OrderedDict
 from pathlib import Path
 
 import cftime
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from einops import rearrange
@@ -58,8 +65,8 @@ from ocean_emulators.backend import init_eval_backend
 
 logger = logging.getLogger(__name__)
 
-# Variables we can provide (subset of Weidong's 28)
-VAR_NAMES = [
+# Variables we want to report (Weidong's naming, always linear space)
+VAR_NAMES_LINEAR = [
     'SSH',
     'temp_0', 'temp_10', 'temp_38',
     'salt_0', 'salt_10', 'salt_38',
@@ -70,23 +77,41 @@ VAR_NAMES = [
     'psi_0', 'psi_10', 'psi_38',
 ]
 
+# Epsilon values for log back-transform: linear = exp(log_var) - epsilon
+LOG_EPSILON = {
+    "dic": 1e-10,
+    "o2": 1e-10,
+    "chl": 1e-8,
+    "no3": 1e-14,
+}
+
 N_LEAD_TIMES = 20
 
 
-def find_var_channel_indices(prognostic_var_names, target_vars):
-    """Map target variable names to channel indices after rearranging.
+def find_var_channel_indices(prognostic_var_names, target_vars_linear):
+    """Map linear variable names to channel indices, handling log_ prefixes.
 
-    After rearrange("n (hi c) h w -> (n hi) c h w", hi=hist+1),
-    channel index i maps directly to prognostic_var_names[i].
+    For models using log-transformed BGC (e.g. helmholtz_log_all), the
+    prognostic var names are log_dic_0 etc. This function looks up both
+    the linear name and the log_ prefixed name.
+
+    Returns:
+        indices: dict mapping linear_var_name -> channel_index
+        is_log: dict mapping linear_var_name -> bool (True if model uses log_)
     """
     var_to_idx = {name: i for i, name in enumerate(prognostic_var_names)}
     indices = {}
-    for var in target_vars:
+    is_log = {}
+    for var in target_vars_linear:
         if var in var_to_idx:
             indices[var] = var_to_idx[var]
+            is_log[var] = False
+        elif f'log_{var}' in var_to_idx:
+            indices[var] = var_to_idx[f'log_{var}']
+            is_log[var] = True
         else:
-            logger.warning(f"Variable {var} not found in prognostic vars, skipping")
-    return indices
+            logger.warning(f"Variable {var} (and log_{var}) not found in prognostic vars, skipping")
+    return indices, is_log
 
 
 def compute_area_weighted_rmse(pred, target, area_weights, wet_mask_channel):
@@ -116,6 +141,75 @@ def compute_area_weighted_rmse(pred, target, area_weights, wet_mask_channel):
 
     weighted_mse = (diff_sq * masked_weights).sum() / weight_sum
     return float(torch.sqrt(weighted_mse))
+
+
+def _plot_results(results: dict, plots_dir: Path) -> None:
+    """Generate RMSE vs persistence plots from a results dict."""
+    var_names = results['var_names']
+    n_vars = len(var_names)
+    unit_labels = results['unit_labels']
+    lead_days = np.arange(1, results['n_lead_times'] + 1)
+
+    rmse = results['rmse_display']        # (n_vars, n_leads)
+    persist = results['persist_display']  # (n_vars, n_leads)
+    skill = 1.0 - np.where(persist > 0, rmse / persist, np.nan)
+
+    # ── Figure 1: RMSE vs persistence, all 22 variables ──────────────────
+    ncols = 4
+    nrows = (n_vars + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.5 * ncols, 3.2 * nrows), sharex=True)
+    axes = axes.flatten()
+
+    for i, var in enumerate(var_names):
+        ax = axes[i]
+        ax.plot(lead_days, rmse[i], 'o-', color='#2563eb', lw=2, ms=4, label='Model')
+        ax.plot(lead_days, persist[i], 's--', color='#dc2626', lw=1.5, ms=3,
+                alpha=0.8, label='Persistence')
+        ax.set_title(f"{var} ({unit_labels[var]})", fontsize=9, fontweight='bold')
+        ax.set_ylabel('RMSE', fontsize=8)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(labelsize=7)
+        if i == 0:
+            ax.legend(fontsize=7)
+
+    for ax in axes[n_vars:]:
+        ax.set_visible(False)
+
+    for ax in axes[(nrows - 1) * ncols: n_vars]:
+        ax.set_xlabel('Lead time (days)', fontsize=8)
+
+    n_ics = results['n_ic_dates_used']
+    fig.suptitle(
+        f'RMSE vs Persistence — area-weighted mean over {n_ics} IC dates (2016–2019)',
+        fontsize=12, fontweight='bold',
+    )
+    fig.tight_layout()
+    out = plots_dir / 'rmse_vs_persistence.png'
+    fig.savefig(out, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    logger.info(f"  Saved {out.name}")
+
+    # ── Figure 2: Skill score for key surface variables ───────────────────
+    key_vars = [v for v in ['SSH', 'temp_0', 'salt_0', 'dic_0', 'o2_0', 'no3_0', 'chl_0', 'psi_0']
+                if v in var_names]
+    colors = plt.cm.tab10(np.linspace(0, 0.8, len(key_vars)))
+
+    fig2, ax2 = plt.subplots(figsize=(10, 5))
+    for color, var in zip(colors, key_vars):
+        v_idx = var_names.index(var)
+        ax2.plot(lead_days, skill[v_idx], 'o-', color=color, lw=2, ms=4, label=var)
+    ax2.axhline(0, color='black', lw=0.8)
+    ax2.set_xlabel('Lead time (days)', fontsize=12)
+    ax2.set_ylabel('Skill score  (1 − RMSE_model / RMSE_persist)', fontsize=11)
+    ax2.set_title(f'Forecast skill vs persistence — {n_ics} IC dates', fontsize=12)
+    ax2.legend(fontsize=9, ncol=2)
+    ax2.grid(True, alpha=0.3)
+    ax2.set_ylim(-0.5, 1.0)
+    fig2.tight_layout()
+    out2 = plots_dir / 'skill_score.png'
+    fig2.savefig(out2, dpi=150, bbox_inches='tight')
+    plt.close(fig2)
+    logger.info(f"  Saved {out2.name}")
 
 
 def main():
@@ -225,17 +319,21 @@ def main():
     model.eval()
     logger.info(f"Model loaded from {cfg.ckpt_path}")
 
-    # Find channel indices for target variables
-    var_channel_indices = find_var_channel_indices(prognostic_var_names, VAR_NAMES)
-    available_vars = [v for v in VAR_NAMES if v in var_channel_indices]
+    # Find channel indices for target variables (handles log_ prefix automatically)
+    var_channel_indices, var_is_log = find_var_channel_indices(prognostic_var_names, VAR_NAMES_LINEAR)
+    available_vars = [v for v in VAR_NAMES_LINEAR if v in var_channel_indices]
+    log_vars = [v for v in available_vars if var_is_log[v]]
     logger.info(f"Available variables ({len(available_vars)}): {available_vars}")
+    if log_vars:
+        logger.info(f"Log-transformed variables (will back-transform): {log_vars}")
 
     n_vars = len(available_vars)
     n_leads = args.n_lead_times
     n_ic = len(ic_dates)
 
-    # RMSE accumulator: (n_vars, n_leads, n_ic)
+    # RMSE accumulators: (n_vars, n_leads, n_ic)
     rmse_all = np.full((n_vars, n_leads, n_ic), np.nan, dtype=np.float64)
+    persist_all = np.full((n_vars, n_leads, n_ic), np.nan, dtype=np.float64)
 
     # Get all times in the dataset
     all_times = data.time.values
@@ -341,23 +439,47 @@ def main():
             pred_current = pred_unnorm[current_indices]   # (n_steps, n_prog, lat, lon)
             target_current = target_unnorm[current_indices]
 
-            # Compute RMSE per variable per lead time
+            # IC state for persistence: unnormalize initial_prognostic and take the
+            # current (last) timestep — shape (n_prog, lat, lon), still in log space
+            # for log-transformed variables (same as pred_current/target_current).
+            ic_for_unnorm = rearrange(
+                initial_prognostic.unsqueeze(0), "1 (hi c) h w -> hi c h w", hi=hi
+            )
+            ic_state = normalize.unnormalize_tensor_prognostic(
+                ic_for_unnorm, fill_value=float('nan')
+            )[hist]  # (n_prog, lat, lon)
+
+            # Compute model RMSE and persistence RMSE per variable per lead time
             for v_idx, var_name in enumerate(available_vars):
                 ch_idx = var_channel_indices[var_name]
                 wet_ch = wet_without_hist_device[ch_idx].bool()
+
+                ic_persist = ic_state[ch_idx]  # (lat, lon)
+
+                # Back-transform log variables to linear space
+                if var_is_log[var_name]:
+                    base = var_name.rsplit('_', 1)[0]
+                    eps = LOG_EPSILON.get(base, 1e-10)
+                    ic_persist = torch.exp(ic_persist) - eps
 
                 for lead in range(n_steps):
                     pred_field = pred_current[lead, ch_idx]
                     target_field = target_current[lead, ch_idx]
 
-                    rmse_val = compute_area_weighted_rmse(
+                    if var_is_log[var_name]:
+                        pred_field = torch.exp(pred_field) - eps
+                        target_field = torch.exp(target_field) - eps
+
+                    rmse_all[v_idx, lead, ic_idx] = compute_area_weighted_rmse(
                         pred_field, target_field, area_weights, wet_ch
                     )
-                    rmse_all[v_idx, lead, ic_idx] = rmse_val
+                    persist_all[v_idx, lead, ic_idx] = compute_area_weighted_rmse(
+                        ic_persist, target_field, area_weights, wet_ch
+                    )
 
             # Free memory between IC dates
             del IO, pred_rearranged, target_rearranged
-            del pred_unnorm, target_unnorm, pred_current, target_current
+            del pred_unnorm, target_unnorm, pred_current, target_current, ic_state
             torch.cuda.empty_cache()
 
             elapsed = time.perf_counter() - ic_start
@@ -373,35 +495,92 @@ def main():
 
     # Average RMSE across IC dates: (n_vars, n_leads)
     rmse_mean = np.nanmean(rmse_all, axis=2)
+    persist_mean = np.nanmean(persist_all, axis=2)
 
     total_time = time.perf_counter() - total_start
     logger.info(f"\nTotal computation time: {total_time:.0f}s ({total_time/60:.1f} min)")
     logger.info(f"Result shape: {rmse_mean.shape} (n_vars={n_vars}, n_leads={n_leads})")
 
-    # Print summary table
-    print("\n" + "=" * 100)
-    print(f"{'Variable':<12}", end="")
-    for lead in range(n_leads):
-        print(f" {'d'+str(lead+1):>7}", end="")
-    print()
-    print("-" * 100)
+    # Unit conversion factors for display (data stored in mol/kg or m²/s)
+    # BGC: mol/kg → µmol/kg (×1e6); chl: µg/kg → mg/m³ (×1.025); psi: m²/s (no change)
+    UNIT_SCALE = {}
+    UNIT_LABELS = {}
+    for v in available_vars:
+        base = v.rsplit('_', 1)[0]  # e.g., 'dic' from 'dic_0'
+        if base in ('dic', 'o2', 'no3'):
+            UNIT_SCALE[v] = 1e6
+            UNIT_LABELS[v] = 'µmol/kg'
+        elif base == 'chl':
+            UNIT_SCALE[v] = 1025.0 / 1000.0  # µg/kg → mg/m³ (×ρ₀/1000, ρ₀=1025 kg/m³)
+            UNIT_LABELS[v] = 'mg/m³'
+        elif base == 'psi':
+            UNIT_SCALE[v] = 1.0
+            UNIT_LABELS[v] = 'm²/s'
+        elif base == 'temp':
+            UNIT_SCALE[v] = 1.0
+            UNIT_LABELS[v] = '°C'
+        elif base == 'salt':
+            UNIT_SCALE[v] = 1.0
+            UNIT_LABELS[v] = 'psu'
+        elif v == 'SSH':
+            UNIT_SCALE[v] = 1.0
+            UNIT_LABELS[v] = 'm'
+        else:
+            UNIT_SCALE[v] = 1.0
+            UNIT_LABELS[v] = 'raw'
+
+    # Convert RMSE to display units
+    rmse_display = np.copy(rmse_mean)
+    rmse_all_display = np.copy(rmse_all)
+    persist_display = np.copy(persist_mean)
+    persist_all_display = np.copy(persist_all)
     for v_idx, var_name in enumerate(available_vars):
-        print(f"{var_name:<12}", end="")
+        scale = UNIT_SCALE[var_name]
+        rmse_display[v_idx] *= scale
+        rmse_all_display[v_idx] *= scale
+        persist_display[v_idx] *= scale
+        persist_all_display[v_idx] *= scale
+
+    # Print summary table in display units
+    col_w = 9
+    header_w = 16
+    print("\n" + "=" * (header_w + col_w * n_leads))
+    print(f"RMSE in display units (BGC: µmol/kg, chl: mg/m³, psi: m²/s, temp: °C, salt: psu)")
+    print(f"{'Variable':<12} {'Units':<8}", end="")
+    for lead in range(n_leads):
+        print(f" {'d'+str(lead+1):>{col_w-1}}", end="")
+    print()
+    print("-" * (header_w + col_w * n_leads))
+    for v_idx, var_name in enumerate(available_vars):
+        print(f"{var_name:<12} {UNIT_LABELS[var_name]:<8}", end="")
         for lead in range(n_leads):
-            print(f" {rmse_mean[v_idx, lead]:>7.4f}", end="")
+            val = rmse_display[v_idx, lead]
+            if abs(val) >= 1000 or (abs(val) > 0 and abs(val) < 0.001):
+                print(f" {val:>{col_w-1}.3e}", end="")
+            else:
+                print(f" {val:>{col_w-1}.4f}", end="")
         print()
 
     # Save results
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    n_ic_used = int(np.sum(~np.isnan(rmse_all[0, 0, :])))
     results = {
-        'rmse': rmse_mean,            # (n_vars, n_leads)
-        'rmse_all_ics': rmse_all,      # (n_vars, n_leads, n_ic) — per IC date
+        'rmse': rmse_mean,                        # (n_vars, n_leads) — raw units
+        'rmse_display': rmse_display,              # (n_vars, n_leads) — display units
+        'rmse_all_ics': rmse_all,                  # (n_vars, n_leads, n_ic) — per IC, raw
+        'rmse_all_ics_display': rmse_all_display,  # (n_vars, n_leads, n_ic) — display
+        'persist': persist_mean,                   # (n_vars, n_leads) — raw units
+        'persist_display': persist_display,        # (n_vars, n_leads) — display units
+        'persist_all_ics': persist_all,            # (n_vars, n_leads, n_ic) — per IC, raw
+        'persist_all_ics_display': persist_all_display,
         'var_names': available_vars,
+        'unit_labels': UNIT_LABELS,
+        'unit_scales': UNIT_SCALE,
         'n_lead_times': n_leads,
         'ic_dates': [str(d) for d in ic_dates_str],
-        'n_ic_dates_used': int(np.sum(~np.isnan(rmse_all[0, 0, :]))),
+        'n_ic_dates_used': n_ic_used,
     }
 
     with open(output_path, 'wb') as f:
@@ -410,7 +589,13 @@ def main():
     logger.info(f"\nResults saved to {output_path}")
     logger.info(f"  rmse shape: {rmse_mean.shape}")
     logger.info(f"  var_names: {available_vars}")
-    logger.info(f"  IC dates used: {results['n_ic_dates_used']}/{n_ic}")
+    logger.info(f"  IC dates used: {n_ic_used}/{n_ic}")
+
+    # Generate plots
+    plots_dir = output_path.parent / (output_path.stem + "_plots")
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    _plot_results(results, plots_dir)
+    logger.info(f"  Plots saved to {plots_dir}")
 
 
 if __name__ == '__main__':

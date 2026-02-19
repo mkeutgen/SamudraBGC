@@ -7,13 +7,13 @@ save_zarr: true
 disk_mode: true
 ckpt_path: ./outputs/jra_helmholtz_min_grad05/saved_nets/ckpt_60.pt
 inference_time:
-  start: '2010-01-01'
-  end: '2019-12-31'
+  start: '2016-01-01'
+  end: '2016-01-30'
 num_model_steps_forward: 5
 backend: auto
 
 experiment:
-  name: jra_helmholtz_min_grad05_eval_rollout2010_2019
+  name: jra_helmholtz_min_grad05_eval_rollout20days
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:

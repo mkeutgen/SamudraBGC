@@ -1,33 +1,34 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# Evaluation for: phase1_fullstate_nograd
-# Paper Ablation - Phase 1: Variable Selection (Full state, no gradient penalty)
+# Evaluation for: phase2_helmholtz_grad010
+# Purpose: 20-day rollout from 2016-01-01 to compare model vs persistence
 
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/phase1_fullstate_nograd/saved_nets/ema_ckpt.pt
+ckpt_path: ./outputs/phase2_helmholtz_grad010/saved_nets/ema_ckpt.pt
 inference_time:
-  start: '2015-01-01'
-  end: '2019-12-31'
+  start: '2016-01-01'
+  end: '2016-01-30'
 num_model_steps_forward: 5
 backend: auto
 
 experiment:
-  name: phase1_fullstate_nograd_eval
+  name: phase2_helmholtz_grad010_eval_rollout20days
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: offline
     project: bgc-emulator
     entity: m2lines
-    group: paper-ablations-phase1-eval
+    group: mom6-bgc-eval-jra60
     tags:
     - "paper-ablation"
-    - "phase1-variable-selection"
-    - "full-state-uv"
-    - "no-gradient-penalty"
+    - "phase2-gradient-penalty"
+    - "helmholtz-decomposition"
+    - "grad-0.10"
     - "evaluation"
-  prognostic_vars_key: full_state_all
+    - "rollout-20days"
+  prognostic_vars_key: helmholtz_log_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 
@@ -36,9 +37,9 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 4
+  num_workers: 2
   persistent_workers: true
-  prefetch_factor: 2
+  prefetch_factor: 3
   hist: 1
   concurrent_compute: true
 

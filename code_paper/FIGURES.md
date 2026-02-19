@@ -28,12 +28,56 @@ VAL_END   = "2014-12-31"
 ```
 
 ### BGC variables
-| zarr key | long name                  | units    | note                         |
-|----------|----------------------------|----------|------------------------------|
-| `chl_0`  | Chlorophyll                | mg m⁻³   | log-scale for maps and PDFs  |
-| `dic_0`  | Dissolved Inorganic Carbon | µmol kg⁻¹|                              |
-| `o2_0`   | Dissolved Oxygen           | µmol kg⁻¹|                              |
-| `no3_0`  | Nitrate                    | µmol kg⁻¹|                              |
+
+**Storage vs display units:** The zarr data stores BGC tracers in native MOM6-COBALT
+units (mol/kg for dissolved tracers, µg/kg for chlorophyll). For plots, convert to
+oceanographic display units as shown below.
+
+| zarr key | long name                  | storage units | display units | conversion              | note                        |
+|----------|----------------------------|---------------|---------------|-------------------------|-----------------------------|
+| `chl_0`  | Chlorophyll                | µg/kg         | mg/m³         | `× ρ₀/1000 ≈ ×1.025`  | log-scale for maps and PDFs |
+| `dic_0`  | Dissolved Inorganic Carbon | mol/kg        | µmol/kg       | `× 1e6`                |                             |
+| `o2_0`   | Dissolved Oxygen           | mol/kg        | µmol/kg       | `× 1e6`                |                             |
+| `no3_0`  | Nitrate                    | mol/kg        | µmol/kg       | `× 1e6`                |                             |
+
+The preprocessing pipeline (`src/preprocess/preprocess_mom6dg_parallelized.py`) does **no
+unit conversion** — variables pass through in native MOM6-COBALT units. The netcdf source
+stores chl as `ug kg-1` and dissolved tracers as `mol/kg`.
+
+```python
+# Conversion factors
+MOL_TO_UMOL = 1e6
+RHO_0 = 1025.0  # kg/m³ reference seawater density
+
+def to_display_units(data, varname):
+    """Convert from zarr storage units to standard oceanographic display units."""
+    base_var = varname.split("_")[0]
+    if base_var in ("dic", "o2", "no3"):
+        return data * MOL_TO_UMOL            # mol/kg -> µmol/kg
+    if base_var == "chl":
+        return data * RHO_0 / 1000.0         # µg/kg -> mg/m³ (≈ ×1.025)
+    return data  # temp in °C, salt in g/kg, SSH in m, etc.
+```
+
+**Log-transform emulators:** If the model was trained on log-transformed BGC variables
+(Phase 1.5 log ablation), predictions are in log space and must be back-transformed
+before plotting or computing metrics:
+```python
+EPSILON_MAP = {
+    "dic": 1e-10,   # mol/kg
+    "o2":  1e-10,   # mol/kg
+    "chl": 1e-8,    # µg/kg
+    "no3": 1e-14,   # mol/kg
+}
+
+def log_to_linear(data, varname):
+    """Back-transform log-space predictions to native units."""
+    base_var = varname.split("_")[0]
+    eps = EPSILON_MAP.get(base_var, 1e-10)
+    return np.exp(data) - eps
+```
+All plots should show data in **native linear space** (after back-transform if needed),
+then converted to display units.
 
 ### Biome boundaries (latitude index, not degrees)
 ```python
@@ -87,31 +131,26 @@ ABLATION_EXPERIMENTS = {
         "phase_winner": True,
     },
 
-    # ── Phase 2: Loss function ────────────────────────────────────────────
-    "phase2_mse": {
-        "label": "MSE",
-        "phase": 2,
-        "pred_path": "./outputs/jra_helmholtz_min_mse_eval/predictions.zarr",
-    },
+    # ── Phase 2: Loss function (TRAINING is not completed YET !) ────────────────────────────────────────────
     "phase2_mae": {
         "label": "MAE",
         "phase": 2,
-        "pred_path": "./outputs/jra_helmholtz_min_grad000_eval/predictions.zarr",
+        "pred_path": "./outputs/phase2_helmholtz_grad00_eval/predictions.zarr",
     },
     "phase2_grad010": {
         "label": "MAE + grad (α=0.10)",
         "phase": 2,
-        "pred_path": "./outputs/jra_helmholtz_min_grad010_eval/predictions.zarr",
+        "pred_path": "./outputs/phase2_helmholtz_grad010_eval/predictions.zarr",
     },
     "phase2_grad025": {
         "label": "MAE + grad (α=0.25)",
         "phase": 2,
-        "pred_path": "./outputs/jra_helmholtz_min_grad025_eval/predictions.zarr",
+        "pred_path": "./outputs/phase2_helmholtz_grad025_eval/predictions.zarr",
     },
     "phase2_grad050": {
         "label": "MAE + grad (α=0.50)",
         "phase": 2,
-        "pred_path": "./outputs/jra_helmholtz_min_grad05_eval/predictions.zarr",
+        "pred_path": "./outputs/phase2_helmholtz_grad050_eval/predictions.zarr",
         "phase_winner": True,   # UPDATE once ablation is confirmed
     },
 
@@ -155,6 +194,23 @@ All figures that display quantitative metrics use the following conventions:
 ```python
 BGC_VARS = ["chl_0", "dic_0", "o2_0", "no3_0"]
 BGC_LABELS = {"chl_0": "Chl", "dic_0": "DIC", "o2_0": "O₂", "no3_0": "NO₃"}
+
+PHYS_VARS = ["temp_0", "salt_0", "psi_0", "phi_0", "SSH"]
+PHYS_LABELS = {
+    "temp_0": "SST",
+    "salt_0": "SSS",
+    "psi_0":  "ψ",
+    "phi_0":  "φ",
+    "SSH":    "SSH",
+}
+PHYS_DISPLAY_UNITS = {
+    "temp_0": "°C",
+    "salt_0": "g/kg",
+    "psi_0":  "m²/s",
+    "phi_0":  "m²/s",
+    "SSH":    "m",
+}
+# Physical variables need no unit conversion (storage = display units)
 
 LEAD_DAYS = [3, 5, 10, 20]  # days used in mean-across-lead-times metrics
 
@@ -240,7 +296,7 @@ for ax, data, title in zip(axes, [ml_chl, gt_chl], ["ML Emulator", "MOM6-COBALT"
     ax.axhline(43, color="k", lw=0.8, ls="--")
     ax.set_title(title)
 
-plt.colorbar(im, ax=axes, label="Chl (mg m⁻³)", extend="both")
+plt.colorbar(im, ax=axes, label="Chl (mg m⁻³)", extend="both")  # data converted via to_display_units()
 ```
 
 ### Panel B — Time series by biome (4 variables × 3 biomes)
@@ -545,16 +601,21 @@ def compute_gradient_magnitude(field_2d: np.ndarray) -> np.ndarray:
     dx = np.gradient(field_2d, axis=1)
     return np.sqrt(dx**2 + dy**2)
 
-# For chlorophyll: compute gradient in log space (matches loss function)
-log_chl_gt = np.log(gt_chl + 1e-6)
-log_chl_ml = np.log(ml_chl + 1e-6)
-grad_gt     = compute_gradient_magnitude(log_chl_gt)
-grad_ml     = compute_gradient_magnitude(log_chl_ml)
-```
 
-> **Important:** For `chl_0`, compute gradients **in log space** (consistent
-> with the log-transform applied during training). For DIC, O₂, NO₃, compute
-> in linear space.
+> **Important:** For ALL BGC variables, compute gradients **in linear space** (in display
+> units). If the model was trained on log-transformed variables, back-transform first
+> using `log_to_linear()`, then convert to display units using `to_display_units()`.
+> Gradients should reflect physical concentrations, not log-concentrations.
+
+For reference, epsilon values used during log transformation:
+```python
+EPSILON_MAP = {
+    "dic": 1e-10,   # mol/kg — DIC never near zero (min ~2e-3)
+    "o2":  1e-10,   # mol/kg — O2 rarely exactly zero (min ~2e-4)
+    "chl": 1e-8,    # µg/kg — 2 orders below min (min ~6e-6)
+    "no3": 1e-14,   # mol/kg — below observed min (min ~7e-13)
+}
+```
 
 ### Strong vs. weak gradient diagnostics (optional inset or supplementary)
 
@@ -585,10 +646,12 @@ for ax_idx, varname in enumerate(BGC_VARS):
         gt_field = select_region(gt_ds[varname],  biome_info)
         ml_field = select_region(ml_ds[varname],  biome_info)
 
-        # Log space for chl
-        if varname == "chl_0":
-            gt_field = np.log(gt_field + 1e-6)
-            ml_field = np.log(ml_field + 1e-6)
+        # If ML predictions are in log space, back-transform first
+        # ml_field = log_to_linear(ml_field, varname)
+
+        # Convert to display units (mol/kg -> µmol/kg, µg/kg -> mg/m³)
+        gt_field = to_display_units(gt_field, varname)
+        ml_field = to_display_units(ml_field, varname)
 
         # Compute gradient magnitude over all timesteps, flatten
         gt_grads = np.concatenate([
@@ -614,7 +677,9 @@ for ax_idx, varname in enumerate(BGC_VARS):
         ax.plot(bin_centres, ml_hist, color=color, lw=2.0, ls="--")
 
     ax.set_title(BGC_LABELS[varname])
-    ax.set_xlabel(f"|∇{BGC_LABELS[varname]}|")
+    display_unit = {"chl_0": "mg m⁻³", "dic_0": "µmol kg⁻¹",
+                    "o2_0": "µmol kg⁻¹", "no3_0": "µmol kg⁻¹"}
+    ax.set_xlabel(f"|∇{BGC_LABELS[varname]}| ({display_unit[varname]} / gridcell)")
     ax.set_ylabel("Probability Density" if ax_idx % 2 == 0 else "")
 
 # Single legend

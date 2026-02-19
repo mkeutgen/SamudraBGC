@@ -27,10 +27,10 @@ logger = logging.getLogger(__name__)
 
 # Epsilon values used during log transformation
 EPSILON_MAP = {
-    "dic": 1e-10,   # mol/kg - DIC never near zero (min ~2e-3)
-    "o2": 1e-10,    # mol/kg - O2 rarely exactly zero (min ~2e-4)
-    "chl": 1e-8,    # mg/m³ - 2 orders below min (min ~6e-6)
-    "no3": 1e-14,   # mol/kg - below observed min (min ~7e-13)
+    "dic": 1e-10,   # mol/kg — DIC never near zero (min ~2e-3)
+    "o2": 1e-10,    # mol/kg — O2 rarely exactly zero (min ~2e-4)
+    "chl": 1e-8,    # µg/kg — 2 orders below min (min ~6e-6)
+    "no3": 1e-14,   # mol/kg — below observed min (min ~7e-13)
 }
 
 

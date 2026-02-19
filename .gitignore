@@ -203,3 +203,6 @@ scratch/
 tmp/
 output/
 outputs/
+code_paper/figures/fig02_panels/panel_a_chl_snapshot.pdf
+code_paper/figures/fig02_panels/panel_b_timeseries.pdf
+code_paper/figures/fig02_panels/panel_c_pdfs.pdf

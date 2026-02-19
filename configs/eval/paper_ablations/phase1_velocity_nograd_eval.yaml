@@ -1,35 +1,34 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# Evaluation for: jra_helmholtz_min_grad05
-# Purpose: 10-year rollout covering validation + test (2010-01-01 to 2019-12-31)
+# Evaluation for: phase1_fullstate_nograd
+# Paper Ablation - Phase 1: Variable Selection (Velocity u,v — no gradient penalty)
+# Counterpart to phase1_helmholtz_nograd_eval: same setup, u,v instead of psi,phi
 
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/jra_helmholtz_min_grad05/saved_nets/ckpt_60.pt
+ckpt_path: ./outputs/phase1_fullstate_nograd/saved_nets/ema_ckpt.pt
 inference_time:
   start: '2010-01-01'
-  end: '2019-12-31'
-num_model_steps_forward: 5
+  end: '2014-12-31'
+num_model_steps_forward: 20
 backend: auto
 
 experiment:
-  name: jra_helmholtz_min_grad05_eval_rollout2010_2019
+  name: phase1_velocity_nograd_eval
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: offline
     project: bgc-emulator
     entity: m2lines
-    group: mom6-bgc-eval-jra60
+    group: paper-ablations-phase1-eval
     tags:
-    - "phase1-forcing"
-    - "helmholtz-decomposition"
-    - "minimal-forcing"
-    - "grad-0.5"
-    - "ablation"
+    - "paper-ablation"
+    - "phase1-variable-selection"
+    - "velocity-uv"
+    - "no-gradient-penalty"
     - "evaluation"
-    - "rollout-2010-2019"
-  prognostic_vars_key: helmholtz_only_all
+  prognostic_vars_key: full_state_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 
@@ -38,9 +37,9 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 2
+  num_workers: 4
   persistent_workers: true
-  prefetch_factor: 3
+  prefetch_factor: 2
   hist: 1
   concurrent_compute: true
 
