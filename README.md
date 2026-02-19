@@ -1,206 +1,149 @@
-# MOM6-DG Adaptation for BGC Emulator
+# Ocean Emulator
 
-## Overview
+A PyTorch-based machine learning system for emulating MOM6-COBALT ocean physics and biogeochemistry. The model learns to predict the next-day ocean state from the current state and atmospheric forcing, enabling fast autoregressive rollouts that reproduce multi-year ocean dynamics.
 
-This adaptation bridges the gap between MOM6 Double Gyre (MOM6-DG) ocean biogeochemical simulation outputs and the Ocean emulator training pipeline developed by OpenAthena. The adaptation handles the specific data formats, variable naming conventions, and grid structures used in MOM6-DG simulations.
+## Model
 
-**Important Notice (2025-11-24):** A configuration issue was discovered where several training/evaluation configs used `boundary_vars_key: minimal_forcing`. All such configs in `configs/` have been updated to use `boundary_vars_key: standard_forcing`, and all existing simulation outputs were archived to `outputs/sim_wo_prcme/` to avoid accidental reuse. If you need the original outputs or configs, they are preserved in that folder.
+**Architecture**: ConvNeXt U-Net operating on a 360x180 global grid with 50 vertical depth levels.
 
-## Components
+**Prognostic variables** (~401 output channels):
+- Physical: temperature, salinity, streamfunction (psi), velocity potential (phi), SSH
+- Biogeochemical: DIC, O₂, NO₃, Chl, POC
 
-### 1. Core Modules
+**Boundary forcing**: net heat flux (Qnet), wind stress (tauuo, tauvo)
 
-- **`constants.py`**: MOM6-DG specific constants:
-  - Depth level definitions
-  - Variable name mappings
-  - Prognostic and boundary variable sets
-  - Metadata definitions
+**Key features**:
+- Helmholtz decomposition of velocity fields (psi/phi) instead of raw u/v
+- Gradient-weighted MAE loss for spatial smoothness
+- Log-transform of BGC variables (Chl, POC) for better dynamic range
+- EMA (Exponential Moving Average) checkpointing
 
+## Dataset
 
-### 2. Configuration Files
+**MOM6-COBALT JRA-55** forced simulation (1958–2019, 60 years of daily snapshots):
+- Training: 1960–2009 (50 years)
+- Validation: 2010–2014
+- Test: 2015–2019
 
-- **`configs/train_mom6dg.yaml`**: Training configuration for baseline
-- **`configs/eval_mom6dg.yaml`**: Evaluation configuration template
-- Customizable for different MOM6-DG setups
+Data is stored in Zarr format with separate arrays for data, means, and standard deviations.
 
-### 3. Preprocessing Tools
+## Project Structure
 
-- **`preprocess_mom6dg_data.py`**: Command-line tool for data preprocessing from MOM6-Cobalt to pr
+```
+configs/
+├── train/          # Training experiment configs (YAML)
+├── eval/           # Evaluation configs
+└── data/           # Dataset path configs
 
-## Quick Start Guide
+scripts/
+├── slurm/          # SLURM job scripts for training and evaluation
+├── analysis/       # Ensemble analysis utilities
+└── *.py            # Standalone utilities (metrics, comparison, animation)
 
-### Step 1: Prepare Your MOM6-DG Data
+src/
+├── ocean_emulators/    # Main package
+│   ├── train.py        # Training entry point
+│   ├── eval.py         # Evaluation entry point
+│   ├── config.py       # Pydantic configuration system
+│   ├── constants.py    # Variable metadata and sets
+│   ├── datasets.py     # Zarr data loading pipeline
+│   ├── models/         # ConvNeXt U-Net architecture
+│   ├── aggregator/     # Metric collection (RMSE, OHC, ENSO, etc.)
+│   ├── utils/          # Distributed training, logging, scheduling
+│   └── viz/            # Visualization tools
+├── preprocess/         # Data preprocessing scripts
+└── ensembles_generation/
 
-
-
-
-### Step 2: Configure Training
-
-Edit `configs/train_mom6dg_config.yaml`:
-
-```yaml
-experiment:
-  data_dir: /path/to/processed/data
-  prognostic_vars_key: mom6dg_bgc_thermo  # Choose appropriate set
-  boundary_vars_key: mom6dg_forcing
-
-# Adjust UNet architecture based on your variable count
-unet:
-  ch_width: [504, 256, 512, 768]  # Adjust based on variable count
-  n_out: 500  # Should match prognostic variable count
+code_paper/         # Paper figure generation
+tests/              # Test suite
 ```
 
-### Step 3: Start Training
+## Quick Start
+
+### Environment
 
 ```bash
-# Train the BGC emulator
-python train_mom6dg.py configs/train_mom6dg_config.yaml
-
-# Or resume from checkpoint
-python train_mom6dg.py configs/train_mom6dg_config.yaml \
-  --resume checkpoints/checkpoint_epoch_20.pt
+module load anaconda3/2024.10
+conda activate /scratch/cimes/maximek/envs/ocean-emulator
 ```
-
-## Data Format Requirements
-
-### MOM6-DG Output Structure
-
-The adapter expects MOM6-DG data with the following structure:
-
-```
-Dimensions:
-- time: Time dimension
-- xh: Longitude (Arakawa-C grid)
-- yh: Latitude (Arakawa-C grid)
-- zl: Depth levels
-
-Variables:
-- temp(time, zl, yh, xh): Conservative temperature
-- salt(time, zl, yh, xh): Absolute salinity
-- u(time, zl, yh, xh): Zonal velocity
-- v(time, zl, yh, xh): Meridional velocity
-- ssh(time, yh, xh): Sea surface height
-- dic(time, zl, yh, xh): Dissolved inorganic carbon
-- o2(time, zl, yh, xh): Dissolved oxygen
-- [other BGC tracers...]
-```
-
-### Processed Format for Emulator
-
-After preprocessing, data is restructured to:
-
-```
-Variables:
-- temp_0, temp_1, ..., temp_49: Temperature at each depth level
-- salt_0, salt_1, ..., salt_49: Salinity at each depth level
-- dic_0, dic_1, ..., dic_49: DIC at each depth level
-- [etc. for all 3D variables]
-- SSH: Sea surface height
-- Qnet: Net surface heat flux
-- tauuo, tauvo: Wind stress components
-```
-
-## Customization
-
-### Adding New Variables
-
-1. Update variable mappings in `mom6_dg_adapter.py`:
-
-```python
-variable_mappings = {
-    "your_mom6_var": "emulator_name",
-    # ...
-}
-```
-
-2. Add to prognostic or boundary sets in `constants_mom6dg.py`:
-
-```python
-MOM6DG_PROG_VARS_MAP["your_config"] = [
-    # Your variable list
-]
-```
-
-### Modifying Depth Levels
-
-Adjust `MOM6DG_DEPTH_LEVELS` in `constants_mom6dg.py` to match your MOM6-DG configuration:
-
-```python
-MOM6DG_DEPTH_LEVELS = np.array([
-    # Your depth levels in meters
-])
-```
-
-### Custom Biogeochemical Models
-Still to implement
-## Variable Sets
-
-### Prognostic Variable Keys
-
-- `mom6dg_full`: All variables (physics + BGC)
-- `mom6dg_bgc_thermo`: BGC + thermodynamics (no velocity)
-- `mom6dg_minimal`: Minimal set for testing
-
-### Boundary Variable Keys
-
-- `mom6dg_full_forcing`: All forcing fields
-- `mom6dg_forcing`: Standard forcing
-- `mom6dg_minimal_forcing`: Minimal forcing
-- `mom6dg_wind`: Wind-only forcing
-
-## Troubleshooting
-
-### Common Issues and Solutions
-
-1. **Variable not found error**
-   - Check variable name mapping in `mom6_dg_adapter.py`
-   - Verify variable exists in your MOM6-DG output
-
-2. **Dimension mismatch**
-   - Ensure depth levels match between data and configuration
-   - Check grid dimensions (lat/lon) are consistent
-
-3. **Memory issues during preprocessing**
-   - Process data in smaller time chunks
-   - Increase chunk size for zarr output
-   - Use dask for parallel processing
-
-4. **NaN values in processed data**
-   - Check wet mask computation
-   - Verify land masking in MOM6-DG output
-   - Ensure proper handling of missing values
-
-### Validation Checks
-
-The validator performs these checks:
-
-- ✓ Required dimensions (time, lat, lon)
-- ✓ Required variables present
-- ✓ Valid array shapes
-- ✓ No unexpected NaN values
-- ✓ Consistent metadata
-
-## Performance Optimization
-
-### Preprocessing
-
-- Use zarr format for efficient I/O
-- Chunk data appropriately (typically 10 timesteps)
-- Process in parallel when possible
 
 ### Training
 
-- Adjust batch size based on GPU memory
-- Use gradient accumulation for large models
-- Enable mixed precision training when supported
-- Distribute across multiple GPUs if available
+```bash
+# Submit a training job (16 nodes × 1 L40S GPU, DDP)
+sbatch scripts/slurm/train_jra_helmholtz_min_grad05.sh
 
+# Training reads config from configs/train/*.yaml
+# Outputs checkpoints to outputs/<experiment_name>/saved_nets/
+```
+
+### Evaluation
+
+```bash
+# Submit an evaluation job (1–2 GPUs)
+sbatch scripts/slurm/eval_jra_helmholtz_min_grad05.sh
+
+# Evaluation reads config from configs/eval/*.yaml
+# Produces rollout predictions (zarr), metrics, and visualizations
+```
+
+### Running Directly (interactive GPU node)
+
+```bash
+# Training
+python -m ocean_emulators.train configs/train/jra_helmholtz_min_grad05.yaml
+
+# Evaluation
+python -m ocean_emulators.eval configs/eval/jra_helmholtz_min_grad05_eval.yaml
+```
+
+### Tests
+
+```bash
+pytest tests/ -m "not manual and not cuda"       # Fast unit tests
+pytest tests/ -m "not manual and not cuda" -n auto  # Parallel
+pytest tests/ -m cuda                             # GPU tests (needs GPU node)
+```
+
+## Paper Experiments
+
+The ablation study explores two research questions:
+
+1. **Velocity representation**: Helmholtz-only (psi/phi) vs full-state (u/v) vs both
+2. **Gradient penalty weight**: 0.0, 0.10, 0.25, 0.50
+
+All experiments share: `batch_size=1`, `lr=0.0002`, cosine schedule, 50 epochs, 16 L40S GPUs.
+
+See [PAPER_EXPERIMENTS.md](PAPER_EXPERIMENTS.md) for full details.
+
+## Configuration
+
+All experiments are defined via YAML configs. Key fields:
+
+```yaml
+data_root: /path/to/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+prognostic_vars_key: helmholtz_only_all   # Variable set from constants.py
+boundary_vars_key: minimal_forcing        # Forcing variables
+loss:
+  grad_weight: 0.5                        # Spatial gradient penalty
+training:
+  batch_size: 1
+  learning_rate: 0.0002
+  scheduler: cosine
+  epochs: 50
+```
+
+## Data Format
+
+Input data uses Zarr format:
+- `bgc_data.zarr` — full spatiotemporal fields
+- `bgc_means.zarr` — per-variable means for normalization
+- `bgc_stds.zarr` — per-variable standard deviations
+
+Variables follow the naming convention:
+- 3D: `{varname}_{depth_index}` (e.g., `temp_0`, `dic_38`)
+- 2D: bare name (e.g., `SSH`, `Qnet`)
 
 ## License
 
-This adaptation follows the same license as the original Ocean Emulator project by OpenAthena.
-
----
-
-*Last updated: 2025*
-*Adaptation developed for MOM6 Double Gyre biogeochemical simulations*
+See [LICENSE](LICENSE).
