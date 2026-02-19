@@ -15,7 +15,7 @@ This document describes the experiments created for the paper analysis.
 
 **Hypothesis**: Helmholtz decomposition should perform best due to enforced divergence-free constraint.
 
-**Expected Outcome**: 
+**Expected Outcome**:
 - Best: `helmholtz_only` (cleaner representation)
 - Worse: `full_state` (hard to enforce div-free)
 - Worst/Middle: `full_state_helmholtz` (redundancy may help or hurt)
@@ -50,8 +50,7 @@ This document describes the experiments created for the paper analysis.
 - **Test Period**: 2015-2019 (5 years holdout)
 - **Boundary Variables**: `minimal_forcing` (Qnet, tauuo, tauvo - no PRCmE)
 - **Model**: ConvNeXt U-Net with gradient-weighted MAE loss
-- **Hardware**: 8 nodes × 1 L40S GPU (8 GPUs total)
-- **Training Time**: ~72 hours per experiment
+- **Hardware**: 16 nodes x 1 L40S GPU (16 GPUs total)
 
 ### Variable Counts
 
@@ -69,28 +68,28 @@ This document describes the experiments created for the paper analysis.
 
 ```bash
 # Question 1: Model architecture comparison
-sbatch scripts/experiments/paper_ablations/train_jra_helmholtz_min_grad05.sh
-sbatch scripts/experiments/paper_ablations/train_jra_fullstate_min_grad05.sh
-sbatch scripts/experiments/paper_ablations/train_jra_fullstate_helmholtz_min_grad05.sh
+sbatch scripts/slurm/train_jra_helmholtz_min_grad05.sh
+sbatch scripts/slurm/train_jra_fullstate_min_grad05.sh
+sbatch scripts/slurm/train_jra_fullstate_helmholtz_min_grad05.sh
 
 # Question 2: Gradient penalty ablation
-sbatch scripts/experiments/paper_ablations/train_jra_helmholtz_min_grad025.sh
-sbatch scripts/experiments/paper_ablations/train_jra_helmholtz_min_grad010.sh
-sbatch scripts/experiments/paper_ablations/train_jra_helmholtz_min_grad000.sh
+sbatch scripts/slurm/train_jra_helmholtz_min_grad025.sh
+sbatch scripts/slurm/train_jra_helmholtz_min_grad010.sh
+sbatch scripts/slurm/train_jra_helmholtz_min_grad000.sh
 ```
 
 ### Evaluation
 
 ```bash
 # Question 1: Model architecture comparison
-sbatch scripts/experiments/paper_ablations/eval_jra_helmholtz_min_grad05.sh
-sbatch scripts/experiments/paper_ablations/eval_jra_fullstate_min_grad05.sh
-sbatch scripts/experiments/paper_ablations/eval_jra_fullstate_helmholtz_min_grad05.sh
+sbatch scripts/slurm/eval_jra_helmholtz_min_grad05.sh
+sbatch scripts/slurm/eval_jra_fullstate_min_grad05.sh
+sbatch scripts/slurm/eval_jra_fullstate_helmholtz_min_grad05.sh
 
 # Question 2: Gradient penalty ablation
-sbatch scripts/experiments/paper_ablations/eval_jra_helmholtz_min_grad025.sh
-sbatch scripts/experiments/paper_ablations/eval_jra_helmholtz_min_grad010.sh
-sbatch scripts/experiments/paper_ablations/eval_jra_helmholtz_min_grad000.sh
+sbatch scripts/slurm/eval_jra_helmholtz_min_grad025.sh
+sbatch scripts/slurm/eval_jra_helmholtz_min_grad010.sh
+sbatch scripts/slurm/eval_jra_helmholtz_min_grad000.sh
 ```
 
 ---
@@ -101,7 +100,7 @@ All experiments will be evaluated on:
 
 ### Primary Metrics (Test Period 2015-2019)
 - **RMSE** (Root Mean Square Error) per variable
-- **Bias** (Mean Error) per variable  
+- **Bias** (Mean Error) per variable
 - **Correlation** (Pattern correlation) per variable
 - **Spatial gradients** (Smoothness metrics)
 
@@ -123,7 +122,7 @@ All experiments will be evaluated on:
 
 ### Configurations
 ```
-configs/experiments/paper_ablations/
+configs/train/
 ├── jra_helmholtz_min_grad05.yaml
 ├── jra_fullstate_min_grad05.yaml
 ├── jra_fullstate_helmholtz_min_grad05.yaml
@@ -131,7 +130,7 @@ configs/experiments/paper_ablations/
 ├── jra_helmholtz_min_grad010.yaml
 └── jra_helmholtz_min_grad000.yaml
 
-configs/eval/paper_ablations/
+configs/eval/
 ├── jra_helmholtz_min_grad05_eval.yaml
 ├── jra_fullstate_min_grad05_eval.yaml
 ├── jra_fullstate_helmholtz_min_grad05_eval.yaml
@@ -142,7 +141,7 @@ configs/eval/paper_ablations/
 
 ### Scripts
 ```
-scripts/experiments/paper_ablations/
+scripts/slurm/
 ├── train_jra_helmholtz_min_grad05.sh
 ├── train_jra_fullstate_min_grad05.sh
 ├── train_jra_fullstate_helmholtz_min_grad05.sh
@@ -177,4 +176,3 @@ outputs/
 - EMA (Exponential Moving Average) checkpoints are used for evaluation
 - Evaluation produces zarr files with full rollout predictions
 - W&B logging is set to offline mode (group: mom6-bgc-training-jra60)
-

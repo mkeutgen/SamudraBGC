@@ -69,28 +69,28 @@ pytest -s tests/test_multiton.py
 
 ```bash
 # Submit a training job (example)
-sbatch scripts/experiments/jra_suite/train_jra_classical_mae.sh
+sbatch scripts/slurm/train_jra_helmholtz_min_grad05.sh
 
 # Monitor the job
 squeue -u $USER
 
 # Check the logs (replace JOBID with actual job ID)
-tail -f logs/jra_classical_mae_train_JOBID.out
+tail -f logs/jra_helmholtz_min_grad05_train_JOBID.out
 
 # Training is run with distributed data parallel (DDP)
-# Typical setup: 8 nodes × 1 GPU per node = 8 GPUs total
+# Typical setup: 16 nodes × 1 L40S GPU per node
 ```
 
 Training scripts follow this pattern:
 1. Load environment: `module load anaconda3/2024.10 && conda activate /scratch/cimes/maximek/envs/ocean-emulator`
 2. Set up distributed training environment (MASTER_ADDR, WORLD_SIZE, etc.)
-3. Run with srun: `srun python -m ocean_emulators.train configs/path/to/config.yaml`
+3. Run with srun: `srun python -m ocean_emulators.train configs/train/config.yaml`
 
 #### Evaluating a Model
 
 ```bash
 # Submit an evaluation job
-sbatch scripts/experiments/jra_suite/eval_jra_classical_mae.sh
+sbatch scripts/slurm/eval_jra_helmholtz_min_grad05.sh
 
 # Evaluation typically uses 1-2 GPUs and generates:
 # - Rollout predictions (zarr format)
@@ -109,10 +109,10 @@ conda activate /scratch/cimes/maximek/envs/ocean-emulator
 
 # Run a quick test training (single GPU, limited data)
 # Note: Modify config to use small subset first
-python -m ocean_emulators.train configs/path/to/test_config.yaml
+python -m ocean_emulators.train configs/train/config.yaml
 
 # Run evaluation
-python -m ocean_emulators.eval configs/eval/path/to/eval_config.yaml
+python -m ocean_emulators.eval configs/eval/eval_config.yaml
 ```
 
 ### Visualization and Long-Running Tasks
@@ -142,9 +142,8 @@ timeout 60s tail --pid=$PID -f /tmp/logfile.txt
 
 2. **Data Pipeline** (`src/ocean_emulators/datasets.py`)
    * Handles MOM6-Cobalt ocean/BGC model data via Zarr format
-   * Primary datasets:
+   * Primary dataset:
      - MOM6_CobaltDG_JRA_FULL_POC: JRA-55 forced run (1958-2019, 60 years) with POC
-     - MOM6_CobaltDG_Clim_FULL: Climatological forcing runs
    * Supports time-based train/validation/test splits
    * Variables include:
      - Physical: temperature (temp), salinity (salt), velocities (uo/vo), SSH
@@ -194,25 +193,34 @@ src/ocean_emulators/
 ├── aggregator/           # Metric aggregation
 └── utils/                # Utilities for distributed training, logging
 
-configs/                  # YAML configuration files
+configs/
+├── train/                # Training experiment configs
+├── eval/                 # Evaluation configs
+└── data/                 # Dataset configs
+
+scripts/
+├── slurm/                # SLURM job scripts (train, eval, comparison)
+├── analysis/             # Ensemble analysis utilities
+└── *.py                  # Standalone utility scripts
+
 tests/                    # Comprehensive test suite
-scripts/                  # Data download and preprocessing
+code_paper/               # Paper figure generation scripts
 ```
 
 ### Important Considerations
 
 1. **Data Format**: Uses Zarr format for efficient array storage
-   - Data location: `/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC/`
+   - Data location: `/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/`
    - Each dataset has: `bgc_data.zarr`, `bgc_means.zarr`, `bgc_stds.zarr`
 
 2. **Distributed Training**: Supports multi-GPU via PyTorch DDP
-   - Typical setup: 8 nodes with 1 L40S GPU per node
+   - Typical setup: 16 nodes with 1 L40S GPU per node
    - Uses SLURM for job scheduling
    - Environment variables: MASTER_ADDR, MASTER_PORT, WORLD_SIZE
 
 3. **Configuration System**:
-   - All experiments defined in YAML configs under `configs/experiments/` and `configs/eval/`
-   - Current active suite: `jra_suite/` (JRA-55 forced experiments)
+   - Training configs: `configs/train/`
+   - Evaluation configs: `configs/eval/`
    - Key config fields: `prognostic_vars_key`, `boundary_vars_key`, `data_root`
 
 4. **Variable Naming Convention**:
@@ -233,11 +241,8 @@ scripts/                  # Data download and preprocessing
 
 ### Data Locations
 
-Current datasets on the cluster:
-- **JRA-55 with POC**: `/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC/`
-- **Climatological**: `/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_Clim_FULL/`
-
-All JRA suite experiments use the JRA_FULL_POC dataset as of the latest update.
+Current dataset on the cluster:
+- **JRA-55 with POC + Helmholtz**: `/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/`
 
 ## Common Workflows
 
@@ -259,26 +264,19 @@ When adding a new variable (e.g., POC):
    pytest tests/test_datasets.py -v
    ```
 
-### Running an Experiment Suite
-
-For the JRA suite experiments:
+### Running Experiments
 
 ```bash
-# Navigate to the JRA suite scripts
-cd scripts/experiments/jra_suite
-
 # Submit training jobs
-sbatch train_jra_classical_mae.sh
-sbatch train_jra_fullstate_grad05.sh
-sbatch train_jra_helmholtz_std_grad05.sh
+sbatch scripts/slurm/train_jra_helmholtz_min_grad05.sh
+sbatch scripts/slurm/train_phase2_helmholtz_grad010.sh
 
 # Monitor jobs
 watch -n 5 squeue -u $USER
 
 # After training completes, run evaluation
-sbatch eval_jra_classical_mae.sh
-sbatch eval_jra_fullstate_grad05.sh
-sbatch eval_jra_helmholtz_std_grad05.sh
+sbatch scripts/slurm/eval_jra_helmholtz_min_grad05.sh
+sbatch scripts/slurm/eval_phase2_helmholtz_grad010.sh
 ```
 
 ### Debugging Failed Training
@@ -308,7 +306,7 @@ When a training job fails:
    conda activate /scratch/cimes/maximek/envs/ocean-emulator
 
    # Run with debugging
-   python -m pdb -m ocean_emulators.train configs/experiments/test_config.yaml
+   python -m pdb -m ocean_emulators.train configs/train/test_config.yaml
    ```
 
 4. **Common issues**:

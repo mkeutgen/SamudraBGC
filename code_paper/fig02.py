@@ -12,7 +12,7 @@ SI figures: same time series and PDFs split by biome.
 
 Usage:
     python code_paper/fig02.py
-    sbatch scripts/experiments/paper_ablations/fig02.sh
+    sbatch scripts/slurm/fig02.sh
 """
 
 import datetime

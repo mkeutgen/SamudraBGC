@@ -25,7 +25,7 @@ For each IC date:
   5. Compute area-weighted RMSE per variable
 
 Usage:
-    python scripts/compute_weidong_rmse.py --config configs/eval/paper_ablations/jra_helmholtz_min_grad05_eval_rollout2010_2019.yaml
+    python scripts/compute_weidong_rmse.py --config configs/eval/jra_helmholtz_min_grad05_eval_rollout2010_2019.yaml
 """
 
 import argparse
