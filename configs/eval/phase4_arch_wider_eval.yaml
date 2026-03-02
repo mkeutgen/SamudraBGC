@@ -1,11 +1,11 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# Evaluation for: phase2_helmholtz_grad025
-# Paper Ablation - Phase 2: Gradient Penalty Ablation (gradient_weight = 0.25)
+# Evaluation for: phase4_arch_wider
+# Paper Ablation - Phase 4: Architecture Ablation (wider: ch_width [400,550,750])
 
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/phase2_helmholtz_grad025/saved_nets/ema_ckpt.pt
+ckpt_path: ./outputs/phase4_arch_wider/saved_nets/ema_ckpt.pt
 inference_time:
   start: '2010-01-01'
   end: '2014-12-31'
@@ -13,19 +13,19 @@ num_model_steps_forward: 5
 backend: auto
 
 experiment:
-  name: phase2_helmholtz_grad025_eval
+  name: phase4_arch_wider_eval
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: offline
     project: bgc-emulator
     entity: m2lines
-    group: paper-ablations-phase2-eval
+    group: paper-ablations-phase4-eval
     tags:
     - "paper-ablation"
-    - "phase2-gradient-penalty"
+    - "phase4-architecture"
     - "helmholtz-decomposition"
-    - "grad-0.25"
+    - "wider"
     - "evaluation"
   prognostic_vars_key: helmholtz_log_all
   boundary_vars_key: minimal_forcing
@@ -49,9 +49,9 @@ model:
   pad: constant
   unet:
     ch_width:
-    - 320
-    - 440
-    - 600
+    - 400
+    - 550
+    - 750
     dilation:
     - 1
     - 2

@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=../../schemas/TrainConfig.json
+# ============================================================================
+# Paper Ablation Study - Phase 4: Architecture Ablation
+# Configuration: Baseline model (3 UNet levels, ch_width [320,440,600])
+# Base: Phase 3 winner (grad 0.25) — same architecture, trained for 70 epochs
+# Hypothesis: Control for the architecture ablation (wider / deeper / deeper+wider)
+# ============================================================================
+
+debug: false
+disk_mode: true
+pin_mem: true
+save_freq: 5
+epochs: 70
+batch_size: 1
+learning_rate: 0.0002
+scheduler:
+  type: cosine
+loss: mae_gradient_weighted
+gradient_weight: 0.25
+second_order_weight: 0.0
+finetune: false
+resume_ckpt_path: null
+inference_epochs: []
+data_percent: 1.0
+
+# Time configuration
+train_time:
+  start: '1960-01-01'
+  end: '2009-12-31'    # 50 years training
+val_time:
+  start: '2010-01-01'
+  end: '2014-12-31'    # 5 years validation
+inference_times:
+- start: '2015-01-01'
+  end: '2019-12-31'    # 5 years paper holdout
+
+data_stride:
+- 1
+steps:
+- 4
+step_transition: []
+backend: auto
+
+experiment:
+  name: phase4_arch_baseline
+  rand_seed: 42
+  base_output_dir: ./outputs
+  wandb:
+    mode: offline
+    project: bgc-emulator
+    entity: m2lines
+    group: paper-ablations-phase4
+    tags:
+    - "paper-ablation"
+    - "phase4-architecture"
+    - "helmholtz-decomposition"
+    - "baseline"
+  prognostic_vars_key: helmholtz_log_all
+  boundary_vars_key: minimal_forcing
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+
+data:
+  data_location: bgc_data.zarr
+  data_means_location: bgc_means.zarr
+  data_stds_location: bgc_stds.zarr
+  scaling_residuals_file: null
+  num_workers: 4
+  persistent_workers: true
+  prefetch_factor: 2
+  hist: 1
+  concurrent_compute: true
+
+model:
+  checkpointing: all
+  pred_residuals: false
+  last_kernel_size: 3
+  pad: constant
+  unet:
+    ch_width:
+    - 320
+    - 440
+    - 600
+    dilation:
+    - 1
+    - 2
+    - 4
+    n_layers:
+    - 1
+    - 1
+    - 1
+    core_block:
+      block_type: conv_next_block
+      kernel_size: 3
+      activation: capped_gelu
+      upscale_factor: 2
+      norm: batch
+    down_sampling_block: avg_pool
+    up_sampling_block: bilinear_upsample
+  corrector:
+    non_negative_corrector_names: null
+    ocean_heat_corrector: false
+
+# Variables: dic, o2, no3, chl, temp, salt, psi, phi, poc @ 50 levels + SSH
+# Forcing: Qnet, tauuo, tauvo (minimal forcing)
+# Architecture: baseline 3-level UNet, ch_width [320,440,600]

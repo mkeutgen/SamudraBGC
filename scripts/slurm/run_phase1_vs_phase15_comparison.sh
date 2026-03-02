@@ -41,9 +41,15 @@ echo "Time period: 2010-2014 (validation)"
 echo "Output: outputs/phase1_vs_phase15_comparison/"
 echo ""
 
-# Run comparison
+echo "Step 1/2: Computing metrics..."
 python scripts/compare_rollouts.py \
     --config configs/eval/phase1_vs_phase15_comparison.yaml
+
+echo ""
+echo "Step 2/2: Generating figures..."
+python scripts/visualize_comparison.py \
+    --config configs/eval/phase1_vs_phase15_comparison.yaml \
+    --plot-types timeseries spatial seasonal interannual gradient_scatter gradient_pdf variable_pdf
 
 echo ""
 echo "==========================================="
@@ -52,10 +58,5 @@ echo "==========================================="
 echo ""
 echo "Results saved to:"
 echo "  - outputs/phase1_vs_phase15_comparison/metrics/"
-echo "  - outputs/phase1_vs_phase15_comparison/plots/"
-echo ""
-echo "Key files:"
-echo "  - metrics/metrics_full_comparison.csv"
-echo "  - metrics/metrics_by_variable.csv"
-echo "  - plots/*.png"
+echo "  - outputs/phase1_vs_phase15_comparison/figures/"
 echo ""

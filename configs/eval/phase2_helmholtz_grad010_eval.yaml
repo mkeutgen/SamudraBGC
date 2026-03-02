@@ -7,8 +7,8 @@ save_zarr: true
 disk_mode: true
 ckpt_path: ./outputs/phase2_helmholtz_grad010/saved_nets/ema_ckpt.pt
 inference_time:
-  start: '2015-01-01'
-  end: '2019-12-31'
+  start: '2010-01-01'
+  end: '2014-12-31'
 num_model_steps_forward: 5
 backend: auto
 

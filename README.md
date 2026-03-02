@@ -104,7 +104,7 @@ pytest tests/ -m "not manual and not cuda"       # Fast unit tests
 pytest tests/ -m "not manual and not cuda" -n auto  # Parallel
 pytest tests/ -m cuda                             # GPU tests (needs GPU node)
 ```
-
+lin
 ## Paper Experiments
 
 The paper ablations span multiple phases (see `code_paper/FIGURES.md` for the registry):

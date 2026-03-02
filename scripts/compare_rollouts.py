@@ -172,8 +172,8 @@ def compute_seasonal_metrics(
         exp_results = {}
         for varname, props in variables.items():
             try:
-                true = get_variable(ground_truth, varname, props['scale_factor'])
-                pred = get_variable(ds_pred, varname, props['scale_factor'])
+                true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
+                pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
 
                 true_ts = true.mean(dim=['lat', 'lon'])
                 pred_ts = pred.mean(dim=['lat', 'lon'])
@@ -236,8 +236,8 @@ def compute_interannual_metrics(
         exp_results = {}
         for varname, props in variables.items():
             try:
-                true = get_variable(ground_truth, varname, props['scale_factor'])
-                pred = get_variable(ds_pred, varname, props['scale_factor'])
+                true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
+                pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
 
                 true_ts = true.mean(dim=['lat', 'lon'])
                 pred_ts = pred.mean(dim=['lat', 'lon'])
@@ -303,8 +303,8 @@ def compute_gradient_metrics(
         exp_results = {}
         for varname, props in variables.items():
             try:
-                true = get_variable(ground_truth, varname, props['scale_factor'])
-                pred = get_variable(ds_pred, varname, props['scale_factor'])
+                true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
+                pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
 
                 n_time = len(true.time)
                 if time_indices is not None:
@@ -402,13 +402,13 @@ def save_regional_time_series(
 
     for varname, props in variables.items():
         try:
-            true = get_variable(ground_truth, varname, props['scale_factor'])
+            true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
             for rname, rprops in regions.items():
                 true_r = _select_region(true, rprops['lat_min'], rprops['lat_max'])
                 true_mean = true_r.mean(dim=['lat', 'lon']).values
                 data = {'time_index': np.arange(len(true.time)), 'ground_truth': true_mean}
                 for exp_name, ds_pred in predictions.items():
-                    pred = get_variable(ds_pred, varname, props['scale_factor'])
+                    pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
                     pred_r = _select_region(pred, rprops['lat_min'], rprops['lat_max'])
                     data[exp_name] = pred_r.mean(dim=['lat', 'lon']).values
                 pd.DataFrame(data).to_csv(ts_dir / f'{varname}_{rname}_timeseries.csv', index=False)
@@ -595,11 +595,11 @@ def save_time_series_data(predictions, ground_truth, variables, output_dirs):
 
     for varname, props in variables.items():
         try:
-            true = get_variable(ground_truth, varname, props['scale_factor'])
+            true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
             true_mean = true.mean(dim=['lat', 'lon']).values
             data = {'time_index': np.arange(len(true.time)), 'ground_truth': true_mean}
             for exp_name, ds_pred in predictions.items():
-                pred = get_variable(ds_pred, varname, props['scale_factor'])
+                pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
                 pred_mean = pred.mean(dim=['lat', 'lon']).values
                 data[exp_name] = pred_mean
                 data[f'{exp_name}_bias'] = pred_mean - true_mean
@@ -666,9 +666,11 @@ def main():
         variables = {k: v for k, v in variables.items() if k not in excluded}
 
     # ── 1. Global + Regional metrics ──
+    # config['compute_regional'] can disable it; CLI --skip-regional also disables it
+    config_compute_regional = config.get('compute_regional', True)
     global_metrics, regional_metrics = compute_and_save_metrics(
         predictions, ground_truth, variables, output_dirs,
-        compute_regional=not args.skip_regional
+        compute_regional=config_compute_regional and not args.skip_regional
     )
 
     # ── 2. Seasonal cycle metrics (NEW) ──

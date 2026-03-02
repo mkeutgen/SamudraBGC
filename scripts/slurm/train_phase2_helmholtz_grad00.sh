@@ -7,13 +7,13 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=300G
-#SBATCH --time=120:00:00
+#SBATCH --time=3-00:00:00
 #SBATCH --output=logs/phase2_helmholtz_grad00_train_%j.out
 #SBATCH --error=logs/phase2_helmholtz_grad00_train_%j.err
 
 # Paper Ablation Study - Phase 2: Gradient Penalty Ablation
 # Configuration: Helmholtz with gradient_weight = 0.0 (BASELINE)
-# Expected runtime: ~100 hours (50 epochs @ 2h/epoch with 8 L40S GPUs)
+# Resuming from epoch 40 (ckpt_40.pt), 8 epochs remaining @ ~1.33h/epoch (12 nodes)
 
 set -e
 
@@ -34,7 +34,7 @@ export MASTER_PORT=29500
 export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 
 # Training
-echo "Starting training: phase2_helmholtz_grad00 (BASELINE)"
+echo "Resuming training: phase2_helmholtz_grad00 from ckpt_40.pt"
 echo "Config: configs/train/phase2_helmholtz_grad00.yaml"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 

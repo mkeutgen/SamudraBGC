@@ -1,0 +1,54 @@
+# 4-way comparison: Phase 2 gradient weight ablation
+# Compares all 4 gradient penalty values on the validation period (2010-2014)
+# to identify the optimal gradient weight for the paper.
+#
+# All experiments use: Helmholtz (ψ,φ) + Log BGC (fixed from phase1/phase1.5)
+# Only varying: gradient_weight ∈ {0.0, 0.10, 0.25, 0.50}
+
+experiments:
+  "Grad = 0 (no penalty)":  "outputs/phase2_helmholtz_grad00_eval_linear/predictions.zarr/"
+  "Grad = 0.10":            "outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr/"
+  "Grad = 0.25":            "outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr/"
+  "Grad = 0.50":            "outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr/"
+
+# Path to ground truth data
+ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+
+# Output directory for results
+output_dir: "outputs/phase2_helmholtz_grad_comparison"
+
+# Validation period (2010-2014) — same as phase1 evals
+time_slice:
+  - "2010-01-01"
+  - "2014-12-31"
+
+# Grid spacing in kilometers (for spectral analysis)
+dx_km: 9.0
+
+# Analysis options
+compute_regional: false  # Regional metrics (SLOW)
+save_time_series: true
+save_spatial_fields: false
+
+# Visualization settings
+visualization:
+  # Spring bloom progression: March-May each year (relative to 2010-01-01)
+  snapshot_times: [0, 74, 105, 135, 440, 471, 501, 806, 837, 867, 1172, 1203, 1233]
+
+  # Time index for spectral analysis (middle of validation period ~2012-01-01)
+  spectral_time_idx: 730
+
+  # Figure DPI
+  dpi: 150
+
+  # Plot types to generate
+  plot_types:
+    - seasonal
+    - interannual
+    - gradient_scatter
+    - gradient_pdf
+
+# Memory management
+memory:
+  batch_size: 40
+  clear_cache_between_batches: true

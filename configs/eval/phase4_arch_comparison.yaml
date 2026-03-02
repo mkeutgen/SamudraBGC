@@ -1,0 +1,54 @@
+# 4-way comparison: Phase 4 architecture ablation
+# Compares baseline (phase3 winner), deeper, wider, and deeper+wider architectures
+# on the validation period (2010-2014).
+#
+# All experiments use: Helmholtz (ψ,φ) + Log BGC + gradient_weight = 0.25
+# Only varying: model architecture (depth and width)
+
+experiments:
+  "Baseline (phase3)":    "outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr/"
+  "Deeper (4 levels)":    "outputs/phase4_arch_deeper_eval/predictions.zarr/"
+  "Wider (+25% ch)":      "outputs/phase4_arch_wider_eval/predictions.zarr/"
+  "Deeper + Wider":       "outputs/phase4_arch_deeper_wider_eval/predictions.zarr/"
+
+# Path to ground truth data
+ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+
+# Output directory for results
+output_dir: "outputs/phase4_arch_comparison"
+
+# Validation period (2010-2014) — same as prior phases
+time_slice:
+  - "2010-01-01"
+  - "2014-12-31"
+
+# Grid spacing in kilometers (for spectral analysis)
+dx_km: 9.0
+
+# Analysis options
+compute_regional: false  # Regional metrics (SLOW)
+save_time_series: true
+save_spatial_fields: false
+
+# Visualization settings
+visualization:
+  # Spring bloom progression: March-May each year (relative to 2010-01-01)
+  snapshot_times: [0, 74, 105, 135, 440, 471, 501, 806, 837, 867, 1172, 1203, 1233]
+
+  # Time index for spectral analysis (middle of validation period ~2012-01-01)
+  spectral_time_idx: 730
+
+  # Figure DPI
+  dpi: 150
+
+  # Plot types to generate
+  plot_types:
+    - seasonal
+    - interannual
+    - gradient_scatter
+    - gradient_pdf
+
+# Memory management
+memory:
+  batch_size: 40
+  clear_cache_between_batches: true

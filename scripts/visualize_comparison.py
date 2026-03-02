@@ -15,10 +15,11 @@ Plot types:
     - regional_ts: time series by biome (subtropical, jet, subpolar)
     - taylor: Taylor diagram summary (correlation vs std ratio)
     - gradient_pdf: PDF of gradient magnitude (true vs pred)
+    - variable_pdf: PDF of variable values (true vs pred)
 
 Usage:
     python scripts/visualize_comparison.py --config configs/eval/jra_comparison.yaml
-    python scripts/visualize_comparison.py --config ... --plot-types seasonal gradient_scatter taylor
+    python scripts/visualize_comparison.py --config ... --plot-types timeseries spatial seasonal gradient_pdf variable_pdf
 """
 
 import argparse
@@ -50,7 +51,7 @@ warnings.filterwarnings('ignore')
 ALL_PLOT_TYPES = [
     'timeseries', 'spatial', 'spectra',
     'seasonal', 'interannual', 'gradient_scatter',
-    'regional_ts', 'taylor', 'gradient_pdf',
+    'regional_ts', 'taylor', 'gradient_pdf', 'variable_pdf',
 ]
 
 
@@ -128,13 +129,13 @@ def plot_time_series_comparison(varname, props, predictions, ground_truth, outpu
     """Plot spatially-averaged time series for all experiments."""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 10), sharex=True)
 
-    true = get_variable(ground_truth, varname, props['scale_factor'])
+    true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
     true_mean = true.mean(dim=['lat', 'lon']).values
     time_plot = _time_axis(true)
 
     ax1.plot(time_plot, true_mean, 'k-', label='MOM6-DG', linewidth=2.5, alpha=0.9, zorder=10)
     for i, (exp_name, ds_pred) in enumerate(predictions.items()):
-        pred = get_variable(ds_pred, varname, props['scale_factor'])
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
         pred_mean = pred.mean(dim=['lat', 'lon']).values
         ax1.plot(time_plot, pred_mean, color=EXPERIMENT_COLORS[i], label=exp_name, linewidth=2, alpha=0.8)
 
@@ -144,7 +145,7 @@ def plot_time_series_comparison(varname, props, predictions, ground_truth, outpu
     ax1.set_title(f"Spatial Mean Time Series: {props['long_name']}", fontsize=15, fontweight='bold')
 
     for i, (exp_name, ds_pred) in enumerate(predictions.items()):
-        pred = get_variable(ds_pred, varname, props['scale_factor'])
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
         bias_mean = pred.mean(dim=['lat', 'lon']).values - true_mean
         ax2.plot(time_plot, bias_mean, color=EXPERIMENT_COLORS[i], label=exp_name, linewidth=2, alpha=0.8)
 
@@ -171,7 +172,7 @@ def plot_spatial_snapshot(varname, props, predictions, ground_truth, time_idx, o
     fig = plt.figure(figsize=(7 * n_cols, 12))
     gs = GridSpec(2, n_cols, figure=fig, hspace=0.25, wspace=0.3)
 
-    true = get_variable(ground_truth, varname, props['scale_factor'])
+    true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
     field_true = true.isel(time=time_idx).values
     grad_true = compute_gradient_magnitude(field_true)
     date_str = _date_str(true.time.isel(time=time_idx).values, time_idx)
@@ -185,7 +186,7 @@ def plot_spatial_snapshot(varname, props, predictions, ground_truth, time_idx, o
     pred_fields = {}
     pred_grads = {}
     for exp_name, ds_pred in predictions.items():
-        pred = get_variable(ds_pred, varname, props['scale_factor'])
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
         fp = pred.isel(time=time_idx).values
         pred_fields[exp_name] = fp
         pred_grads[exp_name] = compute_gradient_magnitude(fp)
@@ -242,14 +243,14 @@ def plot_power_spectrum(varname, props, predictions, ground_truth, time_idx, dx_
     """Compare power spectra across all experiments."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
 
-    true = get_variable(ground_truth, varname, props['scale_factor'])
+    true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
     field_true = true.isel(time=time_idx).values
     wavelength_true, power_true = compute_power_spectrum_2d(field_true, dx_km)
 
     ax1.loglog(wavelength_true, power_true, 'k-', label='MOM6-DG', linewidth=2.5, alpha=0.9, zorder=10)
 
     for i, (exp_name, ds_pred) in enumerate(predictions.items()):
-        pred = get_variable(ds_pred, varname, props['scale_factor'])
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
         fp = pred.isel(time=time_idx).values
         wl, pw = compute_power_spectrum_2d(fp, dx_km)
         ax1.loglog(wl, pw, color=EXPERIMENT_COLORS[i], label=exp_name, linewidth=2, alpha=0.8)
@@ -271,7 +272,7 @@ def plot_power_spectrum(varname, props, predictions, ground_truth, time_idx, dx_
     pw_true_interp = np.interp(np.log10(wl_common), np.log10(wavelength_true[::-1]), power_true[::-1])
 
     for i, (exp_name, ds_pred) in enumerate(predictions.items()):
-        pred = get_variable(ds_pred, varname, props['scale_factor'])
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
         fp = pred.isel(time=time_idx).values
         wl_p, pw_p = compute_power_spectrum_2d(fp, dx_km)
         pw_p_interp = np.interp(np.log10(wl_common), np.log10(wl_p[::-1]), pw_p[::-1])
@@ -307,7 +308,7 @@ def plot_seasonal_cycle(varname, props, predictions, ground_truth, output_file):
     months = np.arange(1, 13)
     month_labels = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']
 
-    true = get_variable(ground_truth, varname, props['scale_factor'])
+    true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
     true_ts = true.mean(dim=['lat', 'lon'])
     true_clim = true_ts.groupby('time.month').mean('time').values
     true_std = true_ts.groupby('time.month').std('time').values
@@ -318,7 +319,7 @@ def plot_seasonal_cycle(varname, props, predictions, ground_truth, output_file):
     ax1.plot(months, true_clim, 'k-o', label='MOM6-DG', linewidth=2.5, markersize=6, zorder=10)
 
     for i, (exp_name, ds_pred) in enumerate(predictions.items()):
-        pred = get_variable(ds_pred, varname, props['scale_factor'])
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
         pred_ts = pred.mean(dim=['lat', 'lon'])
         pred_clim = pred_ts.groupby('time.month').mean('time').values
         ax1.plot(months, pred_clim, '-o', color=EXPERIMENT_COLORS[i],
@@ -334,7 +335,7 @@ def plot_seasonal_cycle(varname, props, predictions, ground_truth, output_file):
 
     # Right: seasonal bias (pred_clim - true_clim)
     for i, (exp_name, ds_pred) in enumerate(predictions.items()):
-        pred = get_variable(ds_pred, varname, props['scale_factor'])
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
         pred_clim = pred.mean(dim=['lat', 'lon']).groupby('time.month').mean('time').values
         ax2.bar(months + i * 0.15 - 0.15 * len(predictions) / 2, pred_clim - true_clim,
                 width=0.15, color=EXPERIMENT_COLORS[i], label=exp_name, alpha=0.8)
@@ -362,7 +363,7 @@ def plot_interannual_anomalies(varname, props, predictions, ground_truth, output
     """
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 10), sharex=True)
 
-    true = get_variable(ground_truth, varname, props['scale_factor'])
+    true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
     true_ts = true.mean(dim=['lat', 'lon'])
     true_clim = true_ts.groupby('time.month').mean('time')
     true_anom = true_ts.groupby('time.month') - true_clim
@@ -371,7 +372,7 @@ def plot_interannual_anomalies(varname, props, predictions, ground_truth, output
     ax1.plot(time_plot, true_anom.values, 'k-', label='MOM6-DG', linewidth=2, alpha=0.9, zorder=10)
 
     for i, (exp_name, ds_pred) in enumerate(predictions.items()):
-        pred = get_variable(ds_pred, varname, props['scale_factor'])
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
         pred_ts = pred.mean(dim=['lat', 'lon'])
         pred_clim = pred_ts.groupby('time.month').mean('time')
         pred_anom = pred_ts.groupby('time.month') - pred_clim
@@ -392,7 +393,7 @@ def plot_interannual_anomalies(varname, props, predictions, ground_truth, output
         ax2.plot(t_running, true_running, 'k-', label='MOM6-DG', linewidth=2.5, zorder=10)
 
         for i, (exp_name, ds_pred) in enumerate(predictions.items()):
-            pred = get_variable(ds_pred, varname, props['scale_factor'])
+            pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
             pred_ts = pred.mean(dim=['lat', 'lon'])
             pred_clim = pred_ts.groupby('time.month').mean('time')
             pred_anom = (pred_ts.groupby('time.month') - pred_clim).values
@@ -429,14 +430,14 @@ def plot_gradient_scatter(varname, props, predictions, ground_truth, time_idx, o
     fig, axes = plt.subplots(1, n_exp, figsize=(7 * n_exp, 6), squeeze=False)
     axes = axes[0]
 
-    true = get_variable(ground_truth, varname, props['scale_factor'])
+    true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
     ft = true.isel(time=time_idx).values
     gt = compute_gradient_magnitude(ft)
     date_str = _date_str(true.time.isel(time=time_idx).values, time_idx)
 
     for i, (exp_name, ds_pred) in enumerate(predictions.items()):
         ax = axes[i]
-        pred = get_variable(ds_pred, varname, props['scale_factor'])
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
         fp = pred.isel(time=time_idx).values
         gp = compute_gradient_magnitude(fp)
 
@@ -495,7 +496,7 @@ def plot_gradient_pdf(varname, props, predictions, ground_truth, time_idx, outpu
     """
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    true = get_variable(ground_truth, varname, props['scale_factor'])
+    true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
     ft = true.isel(time=time_idx).values
     gt = compute_gradient_magnitude(ft)
     date_str = _date_str(true.time.isel(time=time_idx).values, time_idx)
@@ -508,7 +509,7 @@ def plot_gradient_pdf(varname, props, predictions, ground_truth, time_idx, outpu
             color='gray', alpha=0.5, label='MOM6-DG')
 
     for i, (exp_name, ds_pred) in enumerate(predictions.items()):
-        pred = get_variable(ds_pred, varname, props['scale_factor'])
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
         fp = pred.isel(time=time_idx).values
         gp = compute_gradient_magnitude(fp).ravel()
         gp = gp[np.isfinite(gp)]
@@ -528,6 +529,48 @@ def plot_gradient_pdf(varname, props, predictions, ground_truth, time_idx, outpu
     print(f"  Saved: {output_file}")
 
 
+def plot_variable_pdf(varname, props, predictions, ground_truth, time_idx, output_file):
+    """
+    PDF of variable values — shows if the emulator reproduces the full distribution
+    of the variable (not just gradients). Compares marginal distributions across
+    all experiments vs ground truth at a single time step.
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
+    ft = true.isel(time=time_idx).values.ravel()
+    ft = ft[np.isfinite(ft)]
+    date_str = _date_str(true.time.isel(time=time_idx).values, time_idx)
+
+    p01, p99 = np.percentile(ft, 1), np.percentile(ft, 99)
+    # Extend range slightly to capture all experiments
+    range_margin = (p99 - p01) * 0.1
+    val_min = p01 - range_margin
+    val_max = p99 + range_margin
+
+    ax.hist(ft, bins=100, range=(val_min, val_max), density=True,
+            color='gray', alpha=0.5, label='MOM6-DG')
+
+    for i, (exp_name, ds_pred) in enumerate(predictions.items()):
+        pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
+        fp = pred.isel(time=time_idx).values.ravel()
+        fp = fp[np.isfinite(fp)]
+        ax.hist(fp, bins=100, range=(val_min, val_max), density=True,
+                histtype='step', linewidth=2, color=EXPERIMENT_COLORS[i], label=exp_name)
+
+    ax.set_xlabel(f"{props['long_name']} ({props['units']})", fontsize=13, fontweight='bold')
+    ax.set_ylabel('Probability Density', fontsize=13, fontweight='bold')
+    ax.set_title(f'Value Distribution: {props["long_name"]} ({date_str})',
+                 fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10, framealpha=0.9)
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"  Saved: {output_file}")
+
+
 def plot_regional_time_series(varname, props, predictions, ground_truth, regions, output_file):
     """
     Time series by biome — shows performance in subtropical, jet, and subpolar regions.
@@ -537,7 +580,7 @@ def plot_regional_time_series(varname, props, predictions, ground_truth, regions
     if n_regions == 1:
         axes = axes[np.newaxis, :]
 
-    true = get_variable(ground_truth, varname, props['scale_factor'])
+    true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
     time_plot = _time_axis(true)
 
     for r_idx, (rname, rprops) in enumerate(regions.items()):
@@ -550,7 +593,7 @@ def plot_regional_time_series(varname, props, predictions, ground_truth, regions
         ax_val.plot(time_plot, true_mean, 'k-', label='MOM6-DG', linewidth=2.5, zorder=10)
 
         for i, (exp_name, ds_pred) in enumerate(predictions.items()):
-            pred = get_variable(ds_pred, varname, props['scale_factor'])
+            pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
             pred_r = _select_region(pred, rprops['lat_min'], rprops['lat_max'])
             pred_mean = pred_r.mean(dim=['lat', 'lon']).values
 
@@ -609,8 +652,8 @@ def plot_taylor_diagram(variables, predictions, ground_truth, output_file):
         radii = []
         for varname, props in variables.items():
             try:
-                true = get_variable(ground_truth, varname, props['scale_factor'])
-                pred = get_variable(ds_pred, varname, props['scale_factor'])
+                true = get_variable(ground_truth, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
+                pred = get_variable(ds_pred, varname, props['scale_factor'], depth_indices=props.get('depth_indices'), base_var=props.get('base_var'))
                 true_flat = true.values.ravel()
                 pred_flat = pred.values.ravel()
                 mask = np.isfinite(true_flat) & np.isfinite(pred_flat)
@@ -694,11 +737,21 @@ def main():
         variables = {k: v for k, v in variables.items() if k not in set(config['exclude_variables'])}
 
     # Filter out variables that don't exist in any prediction dataset
-    # (e.g., uo/vo for Helmholtz models that only predict psi/phi)
+    # (e.g., uo/vo for Helmholtz models that only predict psi/phi).
+    # Depth-averaged variables (with 'depth_indices') are virtual — their constituent
+    # per-level variables must exist in the zarr, not the key itself.
     available_vars = set()
     for ds in predictions.values():
         available_vars.update(ds.data_vars)
-    variables = {k: v for k, v in variables.items() if k in available_vars}
+
+    def _var_available(vname, vprops):
+        if vprops.get('depth_indices') is not None and vprops.get('base_var') is not None:
+            # Virtual depth-averaged var: check that at least one constituent level exists
+            base = vprops['base_var']
+            return any(f"{base}_{i}" in available_vars for i in vprops['depth_indices'])
+        return vname in available_vars
+
+    variables = {k: v for k, v in variables.items() if _var_available(k, v)}
     print(f"\nGenerating plots for {len(variables)} variables")
 
     # Resolve plot types: CLI flag > config > default
@@ -760,6 +813,10 @@ def main():
                 if 'gradient_pdf' in plot_types:
                     plot_gradient_pdf(varname, props, predictions, ground_truth,
                                      snapshot_times[-1], output_dir / f'{varname}_gradient_pdf.png')
+
+                if 'variable_pdf' in plot_types:
+                    plot_variable_pdf(varname, props, predictions, ground_truth,
+                                      snapshot_times[-1], output_dir / f'{varname}_variable_pdf.png')
 
                 if 'regional_ts' in plot_types:
                     plot_regional_time_series(varname, props, predictions, ground_truth,
