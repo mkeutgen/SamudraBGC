@@ -10,7 +10,7 @@
 #SBATCH --error=/scratch/cimes/maximek/INMOS/Ocean_Emulator/code_paper/logs/fig02_%j.err
 
 # Figure 2: Champion model BGC performance
-# Loads 3 BGC vars × 2 datasets (~30 GB) eagerly into RAM, then fast numpy ops.
+# Computes upper-100m depth-weighted averages (33 levels × 3 vars × 2 datasets).
 
 set -e
 

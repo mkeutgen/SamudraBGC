@@ -28,6 +28,7 @@ from matplotlib.colors import LogNorm
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 from matplotlib.lines import Line2D
 from pathlib import Path
+from ocean_emulators.constants import DEPTH_THICKNESS
 
 mpl.rcParams.update({
     "font.family": "sans-serif", "font.size": 11,
@@ -46,16 +47,20 @@ PRED_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/jra_helmholtz_m
 OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig02_panels"
 
 SNAPSHOT_DATE = "2017-04-15"
-VARNAMES = ["dic_0", "o2_0", "chl_0"]
+VARNAMES = []  # Surface vars loaded separately; BGC trio computed via depth averaging
 
 MOL_TO_UMOL = 1e6
 RHO_0 = 1025.0
 
+# Upper 100m: levels 0-32 (center depths 1m to ~102m)
+N_UPPER_100M = 33
+DZ_100M = np.array(DEPTH_THICKNESS[:N_UPPER_100M])
+
 _c = plt.cm.viridis(np.linspace(0.15, 0.85, 3))
 BGC_TRIO = [
-    ("dic_0", "DIC", "µmol kg⁻¹", _c[0]),
-    ("o2_0",  "O₂",  "µmol kg⁻¹", _c[1]),
-    ("chl_0", "Chl", "mg m⁻³",    _c[2]),
+    ("dic_100m", "DIC (0–100m)", "µmol kg⁻¹", _c[0]),
+    ("o2_100m",  "O₂ (0–100m)",  "µmol kg⁻¹", _c[1]),
+    ("chl_100m", "Chl (0–100m)", "mg m⁻³",    _c[2]),
 ]
 
 _bcolors = plt.cm.viridis(np.linspace(0.15, 0.85, 3))
@@ -126,14 +131,25 @@ def load_data():
     print(f"GT   time range: {gt_sliced.time.values[0]} → {gt_sliced.time.values[-1]}  ({len(gt_sliced.time)} steps)")
     print(f"Grid: {len(lat)} lat × {len(lon)} lon, wet cells: {wet.sum():,} / {wet.size:,}")
 
-    # Bulk-load all 3 BGC vars into numpy — both datasets simultaneously
-    print("\nLoading GT + Pred arrays into memory...")
+    # Compute upper-100m depth-weighted averages for DIC, O₂, Chl
+    print("\nComputing upper-100m depth-weighted averages...")
     gt_arrays, pred_arrays = {}, {}
-    for v in VARNAMES:
-        print(f"  {v}...", end=" ", flush=True)
-        gt_arrays[v]   = gt_sliced[v].values
-        pred_arrays[v] = pred_ds[v].values
-        print(f"✓ shape={gt_arrays[v].shape}")
+    for base in ["dic", "o2", "chl"]:
+        key = f"{base}_100m"
+        print(f"  {key} ({N_UPPER_100M} levels)...", end=" ", flush=True)
+
+        # Accumulate weighted sum level by level to limit peak memory
+        gt_wsum = np.zeros((n,) + gt_sliced[f"{base}_0"].shape[1:], dtype=np.float64)
+        pred_wsum = np.zeros((n,) + pred_ds[f"{base}_0"].shape[1:], dtype=np.float64)
+        for lev in range(N_UPPER_100M):
+            vname = f"{base}_{lev}"
+            gt_wsum += gt_sliced[vname].values[:n].astype(np.float64) * DZ_100M[lev]
+            pred_wsum += pred_ds[vname].values[:n].astype(np.float64) * DZ_100M[lev]
+
+        total_dz = DZ_100M.sum()
+        gt_arrays[key] = (gt_wsum / total_dz).astype(np.float32)
+        pred_arrays[key] = (pred_wsum / total_dz).astype(np.float32)
+        print(f"✓ shape={gt_arrays[key].shape}")
 
     elapsed = time.time() - t0
     print(f"\n✓ Data loaded in {elapsed:.1f}s")
@@ -198,7 +214,7 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times):
     for v, _, _, _ in BGC_TRIO:
         gt_sub   = to_display(gt_arrays[v][eval_idx::PDF_STEP],   v)
         pred_sub = to_display(pred_arrays[v][eval_idx::PDF_STEP], v)
-        use_log = (v == "chl_0")
+        use_log = v.startswith("chl")
 
         pdf_hists[v] = make_hist(gt_sub, pred_sub, wet, use_log)
         for bkey, bmask in biome_masks.items():
