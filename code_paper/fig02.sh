@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=800G
-#SBATCH --time=00:30:00
+#SBATCH --time=02:00:00
 #SBATCH --output=/scratch/cimes/maximek/INMOS/Ocean_Emulator/code_paper/logs/fig02_%j.out
 #SBATCH --error=/scratch/cimes/maximek/INMOS/Ocean_Emulator/code_paper/logs/fig02_%j.err
 
@@ -19,6 +19,6 @@ conda activate /scratch/cimes/maximek/envs/ocean-emulator
 
 cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
-python code_paper/fig02.py
+PYTHONUNBUFFERED=1 python code_paper/fig02.py
 
 echo "Done: $(date)"

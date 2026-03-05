@@ -28,6 +28,7 @@ from matplotlib.colors import LogNorm
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 from matplotlib.lines import Line2D
 from pathlib import Path
+from scipy.stats import pearsonr, ks_2samp
 from ocean_emulators.constants import DEPTH_THICKNESS
 
 mpl.rcParams.update({
@@ -63,6 +64,18 @@ BGC_TRIO = [
     ("chl_100m", "Chl (0–100m)", "mg m⁻³",    _c[2]),
 ]
 
+# Extended variable list for SI figures (BGC + physical + Helmholtz)
+_sc = plt.cm.tab10(np.linspace(0, 1, 7))
+SI_VARS = [
+    ("temp_100m", "Temp (0–100m)",  "°C",         _sc[0]),
+    ("salt_100m", "Salt (0–100m)",  "g kg⁻¹",     _sc[1]),
+    ("dic_100m",  "DIC (0–100m)",   "µmol kg⁻¹",  _sc[2]),
+    ("o2_100m",   "O₂ (0–100m)",   "µmol kg⁻¹",  _sc[3]),
+    ("chl_100m",  "Chl (0–100m)",   "mg m⁻³",     _sc[4]),
+    ("psi_100m",  "ψ (0–100m)",     "m² s⁻¹",     _sc[5]),
+    ("phi_100m",  "φ (0–100m)",     "m² s⁻¹",     _sc[6]),
+]
+
 _bcolors = plt.cm.viridis(np.linspace(0.15, 0.85, 3))
 BIOMES = {
     "subtropical": {"lat_min": 20, "lat_max": 37, "label": "Subtropical Gyre", "color": _bcolors[0]},
@@ -80,6 +93,16 @@ def to_display(data, varname):
     return data
 
 
+def ts_metrics(gt, pred):
+    """R², Pearson r, RMSE for paired time series."""
+    r, _ = pearsonr(gt, pred)
+    ss_res = np.sum((pred - gt)**2)
+    ss_tot = np.sum((gt - np.mean(gt))**2)
+    r2 = 1 - ss_res / ss_tot
+    rmse = np.sqrt(np.mean((pred - gt)**2))
+    return r2, r, rmse
+
+
 def make_hist(gt_arr, pred_arr, mask2d, use_log):
     gv = gt_arr[:, mask2d].ravel();  gv = gv[np.isfinite(gv)]
     pv = pred_arr[:, mask2d].ravel(); pv = pv[np.isfinite(pv)]
@@ -92,7 +115,13 @@ def make_hist(gt_arr, pred_arr, mask2d, use_log):
         bins = np.linspace(lo, hi, 80)
     gh, edges = np.histogram(gv, bins=bins, density=True)
     ph, _     = np.histogram(pv, bins=bins, density=True)
-    return {"centers": 0.5 * (edges[:-1] + edges[1:]), "gt": gh, "pred": ph, "log": use_log}
+    # KS test on raw samples (subsample if >1M for speed)
+    MAX_KS = 1_000_000
+    gv_ks = gv if len(gv) <= MAX_KS else np.random.choice(gv, MAX_KS, replace=False)
+    pv_ks = pv if len(pv) <= MAX_KS else np.random.choice(pv, MAX_KS, replace=False)
+    ks_stat, ks_pval = ks_2samp(gv_ks, pv_ks)
+    return {"centers": 0.5 * (edges[:-1] + edges[1:]), "gt": gh, "pred": ph, "log": use_log,
+            "ks_stat": ks_stat, "ks_pval": ks_pval}
 
 
 # =============================================================================
@@ -131,10 +160,10 @@ def load_data():
     print(f"GT   time range: {gt_sliced.time.values[0]} → {gt_sliced.time.values[-1]}  ({len(gt_sliced.time)} steps)")
     print(f"Grid: {len(lat)} lat × {len(lon)} lon, wet cells: {wet.sum():,} / {wet.size:,}")
 
-    # Compute upper-100m depth-weighted averages for DIC, O₂, Chl
+    # Compute upper-100m depth-weighted averages for all SI variables
     print("\nComputing upper-100m depth-weighted averages...")
     gt_arrays, pred_arrays = {}, {}
-    for base in ["dic", "o2", "chl"]:
+    for base in ["dic", "o2", "chl", "temp", "salt", "psi", "phi"]:
         key = f"{base}_100m"
         print(f"  {key} ({N_UPPER_100M} levels)...", end=" ", flush=True)
 
@@ -197,8 +226,9 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times):
         biome_masks[bkey] = bmask
         biome_weights[bkey] = bw / bw_sum if bw_sum > 0 else bw
 
+    # Compute biome time series for all SI_VARS (superset of BGC_TRIO)
     ts_gt_biome, ts_pred_biome = {}, {}
-    for v, _, _, _ in BGC_TRIO:
+    for v, _, _, _ in SI_VARS:
         gt_disp   = to_display(gt_arrays[v][eval_idx:],   v)
         pred_disp = to_display(pred_arrays[v][eval_idx:], v)
         for bkey, bw in biome_weights.items():
@@ -211,7 +241,7 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times):
     pdf_hists = {}
     pdf_biome_hists = {}
 
-    for v, _, _, _ in BGC_TRIO:
+    for v, _, _, _ in SI_VARS:
         gt_sub   = to_display(gt_arrays[v][eval_idx::PDF_STEP],   v)
         pred_sub = to_display(pred_arrays[v][eval_idx::PDF_STEP], v)
         use_log = v.startswith("chl")
@@ -220,19 +250,40 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times):
         for bkey, bmask in biome_masks.items():
             pdf_biome_hists[(v, bkey)] = make_hist(gt_sub, pred_sub, bmask, use_log)
 
+    # ── Compute time series metrics ─────────────────────────────────────────
+    print("Computing time series metrics...")
+    ts_met = {}
+    for v, label, units, _ in BGC_TRIO:
+        r2, r, rmse = ts_metrics(ts_gt[v], ts_pred[v])
+        ts_met[v] = {"R2": r2, "r": r, "RMSE": rmse}
+        print(f"  {v}: R²={r2:.4f}  r={r:.4f}  RMSE={rmse:.4f} {units}")
+
+    ts_biome_met = {}
+    for v, label, units, _ in SI_VARS:
+        for bkey in BIOMES:
+            r2, r, rmse = ts_metrics(ts_gt_biome[(v, bkey)], ts_pred_biome[(v, bkey)])
+            ts_biome_met[(v, bkey)] = {"R2": r2, "r": r, "RMSE": rmse}
+
+    # Print KS stats
+    print("PDF KS statistics:")
+    for v, label, _, _ in SI_VARS:
+        h = pdf_hists[v]
+        print(f"  {v}: KS={h['ks_stat']:.4f}")
+
     times_plot = [datetime.datetime(t.year, t.month, t.day) for t in pred_times[eval_idx:]]
     elapsed = time.time() - t0
     print(f"\n✓ Precompute done in {elapsed:.1f}s")
 
     return (ts_gt, ts_pred, ts_gt_biome, ts_pred_biome,
-            pdf_hists, pdf_biome_hists, biome_masks, times_plot)
+            pdf_hists, pdf_biome_hists, biome_masks, times_plot,
+            ts_met, ts_biome_met)
 
 
 # =============================================================================
 # 3. MAIN FIGURE (4 panels)
 # =============================================================================
 def plot_main(gt_ds, pred_ds, mask, lat, lon, wet, pred_times,
-              ts_gt, ts_pred, pdf_hists, times_plot, output_dir):
+              ts_gt, ts_pred, pdf_hists, times_plot, ts_met, output_dir):
     t0 = time.time()
     print("\n" + "="*70)
     print("STAGE 3: PLOTTING MAIN FIGURE")
@@ -283,6 +334,10 @@ def plot_main(gt_ds, pred_ds, mask, lat, lon, wet, pred_times,
         ax.set_ylabel(f"{label}\n({units})", fontsize=12, labelpad=4)
         ax.grid(True, alpha=0.15, lw=0.7); ax.tick_params(labelsize=11)
         ax.xaxis.set_ticklabels([])
+        m = ts_met[v]
+        ax.text(0.02, 0.08, f"R²={m['R2']:.3f}  RMSE={m['RMSE']:.2f}",
+                transform=ax.transAxes, fontsize=10, ha="left", va="bottom",
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
 
     ax_ts[-1].xaxis.set_major_locator(mdates.YearLocator())
     ax_ts[-1].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
@@ -291,7 +346,7 @@ def plot_main(gt_ds, pred_ds, mask, lat, lon, wet, pred_times,
     ax_ts[0].legend(handles=[
         Line2D([0], [0], color="k",   lw=1.6, label="DG-MOM6-COBALTv2"),
         Line2D([0], [0], color="0.5", lw=1.6, ls="--", label="ML Emulator")],
-        loc="upper right", fontsize=11, frameon=False, ncol=2)
+        loc="upper right", fontsize=10, frameon=False, ncol=2)
 
     # (d) PDFs
     gs_pdf = GridSpecFromSubplotSpec(3, 1, subplot_spec=gs[1, 1], hspace=0.55)
@@ -308,8 +363,11 @@ def plot_main(gt_ds, pred_ds, mask, lat, lon, wet, pred_times,
         ax.set_title(f"{label} ({units})", fontsize=12, fontweight="bold")
         ax.set_ylabel("Density", fontsize=12)
         ax.grid(True, alpha=0.15, lw=0.7); ax.tick_params(labelsize=11)
+        ax.text(0.02, 0.92, f"KS={h['ks_stat']:.3f}",
+                transform=ax.transAxes, fontsize=10, ha="left", va="top",
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
 
-    pdf_axes[-1].legend(loc="upper right", fontsize=11, frameon=False)
+    pdf_axes[-1].legend(loc="upper right", fontsize=10, frameon=False)
     # Panel (d) label above the top PDF axis, clear of the subplot title
     pdf_axes[0].annotate("(d) Probability density functions (2015–2019)",
                          xy=(0.5, 1.0), xycoords="axes fraction",
@@ -329,23 +387,27 @@ def plot_main(gt_ds, pred_ds, mask, lat, lon, wet, pred_times,
 # =============================================================================
 # 4. SI — TIME SERIES BY BIOME
 # =============================================================================
-def plot_si_timeseries(ts_gt_biome, ts_pred_biome, times_plot, output_dir):
+def plot_si_timeseries(ts_gt_biome, ts_pred_biome, times_plot, ts_biome_met, output_dir):
     t0 = time.time()
     print("\n" + "="*70)
     print("STAGE 4: PLOTTING SI TIMESERIES BY BIOME")
     print("="*70)
     print(f"Start time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    n_vars, n_biomes = len(BGC_TRIO), len(BIOMES)
+    n_vars, n_biomes = len(SI_VARS), len(BIOMES)
     fig, axes = plt.subplots(n_vars, n_biomes,
-                              figsize=(5.2 * n_biomes, 3.5 * n_vars),
+                              figsize=(5.2 * n_biomes, 2.8 * n_vars),
                               sharex=True,
-                              gridspec_kw={"hspace": 0.12, "wspace": 0.32})
+                              gridspec_kw={"hspace": 0.15, "wspace": 0.32})
 
     for col, (bkey, binfo) in enumerate(BIOMES.items()):
-        for row, (v, label, units, color) in enumerate(BGC_TRIO):
+        for row, (v, label, units, color) in enumerate(SI_VARS):
             ax = axes[row, col]
             ax.plot(times_plot, ts_gt_biome[(v, bkey)],   color="k",   lw=1.0)
             ax.plot(times_plot, ts_pred_biome[(v, bkey)], color=color, lw=1.0, alpha=0.85)
+            m = ts_biome_met[(v, bkey)]
+            ax.text(0.98, 0.92, f"R²={m['R2']:.3f}  RMSE={m['RMSE']:.2f}",
+                    transform=ax.transAxes, fontsize=9, ha="right", va="top",
+                    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
             if row == 0:
                 ax.set_title(binfo["label"], fontsize=12, fontweight="bold", color=binfo["color"])
             if col == 0:
@@ -379,14 +441,14 @@ def plot_si_pdfs(pdf_biome_hists, output_dir):
     print("STAGE 5: PLOTTING SI PDFs BY BIOME")
     print("="*70)
     print(f"Start time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    n_vars, n_biomes = len(BGC_TRIO), len(BIOMES)
+    n_vars, n_biomes = len(SI_VARS), len(BIOMES)
     fig, axes = plt.subplots(n_vars, n_biomes,
-                              figsize=(5.2 * n_biomes, 3.5 * n_vars),
-                              gridspec_kw={"hspace": 0.48, "wspace": 0.32})
+                              figsize=(5.2 * n_biomes, 2.8 * n_vars),
+                              gridspec_kw={"hspace": 0.55, "wspace": 0.32})
 
     for col, (bkey, binfo) in enumerate(BIOMES.items()):
         bcolor = binfo["color"]
-        for row, (v, label, units, _) in enumerate(BGC_TRIO):
+        for row, (v, label, units, _) in enumerate(SI_VARS):
             ax = axes[row, col]
             h = pdf_biome_hists[(v, bkey)]
             ax.fill_between(h["centers"], h["gt"],   color="k",    alpha=0.15)
@@ -395,6 +457,9 @@ def plot_si_pdfs(pdf_biome_hists, output_dir):
             ax.plot(h["centers"], h["pred"],          color=bcolor, lw=1.3, ls="--", label="ML Emulator")
             if h["log"]:
                 ax.set_xscale("log")
+            ax.text(0.02, 0.92, f"KS={h['ks_stat']:.3f}",
+                    transform=ax.transAxes, fontsize=9, ha="left", va="top",
+                    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
             if row == 0:
                 ax.set_title(binfo["label"], fontsize=12, fontweight="bold", color=bcolor)
             if col == 0:
@@ -430,12 +495,13 @@ def main():
     gt_ds, pred_ds, gt_arrays, pred_arrays, mask, lat, lon, wet, pred_times = load_data()
 
     (ts_gt, ts_pred, ts_gt_biome, ts_pred_biome,
-     pdf_hists, pdf_biome_hists, biome_masks, times_plot) = \
+     pdf_hists, pdf_biome_hists, biome_masks, times_plot,
+     ts_met, ts_biome_met) = \
         precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times)
 
     plot_main(gt_ds, pred_ds, mask, lat, lon, wet, pred_times,
-              ts_gt, ts_pred, pdf_hists, times_plot, OUTPUT_DIR)
-    plot_si_timeseries(ts_gt_biome, ts_pred_biome, times_plot, OUTPUT_DIR)
+              ts_gt, ts_pred, pdf_hists, times_plot, ts_met, OUTPUT_DIR)
+    plot_si_timeseries(ts_gt_biome, ts_pred_biome, times_plot, ts_biome_met, OUTPUT_DIR)
     plot_si_pdfs(pdf_biome_hists, OUTPUT_DIR)
 
     elapsed_total = time.time() - t_total
