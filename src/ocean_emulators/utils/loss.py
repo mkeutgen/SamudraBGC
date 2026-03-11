@@ -271,248 +271,219 @@ def decomposed_mae_gradient_weighted(
 
 
 
-# TODO CLEAN THIS FILE - REMOVE OLD VERSIONS OF LOSS FUNCS and IMPLEMENT SECOND DERIV 
-def decomposed_mae_gradient_weighted(
-    pred: torch.Tensor, 
-    target: torch.Tensor, 
+
+def decomposed_mae_gradient_relative(
+    pred: torch.Tensor,
+    target: torch.Tensor,
     wet: torch.Tensor,
-    gradient_weight: float = 0.1,
-    second_order_weight: float = 0.0  # NEW: Add second-order term
+    gradient_weight: float = 0.25,
+    second_order_weight: float = 0.0,
 ) -> torch.Tensor:
     """
-    MAE loss with WEIGHTED spatial gradient matching penalty.
-    
-    By controlling gradient_weight,
-    we can balance accuracy (MAE term) vs sharpness (gradient term).
-    
-    Loss = MAE(pred, target) + α * gradient_penalty(pred, target) 
-           + β * second_order_penalty(pred, target)
-    
-    where α = gradient_weight and β = second_order_weight are tunable hyperparameters.
-    
-    Second-order penalty matches the Laplacian (curvature), which helps preserve:
-    - Eddy centers (local extrema)
-    - Curvature of fronts
-    - Spatial smoothness structure
-    
-    Recommended starting values:
-    - α = 0.05: Very conservative, prioritize accuracy
-    - α = 0.1:  Conservative, good balance 
-    - α = 0.25: Moderate, more sharpness 
-    - α = 0.5:  Aggressive sharpening
-    - α = 1.0:  Equal weighting
-    
-    - β = 0.0:  Disabled (default)
-    - β = 0.05: Very conservative second-order
-    - β = 0.1:  Moderate second-order penalty
-    
+    MAE loss with RELATIVE spatial gradient matching.
+
+    The key difference from ``decomposed_mae_gradient_weighted`` is how the
+    gradient penalty is computed.  Instead of the absolute error
+    ``|∇pred - ∇target|`` (dominated by strong fronts), we normalise by
+    the local target-gradient magnitude so that a 50 % relative error in
+    the subpolar gyre costs the same as a 50 % relative error at the Gulf
+    Stream.
+
+        grad_loss = |∇pred - ∇target| / (|∇target| + ε)
+
+    where ε is the per-channel mean |∇target|.  Using the mean (rather
+    than the median) guarantees bounded amplification: in perfectly smooth
+    regions the relative error is at most |∇pred| / mean(|∇target|),
+    keeping loss values on a comparable scale to the absolute variant.
+
+    Loss = MAE(pred, target)
+           + α · mean(|∇pred - ∇target| / (|∇target| + ε))
+           + β · second_order_penalty(pred, target)
+
     Args:
-        pred: Predicted tensor [batch, channels, height, width]
-        target: Target tensor [batch, channels, height, width]
-        wet: Wet mask [batch, channels, height, width]
-        gradient_weight: Scaling factor α for first-order gradient penalty
-        second_order_weight: Scaling factor β for second-order (Laplacian) penalty
-    
+        pred: [batch, channels, height, width]
+        target: [batch, channels, height, width]
+        wet: [batch, channels, height, width]
+        gradient_weight: α — weight for relative gradient penalty
+        second_order_weight: β — weight for Laplacian penalty (0 = disabled)
+
     Returns:
         Loss per channel [channels]
     """
     pred = pred * wet
     target = target * wet
-    
-    # MAE term (main accuracy objective)
-    mae_loss = F.l1_loss(pred, target, reduction="none")
-    mae_per_channel = mae_loss.mean(dim=(0, 2, 3))
-    
-    # First-order gradient penalty: Match spatial gradients
-    pred_grad_y = pred[:, :, 1:, :] - pred[:, :, :-1, :]
-    pred_grad_x = pred[:, :, :, 1:] - pred[:, :, :, :-1]
-    
-    target_grad_y = target[:, :, 1:, :] - target[:, :, :-1, :]
-    target_grad_x = target[:, :, :, 1:] - target[:, :, :, :-1]
-    
-    grad_loss_y = F.l1_loss(pred_grad_y, target_grad_y, reduction="none")
-    grad_loss_x = F.l1_loss(pred_grad_x, target_grad_x, reduction="none")
-    
-    # Average gradient losses
+
+    # ── MAE term ──
+    mae_per_channel = F.l1_loss(pred, target, reduction="none").mean(dim=(0, 2, 3))
+
+    # ── First-order gradients ──
+    pred_gy = pred[:, :, 1:, :] - pred[:, :, :-1, :]
+    pred_gx = pred[:, :, :, 1:] - pred[:, :, :, :-1]
+
+    tgt_gy = target[:, :, 1:, :] - target[:, :, :-1, :]
+    tgt_gx = target[:, :, :, 1:] - target[:, :, :, :-1]
+
+    # Absolute gradient error
+    err_gy = (pred_gy - tgt_gy).abs()
+    err_gx = (pred_gx - tgt_gx).abs()
+
+    # Per-channel adaptive epsilon: mean of |∇target| (bounded amplification).
+    # In smooth regions: relative error = |∇pred| / mean(|∇target|)
+    # At fronts:         relative error ≈ |error| / |∇target|
+    tgt_mag_y = tgt_gy.abs()
+    tgt_mag_x = tgt_gx.abs()
+    eps_y = tgt_mag_y.permute(1, 0, 2, 3).reshape(tgt_mag_y.shape[1], -1).mean(dim=1)  # [C]
+    eps_x = tgt_mag_x.permute(1, 0, 2, 3).reshape(tgt_mag_x.shape[1], -1).mean(dim=1)  # [C]
+    eps_y = eps_y.clamp(min=1e-8).view(1, -1, 1, 1)
+    eps_x = eps_x.clamp(min=1e-8).view(1, -1, 1, 1)
+
+    # Relative gradient error
+    rel_err_gy = err_gy / (tgt_mag_y + eps_y)
+    rel_err_gx = err_gx / (tgt_mag_x + eps_x)
+
     grad_loss = (
-        F.pad(grad_loss_y, (0, 0, 0, 1), value=0).mean(dim=(0, 2, 3)) +
-        F.pad(grad_loss_x, (0, 1, 0, 0), value=0).mean(dim=(0, 2, 3))
+        F.pad(rel_err_gy, (0, 0, 0, 1), value=0).mean(dim=(0, 2, 3))
+        + F.pad(rel_err_gx, (0, 1, 0, 0), value=0).mean(dim=(0, 2, 3))
     ) / 2
-    
-    # NEW: Second-order penalty (Laplacian/curvature matching)
+
+    # ── Second-order penalty (Laplacian) ──
     second_order_loss = 0.0
     if second_order_weight > 0:
-        # Compute second derivatives (discrete Laplacian)
-        # ∂²/∂x² ≈ f[i,j+1] - 2*f[i,j] + f[i,j-1]
-        # ∂²/∂y² ≈ f[i+1,j] - 2*f[i,j] + f[i-1,j]
-        
-        # Second derivative in y-direction (requires 3 points)
-        pred_grad2_y = pred[:, :, 2:, :] - 2*pred[:, :, 1:-1, :] + pred[:, :, :-2, :]
-        target_grad2_y = target[:, :, 2:, :] - 2*target[:, :, 1:-1, :] + target[:, :, :-2, :]
-        
-        # Second derivative in x-direction
-        pred_grad2_x = pred[:, :, :, 2:] - 2*pred[:, :, :, 1:-1] + pred[:, :, :, :-2]
-        target_grad2_x = target[:, :, :, 2:] - 2*target[:, :, :, 1:-1] + target[:, :, :, :-2]
-        
-        # L1 loss on second derivatives
-        grad2_loss_y = F.l1_loss(pred_grad2_y, target_grad2_y, reduction="none")
-        grad2_loss_x = F.l1_loss(pred_grad2_x, target_grad2_x, reduction="none")
-        
-        # Average and pad to match dimensions
+        pred_g2y = pred[:, :, 2:, :] - 2 * pred[:, :, 1:-1, :] + pred[:, :, :-2, :]
+        tgt_g2y = target[:, :, 2:, :] - 2 * target[:, :, 1:-1, :] + target[:, :, :-2, :]
+        pred_g2x = pred[:, :, :, 2:] - 2 * pred[:, :, :, 1:-1] + pred[:, :, :, :-2]
+        tgt_g2x = target[:, :, :, 2:] - 2 * target[:, :, :, 1:-1] + target[:, :, :, :-2]
+
+        g2_loss_y = F.l1_loss(pred_g2y, tgt_g2y, reduction="none")
+        g2_loss_x = F.l1_loss(pred_g2x, tgt_g2x, reduction="none")
+
         second_order_loss = (
-            F.pad(grad2_loss_y, (0, 0, 0, 2), value=0).mean(dim=(0, 2, 3)) +
-            F.pad(grad2_loss_x, (0, 2, 0, 0), value=0).mean(dim=(0, 2, 3))
+            F.pad(g2_loss_y, (0, 0, 0, 2), value=0).mean(dim=(0, 2, 3))
+            + F.pad(g2_loss_x, (0, 2, 0, 0), value=0).mean(dim=(0, 2, 3))
         ) / 2
-    
-    # Weighted combination
-    total_loss = mae_per_channel + gradient_weight * grad_loss + second_order_weight * second_order_loss
-    
-    return total_loss
-#
-#
-#
+
+    return mae_per_channel + gradient_weight * grad_loss + second_order_weight * second_order_loss
 
 
-#def decomposed_mae_gradient_weighted(
-#    pred: torch.Tensor, 
-#    target: torch.Tensor, 
-#    wet: torch.Tensor,
-#    gradient_weight: float = 0.1
-#) -> torch.Tensor:
-#    """
-#    MAE loss with WEIGHTED spatial gradient matching penalty.
-#    
-#    By controlling gradient_weight,
-#    we can balance accuracy (MAE term) vs sharpness (gradient term).
-#    
-#    Loss = MAE(pred, target) + α * gradient_penalty(pred, target)
-#    
-#    where α = gradient_weight is a tunable hyperparameter.
-#    
-#    Recommended starting values:
-#    - α = 0.05: Very conservative, prioritize accuracy
-#    - α = 0.1:  Conservative, good balance 
-#    - α = 0.25: Moderate, more sharpness 
-#    - α = 0.5:  Aggressive sharpening
-#    - α = 1.0:  Equal weighting 
-#    
-#    Args:
-#        pred: Predicted tensor [batch, channels, height, width]
-#        target: Target tensor [batch, channels, height, width]
-#        wet: Wet mask [batch, channels, height, width]
-#        gradient_weight: Scaling factor α for gradient penalty
-#    
-#    Returns:
-#        Loss per channel [channels]
-#    """
-#    pred = pred * wet
-#    target = target * wet
-#    
-#    # MAE term (main accuracy objective)
-#    mae_loss = F.l1_loss(pred, target, reduction="none")
-#    mae_per_channel = mae_loss.mean(dim=(0, 2, 3))
-#    
-#    # Gradient penalty: Match spatial gradients
-#    pred_grad_y = pred[:, :, 1:, :] - pred[:, :, :-1, :]
-#    pred_grad_x = pred[:, :, :, 1:] - pred[:, :, :, :-1]
-#    
-#    target_grad_y = target[:, :, 1:, :] - target[:, :, :-1, :]
-#    target_grad_x = target[:, :, :, 1:] - target[:, :, :, :-1]
-#    
-#    grad_loss_y = F.l1_loss(pred_grad_y, target_grad_y, reduction="none")
-#    grad_loss_x = F.l1_loss(pred_grad_x, target_grad_x, reduction="none")
-#    
-#    # Average gradient losses
-#    grad_loss = (
-#        F.pad(grad_loss_y, (0, 0, 0, 1), value=0).mean(dim=(0, 2, 3)) +
-#        F.pad(grad_loss_x, (0, 1, 0, 0), value=0).mean(dim=(0, 2, 3))
-#    ) / 2
-#    
-#    # Weighted combination
-#    total_loss = mae_per_channel + gradient_weight * grad_loss
-#    
-#    return total_loss
-#
-#
-def decomposed_mae_gradient_multiscale(
-    pred: torch.Tensor,
-    target: torch.Tensor, 
-    wet: torch.Tensor,
-    gradient_weight: float = 0.15,
-    scales: list[int] = None
-) -> torch.Tensor:
+class MaeDynamic:
+    """MAE-based dynamic loss with optional relative gradient penalty.
+
+    Analogous to ``MseDynamic`` but uses L1 (MAE) as the base loss so that
+    channels with high variance (e.g. surface temperature/salinity) do not
+    dominate via squared errors.
+
+    The dynamic scaling maintains a rolling estimate of the per-channel MAE and
+    sets each channel's weight to 1/MAE, so every channel contributes equally
+    to the total loss regardless of its absolute scale.
+
+    Optionally adds a relative spatial gradient penalty (same as
+    ``decomposed_mae_gradient_relative``) to encourage sharpness of fronts and
+    eddies, normalised locally so a weak gradient region is not overwhelmed by
+    a strong-front region.
+
+    Loss = scale_c * (MAE_c + α * rel_grad_c)   for each channel c
     """
-    MAE loss with MULTI-SCALE gradient matching (Tier 2 experiment).
-    
-    Instead of matching gradients at a single scale, this matches gradient
-    statistics at multiple spatial scales. This is inspired by perceptual loss
-    and helps preserve both fine-scale fronts and large-scale patterns.
-    
-    Loss = MAE + α * Σ_scales gradient_penalty_at_scale
-    
-    This is more sophisticated than simple gradient matching and may better
-    preserve the structure of oceanic fronts while maintaining accuracy.
-    
-    Args:
-        pred: Predicted tensor [batch, channels, height, width]
-        target: Target tensor [batch, channels, height, width]
-        wet: Wet mask [batch, channels, height, width]
-        gradient_weight: Scaling factor for total gradient penalty
-        scales: List of pooling sizes for multi-scale (default: [1, 2, 4])
-    
-    Returns:
-        Loss per channel [channels]
-    """
-    if scales is None:
-        scales = [1, 2, 4]
-    
-    pred = pred * wet
-    target = target * wet
-    
-    # MAE term
-    mae_loss = F.l1_loss(pred, target, reduction="none")
-    mae_per_channel = mae_loss.mean(dim=(0, 2, 3))
-    
-    # Multi-scale gradient penalty
-    total_grad_loss = 0.0
-    
-    for scale in scales:
-        # Downsample if scale > 1
-        if scale > 1:
-            pred_scaled = F.avg_pool2d(pred, kernel_size=scale, stride=scale)
-            target_scaled = F.avg_pool2d(target, kernel_size=scale, stride=scale)
+
+    N_WINDOW = 25
+    """Rolling window size to average over (~number of steps)."""
+
+    def __init__(
+        self,
+        wet: Grid,
+        n_vars: int,
+        *,
+        gradient_weight: float = 0.0,
+    ):
+        self._wet: Grid = wet
+        self._n_vars = n_vars
+        self._gradient_weight = gradient_weight
+        self._per_channel_scale: Float[torch.Tensor, " var"] = torch.ones(
+            n_vars, device=wet.device
+        )
+
+    # ------------------------------------------------------------------
+    def _mae_per_channel(
+        self,
+        pred: Float[torch.Tensor, "batch hist*var lat lon"],
+        target: Float[torch.Tensor, "batch hist*var lat lon"],
+    ) -> Float[torch.Tensor, " hist*var"]:
+        p = pred * self._wet
+        t = target * self._wet
+        return F.l1_loss(p, t, reduction="none").mean(dim=(0, 2, 3))
+
+    def _rel_grad_per_channel(
+        self,
+        pred: Float[torch.Tensor, "batch hist*var lat lon"],
+        target: Float[torch.Tensor, "batch hist*var lat lon"],
+    ) -> Float[torch.Tensor, " hist*var"]:
+        p = pred * self._wet
+        t = target * self._wet
+
+        err_gy = (p[:, :, 1:, :] - p[:, :, :-1, :]) - (t[:, :, 1:, :] - t[:, :, :-1, :])
+        err_gx = (p[:, :, :, 1:] - p[:, :, :, :-1]) - (t[:, :, :, 1:] - t[:, :, :, :-1])
+
+        tgt_mag_y = (t[:, :, 1:, :] - t[:, :, :-1, :]).abs()
+        tgt_mag_x = (t[:, :, :, 1:] - t[:, :, :, :-1]).abs()
+
+        eps_y = tgt_mag_y.permute(1, 0, 2, 3).reshape(t.shape[1], -1).mean(dim=1).clamp(min=1e-8).view(1, -1, 1, 1)
+        eps_x = tgt_mag_x.permute(1, 0, 2, 3).reshape(t.shape[1], -1).mean(dim=1).clamp(min=1e-8).view(1, -1, 1, 1)
+
+        rel_gy = err_gy.abs() / (tgt_mag_y + eps_y)
+        rel_gx = err_gx.abs() / (tgt_mag_x + eps_x)
+
+        return (
+            F.pad(rel_gy, (0, 0, 0, 1), value=0).mean(dim=(0, 2, 3))
+            + F.pad(rel_gx, (0, 1, 0, 0), value=0).mean(dim=(0, 2, 3))
+        ) / 2
+
+    # ------------------------------------------------------------------
+    def __call__(
+        self,
+        pred: Float[torch.Tensor, "batch hist*var lat lon"],
+        target: Float[torch.Tensor, "batch hist*var lat lon"],
+    ) -> Float[torch.Tensor, " hist*var"]:
+        mae = self._mae_per_channel(pred, target)
+
+        if self._gradient_weight > 0:
+            grad = self._rel_grad_per_channel(pred, target)
+            loss_per_ch = mae + self._gradient_weight * grad
         else:
-            pred_scaled = pred
-            target_scaled = target
-        
-        # Compute gradients at this scale
-        pred_grad_y = pred_scaled[:, :, 1:, :] - pred_scaled[:, :, :-1, :]
-        pred_grad_x = pred_scaled[:, :, :, 1:] - pred_scaled[:, :, :, :-1]
-        
-        target_grad_y = target_scaled[:, :, 1:, :] - target_scaled[:, :, :-1, :]
-        target_grad_x = target_scaled[:, :, :, 1:] - target_scaled[:, :, :, :-1]
-        
-        # L1 loss on gradients at this scale
-        grad_loss_y = F.l1_loss(pred_grad_y, target_grad_y, reduction="none")
-        grad_loss_x = F.l1_loss(pred_grad_x, target_grad_x, reduction="none")
-        
-        # Average and accumulate
-        scale_grad_loss = (
-            grad_loss_y.mean(dim=(0, 2, 3)) + grad_loss_x.mean(dim=(0, 2, 3))
-        ) / 2
-        
-        total_grad_loss = total_grad_loss + scale_grad_loss
-    
-    # Average over scales
-    total_grad_loss = total_grad_loss / len(scales)
-    
-    # Weighted combination
-    total_loss = mae_per_channel + gradient_weight * total_grad_loss
-    
-    return total_loss
+            loss_per_ch = mae
+
+        scaled = loss_per_ch.reshape(self._n_vars, -1) * self._per_channel_scale.unsqueeze(1)
+        return scaled.reshape(-1)
+
+    def update(
+        self,
+        pred: Float[torch.Tensor, "batch hist*var lat lon"],
+        target: Float[torch.Tensor, "batch hist*var lat lon"],
+    ) -> None:
+        """Update the per-channel scale from the current MAE (no gradient term)."""
+        mae = self._mae_per_channel(pred, target)
+        mae = torch.where(mae == 0, torch.tensor(1e-8, device=mae.device), mae)
+
+        # Average across history dimension to get per-variable weights
+        new_weights = (1.0 / mae).reshape(self._n_vars, -1).mean(dim=1)
+
+        if get_world_size() > 1:
+            all_reduce_mean(new_weights)
+
+        self._per_channel_scale = (
+            self._per_channel_scale * (MaeDynamic.N_WINDOW - 1) + new_weights
+        ) / MaeDynamic.N_WINDOW
+
+    def loss_scale_per_channel(self) -> Float[torch.Tensor, " var"]:
+        return self._per_channel_scale
+
+    def state_dict(self) -> dict[str, torch.Tensor]:
+        return {"per_channel_scale": self._per_channel_scale.detach().cpu()}
+
+    def load_state_dict(self, state: dict[str, torch.Tensor]) -> None:
+        if "per_channel_scale" in state:
+            self._per_channel_scale = state["per_channel_scale"].to(self._wet.device)
 
 
-## MK : I still need to figure how to implement this loss function to better penalize lack of coherence of fronts 
+## MK : I still need to figure how to implement this loss function to better penalize lack of coherence of fronts
 #def gradient_structure_loss(field_true, field_pred, patch_size=5):
 #	"""
 #	Penalize loss of coherent gradient structures (fronts).

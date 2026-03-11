@@ -1,4 +1,4 @@
-# Ocean Emulator
+z# Ocean Emulator
 
 A PyTorch-based machine learning system for emulating MOM6-COBALT ocean physics and biogeochemistry. The model learns to predict the next-day ocean state from the current state and atmospheric forcing, enabling fast autoregressive rollouts that reproduce multi-year ocean dynamics.
 

@@ -40,19 +40,26 @@ echo "  2. Grad = 0.10"
 echo "  3. Grad = 0.25"
 echo "  4. Grad = 0.50"
 echo ""
-echo "Time period: 2010-2014 (validation)"
+echo "Time period: 2013-2014 (last 2 years for fast eval)"
 echo "Output: outputs/phase2_helmholtz_grad_comparison/"
 echo ""
 
+echo "Removing old output directory..."
+rm -rf outputs/phase2_helmholtz_grad_comparison
+
 echo "Step 1/2: Computing metrics..."
 python scripts/compare_rollouts.py \
-    --config configs/eval/phase2_helmholtz_grad_comparison.yaml
+    --config configs/eval/phase2_helmholtz_grad_comparison.yaml \
+    --skip-seasonal \
+    --skip-interannual \
+    --skip-gradient \
+    --skip-regional-characteristics
 
 echo ""
 echo "Step 2/2: Generating figures..."
 python scripts/visualize_comparison.py \
     --config configs/eval/phase2_helmholtz_grad_comparison.yaml \
-    --plot-types timeseries spatial seasonal interannual gradient_scatter gradient_pdf variable_pdf
+    --plot-types spatial timeseries variable_pdf
 
 echo ""
 echo "==========================================="

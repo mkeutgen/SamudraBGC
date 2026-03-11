@@ -670,8 +670,10 @@ LossType = Literal[
     "mse_cos_weighted",  
     "mse_residual_scaled",
     "mse_mae",
-    "mse_dynamic", 
+    "mse_dynamic",
     "mse_dynamic_no_limit",
+    "mae_gradient_relative",
+    "mae_dynamic",
 ]
 
 

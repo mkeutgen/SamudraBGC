@@ -37,19 +37,26 @@ echo "Comparing:"
 echo "  1. Phase 1: Helmholtz (Linear BGC)"
 echo "  2. Phase 1.5: Helmholtz (Log-Transformed BGC)"
 echo ""
-echo "Time period: 2010-2014 (validation)"
+echo "Time period: 2013-2014 (last 2 years for fast eval)"
 echo "Output: outputs/phase1_vs_phase15_comparison/"
 echo ""
 
+echo "Removing old output directory..."
+rm -rf outputs/phase1_vs_phase15_comparison
+
 echo "Step 1/2: Computing metrics..."
 python scripts/compare_rollouts.py \
-    --config configs/eval/phase1_vs_phase15_comparison.yaml
+    --config configs/eval/phase1_vs_phase15_comparison.yaml \
+    --skip-seasonal \
+    --skip-interannual \
+    --skip-gradient \
+    --skip-regional-characteristics
 
 echo ""
 echo "Step 2/2: Generating figures..."
 python scripts/visualize_comparison.py \
     --config configs/eval/phase1_vs_phase15_comparison.yaml \
-    --plot-types timeseries spatial seasonal interannual gradient_scatter gradient_pdf variable_pdf
+    --plot-types spatial timeseries variable_pdf
 
 echo ""
 echo "==========================================="

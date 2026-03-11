@@ -53,46 +53,48 @@ RHO_0       = 1025.0
 
 # ── Ablation heatmap data ─────────────────────────────────────────────────────
 # Champion chain: G1→G2→G3→G4 (each champion = baseline of next group)
+# NOTE: Using DEPTH-AVERAGED VARIABLES ONLY (fair comparison avoiding scale mismatch)
+# Metrics from: /scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/*/metrics/global_metrics.txt
 COLUMNS = [
     {
         "header": "Dynamics\nRepresentation",
         "rows": [
-            {"title": "Velocity\n(u, v)",   "rmse": 17.2, "accuracy": 0.73},
-            {"title": "Helmholtz\n(ψ, φ)",  "rmse": 14.8, "accuracy": 0.80},
+            {"title": "Velocity\n(u, v)",   "rmse": 5.243, "accuracy": 0.603},  # R²=0.6026, RMSE=5.2432
+            {"title": "Helmholtz\n(ψ, φ)",  "rmse": 3.835, "accuracy": 0.722},  # R²=0.7217, RMSE=3.8354 [CHAMPION]
         ],
     },
     {
         "header": "BGC\nRepresentation",
         "rows": [
-            {"title": "Linear BGC",         "rmse": 14.8, "accuracy": 0.80},
-            {"title": "Log BGC",            "rmse": 13.1, "accuracy": 0.84},
+            {"title": "Linear BGC",         "rmse": 3612.3, "accuracy": 0.599},  # R²=0.5987, RMSE=3612.3
+            {"title": "Log BGC",            "rmse": 3444.97, "accuracy": 0.739}, # R²=0.7389, RMSE=3445.0 [CHAMPION]
         ],
     },
     {
         "header": "Gradient\nWeight",
         "rows": [
-            {"title": "Grad = 0",           "rmse": 13.1, "accuracy": 0.84},
-            {"title": "Grad = 0.10",        "rmse": 12.3, "accuracy": 0.86},
-            {"title": "Grad = 0.50",        "rmse": 12.6, "accuracy": 0.85},
-            {"title": "Grad = 0.25",        "rmse": 11.6, "accuracy": 0.88},
+            {"title": "Grad = 0",           "rmse": 3.412, "accuracy": 0.691},  # R²=0.6912, RMSE=3.4124
+            {"title": "Grad = 0.10",        "rmse": None, "accuracy": None},     # FAILED - retraining (job 2226854)
+            {"title": "Grad = 0.25",        "rmse": 3.266, "accuracy": 0.652},  # R²=0.6519, RMSE=3.2662 [CHAMPION by RMSE]
+            {"title": "Grad = 0.50",        "rmse": 3.318, "accuracy": 0.698},  # R²=0.6978, RMSE=3.3178
         ],
     },
     {
         "header": "Architecture",
         "rows": [
-            {"title": "Baseline",           "rmse": 11.6, "accuracy": 0.88},
-            {"title": "Wide",               "rmse": 11.1, "accuracy": 0.89},
-            {"title": "Deep",               "rmse": 10.8, "accuracy": 0.90},
-            {"title": "Wide + Deep",        "rmse": 10.2, "accuracy": 0.91},
+            {"title": "Baseline",           "rmse": 3.266, "accuracy": 0.652},  # R²=0.6519, RMSE=3.2662
+            {"title": "Deeper",             "rmse": 3.169, "accuracy": 0.697},  # R²=0.6966, RMSE=3.1685
+            {"title": "Deeper+Wider",       "rmse": 3.131, "accuracy": 0.707},  # R²=0.7066, RMSE=3.1306 [CHAMPION by RMSE]
+            {"title": "Wider",              "rmse": 3.151, "accuracy": 0.729},  # R²=0.7291, RMSE=3.1511 [CHAMPION by R²]
         ],
     },
 ]
 
-all_acc  = [r["accuracy"] for col in COLUMNS for r in col["rows"]]
+all_acc  = [r["accuracy"] for col in COLUMNS for r in col["rows"] if r["accuracy"] is not None]
 ACC_MIN, ACC_MAX = min(all_acc), max(all_acc)
 CMAP_HM  = plt.cm.RdYlGn
 NORM_HM  = Normalize(vmin=ACC_MIN - 0.01, vmax=ACC_MAX + 0.01)
-COL_BEST = [max(r["accuracy"] for r in col["rows"]) for col in COLUMNS]
+COL_BEST = [max((r["accuracy"] for r in col["rows"] if r["accuracy"] is not None), default=None) for col in COLUMNS]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -160,6 +162,21 @@ def load_data():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def draw_heatmap_cell(ax, title, rmse, accuracy, is_best=False):
+    # Handle failed training cases (None values)
+    if accuracy is None or rmse is None:
+        ax.set_facecolor("#f0f0f0")  # Light gray for missing data
+        for sp in ax.spines.values():
+            sp.set_edgecolor("#cccccc"); sp.set_linewidth(2)
+        ax.set_xticks([]); ax.set_yticks([])
+        ax.text(0.5, 0.65, title, transform=ax.transAxes,
+                ha="center", va="center", fontsize=10, fontweight="bold",
+                color="#999999", multialignment="center")
+        ax.text(0.5, 0.35, "Training", transform=ax.transAxes,
+                ha="center", va="center", fontsize=9, color="#999999")
+        ax.text(0.5, 0.16, "pending", transform=ax.transAxes,
+                ha="center", va="center", fontsize=9, color="#999999", fontstyle="italic")
+        return
+
     face = CMAP_HM(NORM_HM(accuracy))
     ax.set_facecolor(face)
     for sp in ax.spines.values():
@@ -171,7 +188,7 @@ def draw_heatmap_cell(ax, title, rmse, accuracy, is_best=False):
     ax.text(0.5, 0.65, title + star, transform=ax.transAxes,
             ha="center", va="center", fontsize=10, fontweight="bold",
             color=tc, multialignment="center")
-    ax.text(0.5, 0.33, f"RMSE  {rmse:.1f}", transform=ax.transAxes,
+    ax.text(0.5, 0.33, f"RMSE  {rmse:.3f}", transform=ax.transAxes,
             ha="center", va="center", fontsize=9, color=tc)
     ax.text(0.5, 0.16, f"Acc  {accuracy:.0%}", transform=ax.transAxes,
             ha="center", va="center", fontsize=9, color=tc)
@@ -194,8 +211,9 @@ def draw_heatmap(outer_spec, fig):
             n_rows, 1, subplot_spec=hm_outer[c], hspace=hspace)
         for r, row in enumerate(col_data["rows"]):
             ax = fig.add_subplot(inner[r])
+            is_best = (row["accuracy"] is not None and best_acc is not None and row["accuracy"] == best_acc)
             draw_heatmap_cell(ax, row["title"], row["rmse"], row["accuracy"],
-                              is_best=(row["accuracy"] == best_acc))
+                              is_best=is_best)
             if r == 0:
                 ax.set_title(col_data["header"], fontsize=12,
                              fontweight="bold", pad=7)

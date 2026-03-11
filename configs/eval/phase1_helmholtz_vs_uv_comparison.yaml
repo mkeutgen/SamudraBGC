@@ -1,23 +1,21 @@
-# 4-way comparison: Phase 2 gradient weight ablation
-# Compares all 4 gradient penalty values on the validation period (2010-2014)
-# to identify the optimal gradient weight for the paper.
-#
-# All experiments use: Helmholtz (ψ,φ) + Log BGC (fixed from phase1/phase1.5)
-# Only varying: gradient_weight ∈ {0.0, 0.10, 0.25, 0.50}
+# 2-way comparison: Phase 1 variable selection (Helmholtz vs u,v)
+# Compares:
+#   1. phase1_helmholtz_nograd (linear BGC, helmholtz)
+#   2. phase1_velocity_nograd (linear BGC, u,v)
 
+# Experiments to compare (name: path to predictions.zarr)
 experiments:
-  "Grad = 0 (no penalty)":  "outputs/phase2_helmholtz_grad00_eval_linear/predictions.zarr/"
-  "Grad = 0.10":            "outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr/"
-  "Grad = 0.25":            "outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr/"
-  "Grad = 0.50":            "outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr/"
+  "Phase 1: Helmholtz (Linear BGC)": "outputs/phase1_helmholtz_nograd_eval/predictions.zarr/"
+  "Phase 1: Full State u,v (Linear BGC)": "outputs/phase1_velocity_nograd_eval/predictions.zarr/"
 
 # Path to ground truth data
 ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
 
 # Output directory for results
-output_dir: "outputs/phase2_helmholtz_grad_comparison"
+output_dir: "outputs/phase1_helmholtz_vs_uv_comparison"
 
-# Validation period: use 2013-2014 (last 2 years) for faster evaluation; error accumulation is diagnostic
+# Time slice for evaluation (YYYY-MM-DD)
+# Use 2013-2014 (last 2 years) for faster evaluation; error accumulation is diagnostic
 time_slice:
   - "2013-01-01"
   - "2014-12-31"
@@ -27,8 +25,8 @@ dx_km: 9.0
 
 # Analysis options
 compute_regional: true  # Regional metrics (now feasible with 2-year window)
-save_time_series: true
-save_spatial_fields: false
+save_time_series: true  # Save time series to CSV for plotting
+save_spatial_fields: false  # Save spatial fields
 
 # Visualization settings
 visualization:

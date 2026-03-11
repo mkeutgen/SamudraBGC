@@ -17,36 +17,46 @@ ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JR
 # Output directory for results
 output_dir: "outputs/phase4_arch_comparison"
 
-# Validation period (2010-2014) — same as prior phases
+# Validation period: use 2013-2014 (last 2 years) for faster evaluation; error accumulation is diagnostic
 time_slice:
-  - "2010-01-01"
+  - "2013-01-01"
   - "2014-12-31"
 
 # Grid spacing in kilometers (for spectral analysis)
 dx_km: 9.0
 
 # Analysis options
-compute_regional: false  # Regional metrics (SLOW)
+compute_regional: true  # Regional metrics (now feasible with 2-year window)
 save_time_series: true
 save_spatial_fields: false
 
 # Visualization settings
 visualization:
-  # Spring bloom progression: March-May each year (relative to 2010-01-01)
-  snapshot_times: [0, 74, 105, 135, 440, 471, 501, 806, 837, 867, 1172, 1203, 1233]
+  # Single snapshot: Spring 2014 (day 444 from 2013-01-01)
+  snapshot_times: [444]
 
-  # Time index for spectral analysis (middle of validation period ~2012-01-01)
-  spectral_time_idx: 730
+  # Time index for spectral analysis (middle of test period, relative index)
+  spectral_time_idx: 365  # 2014-01-01
 
   # Figure DPI
   dpi: 150
 
   # Plot types to generate
   plot_types:
-    - seasonal
-    - interannual
-    - gradient_scatter
-    - gradient_pdf
+    - spatial
+    - timeseries
+    - variable_pdf
+
+  # Skip surface-level _0 spatial figures
+  exclude_spatial_variables:
+    - temp_0
+    - salt_0
+    - psi_0
+    - phi_0
+    - dic_0
+    - o2_0
+    - no3_0
+    - chl_0
 
 # Memory management
 memory:

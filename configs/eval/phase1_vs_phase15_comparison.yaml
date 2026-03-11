@@ -14,36 +14,46 @@ ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JR
 output_dir: "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_vs_phase15_comparison"
 
 # Time slice for evaluation (YYYY-MM-DD)
-# Use 2010-2014 validation period (5 years)
+# Use 2013-2014 (last 2 years) for faster evaluation; error accumulation is diagnostic
 time_slice:
-  - "2010-01-01"
+  - "2013-01-01"
   - "2014-12-31"
 
 # Grid spacing in kilometers (for spectral analysis)
 dx_km: 9.0
 
 # Analysis options
-compute_regional: false  # Regional metrics (SLOW)
+compute_regional: true  # Regional metrics (now feasible with 2-year window)
 save_time_series: true  # Save time series to CSV for plotting
 save_spatial_fields: false  # Save spatial fields
 
 # Visualization settings
 visualization:
-  # Spring bloom progression: March-May each year (relative to 2015-01-01)
-  snapshot_times: [0, 74, 105, 135, 440, 471, 501, 806, 837, 867, 1172, 1203, 1233]
+  # Single snapshot: Spring 2014 (day 444 from 2013-01-01)
+  snapshot_times: [444]
 
   # Time index for spectral analysis (middle of test period, relative index)
-  spectral_time_idx: 730  # 2017-01-01
+  spectral_time_idx: 365  # 2014-01-01
 
   # Figure DPI
   dpi: 150
 
   # Plot types to generate
   plot_types:
-    - seasonal
-    - interannual
-    - gradient_scatter
-    - gradient_pdf
+    - spatial
+    - timeseries
+    - variable_pdf
+
+  # Skip surface-level _0 spatial figures
+  exclude_spatial_variables:
+    - temp_0
+    - salt_0
+    - psi_0
+    - phi_0
+    - dic_0
+    - o2_0
+    - no3_0
+    - chl_0
 
 # Memory management
 memory:

@@ -79,6 +79,7 @@ from ocean_emulators.utils.logging import (
     handle_warnings,
 )
 from ocean_emulators.utils.loss import (
+    MaeDynamic,
     MseDynamic,
     decomposed_mse,
     decomposed_mae,
@@ -86,8 +87,8 @@ from ocean_emulators.utils.loss import (
     decomposed_mse_diff_weighted,
     decomposed_mse_mae,
     decomposed_mse_scaled,
-    decomposed_mae_gradient_weighted,  
-    decomposed_mae_gradient_multiscale, 
+    decomposed_mae_gradient_weighted,
+    decomposed_mae_gradient_relative,
 )
 from ocean_emulators.utils.train import (
     CheckpointPaths,
@@ -288,6 +289,14 @@ class Trainer:
                     should_limit=should_limit,
                 )
             
+            case "mae_dynamic":
+                logger.info(f"Using dynamic MAE loss (α={cfg.gradient_weight})")
+                self.loss_fn = MaeDynamic(
+                    wet=self.wet,
+                    n_vars=len(self.prognostic_var_names),
+                    gradient_weight=cfg.gradient_weight,
+                )
+
             case "mae_gradient_weighted":
                 logger.info(f"Using MAE loss with weighted gradient penalty (α={cfg.gradient_weight}, β={cfg.second_order_weight})")
                 self.loss_fn = partial(
@@ -297,14 +306,15 @@ class Trainer:
                     second_order_weight=cfg.second_order_weight
                 )
             
-            case "mae_gradient_multiscale":  # Tier 2
-                logger.info(f"Using MAE loss with multi-scale gradient penalty")
+            case "mae_gradient_relative":
+                logger.info(f"Using MAE loss with relative gradient penalty (α={cfg.gradient_weight}, β={cfg.second_order_weight})")
                 self.loss_fn = partial(
-                    decomposed_mae_gradient_multiscale,
+                    decomposed_mae_gradient_relative,
                     wet=self.wet,
                     gradient_weight=cfg.gradient_weight,
-                    scales=cfg.gradient_scales or [1, 2, 4]
-                )            
+                    second_order_weight=cfg.second_order_weight,
+                )
+
             case _:
                 assert_never(cfg.loss)
 

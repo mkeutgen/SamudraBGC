@@ -782,16 +782,18 @@ def main():
                                                output_dir / f'{varname}_timeseries.png')
 
                 if 'spatial' in plot_types:
-                    for ti in snapshot_times:
-                        try:
-                            tv = ground_truth.time.isel(time=ti).values
-                            if hasattr(tv, 'item'):
-                                tv = tv.item()
-                            tag = f"{tv.year:04d}{tv.month:02d}{tv.day:02d}" if hasattr(tv, 'year') else f"t{ti:04d}"
-                        except Exception:
-                            tag = f"t{ti:04d}"
-                        plot_spatial_snapshot(varname, props, predictions, ground_truth, ti,
-                                             output_dir / f'{varname}_snapshot_{tag}.png')
+                    spatial_exclude = set(config.get('visualization', {}).get('exclude_spatial_variables', []))
+                    if varname not in spatial_exclude:
+                        for ti in snapshot_times:
+                            try:
+                                tv = ground_truth.time.isel(time=ti).values
+                                if hasattr(tv, 'item'):
+                                    tv = tv.item()
+                                tag = f"{tv.year:04d}{tv.month:02d}{tv.day:02d}" if hasattr(tv, 'year') else f"t{ti:04d}"
+                            except Exception:
+                                tag = f"t{ti:04d}"
+                            plot_spatial_snapshot(varname, props, predictions, ground_truth, ti,
+                                                 output_dir / f'{varname}_snapshot_{tag}.png')
 
                 if 'spectra' in plot_types:
                     plot_power_spectrum(varname, props, predictions, ground_truth,
