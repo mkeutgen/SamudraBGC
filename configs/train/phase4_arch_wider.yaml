@@ -2,7 +2,7 @@
 # ============================================================================
 # Paper Ablation Study - Phase 4: Architecture Ablation
 # Configuration: Wider model (ch_width [400,550,750] instead of [320,440,600])
-# Base: Phase 3 winner (grad 0.25)
+# Base: Phase 2 winner (grad 0.10)
 # Hypothesis: Wider channels increase model capacity without adding depth
 # ============================================================================
 
@@ -16,7 +16,7 @@ learning_rate: 0.0002
 scheduler:
   type: cosine
 loss: mae_gradient_weighted
-gradient_weight: 0.25
+gradient_weight: 0.10
 second_order_weight: 0.0
 finetune: false
 resume_ckpt_path: null

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=phase4_arch_wider
+#SBATCH --job-name=phase2_mae_relg010
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -8,12 +8,12 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=300G
 #SBATCH --time=5-00:00:00
-#SBATCH --output=logs/phase4_arch_wider_train_%j.out
-#SBATCH --error=logs/phase4_arch_wider_train_%j.err
+#SBATCH --output=logs/phase2_mae_relative_gradient_grad010_train_%j.out
+#SBATCH --error=logs/phase2_mae_relative_gradient_grad010_train_%j.err
 
-# Paper Ablation Study - Phase 4: Architecture Ablation
-# Configuration: Wider model (ch_width [400,550,750])
-# Base: Phase 2 winner (grad 0.10)
+# Paper Ablation Study - Phase 2: MAE Dynamic Loss
+# Configuration: mae_relative_gradient with gradient_weight = 0.10
+# Expected runtime: ~100h (50 epochs @ ~2h/epoch with 16 L40S GPUs)
 
 set -e
 
@@ -29,8 +29,8 @@ export MASTER_ADDR=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 export MASTER_PORT=29500
 export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 
-echo "Training: phase4_arch_wider (ch_width [400,550,750])"
-echo "Config: configs/train/phase4_arch_wider.yaml"
+echo "Training: phase2_mae_relative_gradient_grad010"
+echo "Config: configs/train/phase2_mae_relative_gradient_grad010.yaml"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 
 srun --ntasks=16 \
@@ -38,6 +38,6 @@ srun --ntasks=16 \
      --cpus-per-task=16 \
      --gpus-per-node=1 \
      python -m ocean_emulators.train \
-     configs/train/phase4_arch_wider.yaml
+     configs/train/phase2_mae_relative_gradient_grad010.yaml
 
 echo "Training complete!"

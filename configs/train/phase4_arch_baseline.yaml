@@ -2,7 +2,7 @@
 # ============================================================================
 # Paper Ablation Study - Phase 4: Architecture Ablation
 # Configuration: Baseline model (3 UNet levels, ch_width [320,440,600])
-# Base: Phase 3 winner (grad 0.25) — same architecture, trained for 50 epochs
+# Base: Phase 2 winner (grad 0.10) — same architecture, trained for 50 epochs
 # Hypothesis: Control for the architecture ablation (wider / deeper / deeper+wider)
 # ============================================================================
 
@@ -16,7 +16,7 @@ learning_rate: 0.0002
 scheduler:
   type: cosine
 loss: mae_gradient_weighted
-gradient_weight: 0.25
+gradient_weight: 0.10
 second_order_weight: 0.0
 finetune: false
 resume_ckpt_path: null
