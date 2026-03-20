@@ -749,6 +749,30 @@ class EnsembleConfig(BaseConfig):
     output_ensemble_std: bool = True
 
 
+class PCAConfig(BaseConfig):
+    """Configuration for PCA-based vertical representation.
+
+    When set on EvalConfig, enables inverse PCA reconstruction from
+    PCA coefficient predictions back to depth-level fields for
+    evaluation metrics.
+    """
+
+    pca_params_path: str = Field(
+        description="Path to pca_params.npz file with fitted PCA parameters"
+    )
+    original_data_root: Location = Field(
+        description="Path to the original depth-level data (for truth comparison)"
+    )
+    original_prognostic_vars_key: str = Field(
+        description="Prognostic vars key for original depth-level variables "
+        "(e.g., 'helmholtz_log_no_logno3_all')"
+    )
+    n_components: int = Field(
+        default=10,
+        description="Number of PCA components per variable",
+    )
+
+
 class EvalConfig(TopLevelConfig):
     # Basic parameters
     debug: bool = False
@@ -772,6 +796,10 @@ class EvalConfig(TopLevelConfig):
     data: DataConfig
     model: AnyModelConfig = SamudraConfig()
     ensemble: EnsembleConfig = Field(default_factory=EnsembleConfig)
+    pca: PCAConfig | None = Field(
+        default=None,
+        description="PCA config for inverse reconstruction at eval time",
+    )
 
     def prepare_output_dirs(self) -> None:
         self.experiment.output_dir.mkdir(parents=True, exist_ok=True)
