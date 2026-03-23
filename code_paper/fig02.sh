@@ -5,12 +5,13 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=800G
-#SBATCH --time=02:00:00
+#SBATCH --time=06:00:00
 #SBATCH --output=/scratch/cimes/maximek/INMOS/Ocean_Emulator/code_paper/logs/fig02_%j.out
 #SBATCH --error=/scratch/cimes/maximek/INMOS/Ocean_Emulator/code_paper/logs/fig02_%j.err
 
 # Figure 2: Champion model BGC performance
-# Computes upper-100m depth-weighted averages (33 levels × 3 vars × 2 datasets).
+# Computes depth-weighted averages for 3 depth ranges (surface/interior/deep) x 7 vars x 2 datasets.
+# Produces SI timeseries and PDFs for 4 biomes x 3 depth ranges.
 
 set -e
 

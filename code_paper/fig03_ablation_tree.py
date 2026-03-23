@@ -32,21 +32,21 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # Champion is ALWAYS the first node in each level (placed on top).
 TREE_LEVELS = [
     {
-        "header": "Dynamics\nRepresentation",
+        "header": "Ocean Dynamics\nRepresentation",
         "nodes": [
             {"label": "Helmholtz (ψ, φ)",   "r2": 0.5559, "champion": True},
             {"label": "Velocity (u, v)",     "r2": 0.5198, "champion": False},
         ],
     },
     {
-        "header": "BGC\nRepresentation",
+        "header": "Biogeochemistry\nRepresentation",
         "nodes": [
             {"label": "Log BGC",             "r2": 0.5870, "champion": True},
             {"label": "Linear BGC",          "r2": 0.5559, "champion": False},
         ],
     },
     {
-        "header": "Gradient\nWeight",
+        "header": "Gradient Weight\nin Loss Function",
         "nodes": [
             {"label": "α = 0.10",           "r2": 0.7481, "champion": True},
             {"label": "α = 0",              "r2": 0.7404, "champion": False},
@@ -55,7 +55,7 @@ TREE_LEVELS = [
         ],
     },
     {
-        "header": "Architecture",
+        "header": "ML Architecture",
         "nodes": [
             {"label": "Baseline",            "r2": None, "champion": False},
             {"label": "Deeper",              "r2": None, "champion": False},
@@ -185,10 +185,10 @@ def draw_ablation_tree():
                         color=CLR_PEND, zorder=3, fontstyle="italic")
 
     # ── Column headers ────────────────────────────────────────────────────────
+    header_y = max(level_coords[li][0][1] for li in range(n_levels)) + node_h / 2 + 0.55
     for li, level in enumerate(TREE_LEVELS):
         x = x_positions[li]
-        top_y = level_coords[li][0][1] + node_h / 2 + 0.55
-        ax.text(x, top_y, level["header"],
+        ax.text(x, header_y, level["header"],
                 ha="center", va="bottom", fontsize=12, fontweight="bold",
                 color="#333333", multialignment="center")
 

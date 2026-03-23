@@ -384,8 +384,8 @@ class MaeDynamic:
     Loss = scale_c * (MAE_c + α * rel_grad_c)   for each channel c
     """
 
-    N_WINDOW = 25
-    """Rolling window size to average over (~number of steps)."""
+    DEFAULT_N_WINDOW = 25
+    """Default rolling window size to average over (~number of steps)."""
 
     def __init__(
         self,
@@ -393,10 +393,12 @@ class MaeDynamic:
         n_vars: int,
         *,
         gradient_weight: float = 0.0,
+        n_window: int = DEFAULT_N_WINDOW,
     ):
         self._wet: Grid = wet
         self._n_vars = n_vars
         self._gradient_weight = gradient_weight
+        self._n_window = n_window
         self._per_channel_scale: Float[torch.Tensor, " var"] = torch.ones(
             n_vars, device=wet.device
         )
@@ -469,8 +471,8 @@ class MaeDynamic:
             all_reduce_mean(new_weights)
 
         self._per_channel_scale = (
-            self._per_channel_scale * (MaeDynamic.N_WINDOW - 1) + new_weights
-        ) / MaeDynamic.N_WINDOW
+            self._per_channel_scale * (self._n_window - 1) + new_weights
+        ) / self._n_window
 
     def loss_scale_per_channel(self) -> Float[torch.Tensor, " var"]:
         return self._per_channel_scale

@@ -10,13 +10,16 @@
 #SBATCH --output=logs/phase2_grad_comparison_%j.out
 #SBATCH --error=logs/phase2_grad_comparison_%j.err
 
-# Phase 2 — Gradient Weight Ablation: 4-way comparison
-# Compares grad00 / grad010 / grad025 / grad050 on the validation period (2010-2014)
-# Prerequisite: all 4 eval jobs must have completed:
+# Phase 2 — Gradient Weight Ablation: 6-way comparison
+# Compares grad00 / grad010 / grad025 / grad050 + MAE relative gradient (grad010, grad025)
+# on the validation period (2010-2014)
+# Prerequisite: all 6 eval jobs must have completed:
 #   sbatch scripts/slurm/eval_phase2_helmholtz_grad00.sh
 #   sbatch scripts/slurm/eval_phase2_helmholtz_grad010.sh
 #   sbatch scripts/slurm/eval_phase2_helmholtz_grad025.sh
 #   sbatch scripts/slurm/eval_phase2_helmholtz_grad050.sh
+#   sbatch scripts/slurm/eval_phase2_mae_relative_gradient_grad010.sh
+#   sbatch scripts/slurm/eval_phase2_mae_relative_gradient_grad025.sh
 
 set -e
 
@@ -39,6 +42,8 @@ echo "  1. Grad = 0.00  (no penalty)"
 echo "  2. Grad = 0.10"
 echo "  3. Grad = 0.25"
 echo "  4. Grad = 0.50"
+echo "  5. MAE Rel Grad = 0.10"
+echo "  6. MAE Rel Grad = 0.25"
 echo ""
 echo "Time period: 2013-2014 (last 2 years for fast eval)"
 echo "Output: outputs/phase2_helmholtz_grad_comparison/"

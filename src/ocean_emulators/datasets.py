@@ -82,7 +82,24 @@ class InferenceDataset(Dataset):
         self.ensemble_config = ensemble_config
         self._perturbation_generator = None
         if ensemble_config and ensemble_config.enabled:
-            self._perturbation_generator = PerturbationGenerator(ensemble_config)
+            # Extract normalization means/stds for density compensation
+            prog_src = self._prognostic_src
+            if "lev" in prog_src.means.dims:
+                from ocean_emulators.utils.data import conditional_rearrange
+                means_np = conditional_rearrange(
+                    prog_src.means, "(variable lev)=var", concat_dim="var"
+                ).rename({"var": "variable"}).to_numpy().reshape(-1)
+                stds_np = conditional_rearrange(
+                    prog_src.stds, "(variable lev)=var", concat_dim="var"
+                ).rename({"var": "variable"}).to_numpy().reshape(-1)
+            else:
+                means_np = prog_src.means.to_array().to_numpy().reshape(-1)
+                stds_np = prog_src.stds.to_array().to_numpy().reshape(-1)
+            self._perturbation_generator = PerturbationGenerator(
+                ensemble_config,
+                prognostic_means=means_np,
+                prognostic_stds=stds_np,
+            )
             logger.info(f"Ensemble perturbation enabled (seed_offset={ensemble_config.seed_offset})")
 
         time_indices = np.arange(data.time.size)

@@ -42,10 +42,11 @@ GT_PATH       = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_F
 LINEAR_PATH   = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
 LOG_PATH      = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase15_helmholtz_log_eval_linear/predictions.zarr"
 VELOCITY_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_velocity_nograd_eval/predictions.zarr"
+BEST_PATH     = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr"
+BEST_LABEL    = "Best model"
 
 GRAD_PATHS = {
     "α = 0":    "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad00_eval_linear/predictions.zarr",
-    "α = 0.10": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr",
     "α = 0.25": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr",
     "α = 0.50": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr",
 }
@@ -125,35 +126,83 @@ def _depth_avg_ts(ds, var_prefix, depth_indices, scale_factor, mask2d):
     return np.nanmean(field[:, wet], axis=1)
 
 
+def _time_to_numeric(times):
+    calendar = getattr(times[0], "calendar", "noleap")
+    return np.asarray(
+        cftime.date2num(times.tolist(), units="days since 1900-01-01", calendar=calendar),
+        dtype=np.float64,
+    )
+
+
+def _nearest_time_indices(source_times, target_times):
+    source_num = _time_to_numeric(source_times)
+    target_num = _time_to_numeric(target_times)
+    idx = np.searchsorted(source_num, target_num)
+    idx = np.clip(idx, 0, len(source_num) - 1)
+    left = np.clip(idx - 1, 0, len(source_num) - 1)
+    use_left = np.abs(source_num[left] - target_num) < np.abs(source_num[idx] - target_num)
+    idx[use_left] = left[use_left]
+    return idx
+
+
+def _isel_nearest_times(ds, target_times):
+    source_times = ds.time.values
+    if len(source_times) == len(target_times) and np.array_equal(source_times, target_times):
+        return ds
+    return ds.isel(time=_nearest_time_indices(source_times, target_times))
+
+
+def _center_crop(field, target_shape):
+    ny, nx = field.shape
+    target_y, target_x = target_shape
+    y0 = max((ny - target_y) // 2, 0)
+    x0 = max((nx - target_x) // 2, 0)
+    return field[y0:y0 + target_y, x0:x0 + target_x]
+
+
+def _crop_to_common_shape(*fields):
+    target_shape = (
+        min(field.shape[0] for field in fields),
+        min(field.shape[1] for field in fields),
+    )
+    return tuple(_center_crop(field, target_shape) for field in fields)
+
+
 def load_bgc_data():
     t0 = _time.time()
     print("  Loading BGC time series data...")
     gt_ds = xr.open_zarr(GT_PATH, consolidated=True)
     mask2d = gt_ds["mask"].values
+    lin_ds = xr.open_zarr(LINEAR_PATH, consolidated=False)
+    log_ds = xr.open_zarr(LOG_PATH, consolidated=False)
+    best_ds = xr.open_zarr(BEST_PATH, consolidated=False)
 
-    t_start = cftime.DatetimeNoLeap(2010, 1, 3, 12)
-    t_end   = cftime.DatetimeNoLeap(2014, 12, 30, 12)
-    i0 = int(np.argmin(np.abs(gt_ds.time.values - t_start)))
-    i1 = int(np.argmin(np.abs(gt_ds.time.values - t_end))) + 1
+    pred_times = lin_ds.time.values
+    gt_sel = _isel_nearest_times(gt_ds, pred_times)
+    log_sel = _isel_nearest_times(log_ds, pred_times)
+    best_sel = _isel_nearest_times(best_ds, pred_times)
 
-    pred_ds = xr.open_zarr(LINEAR_PATH, consolidated=False)
-    pred_times = pred_ds.time.values
+    depth_indices = list(range(0, 33))  # 0–100 m surface levels
 
     data = {}
-    for var, factor in [("no3_0", lambda x: x * MOL_TO_UMOL),
-                        ("dic_0", lambda x: x * MOL_TO_UMOL)]:
-        gt_raw = gt_ds[var].isel(time=slice(i0, i1)).values
-        wet = mask2d > 0.5
-        gt_ts = np.nanmean(factor(gt_raw)[:, wet], axis=1)
-        lin_ts = np.nanmean(factor(xr.open_zarr(LINEAR_PATH, consolidated=False)[var].values)[:, wet], axis=1)
-        log_ts = np.nanmean(factor(xr.open_zarr(LOG_PATH, consolidated=False)[var].values)[:, wet], axis=1)
-        data[var] = {"gt": gt_ts, "linear": lin_ts, "log": log_ts}
+    for var_prefix, factor in [("o2", MOL_TO_UMOL), ("dic", MOL_TO_UMOL)]:
+        key = f"{var_prefix}_surf"
+        data[key] = {
+            "gt":     _depth_avg_ts(gt_sel,  var_prefix, depth_indices, factor, mask2d),
+            "linear": _depth_avg_ts(lin_ds,  var_prefix, depth_indices, factor, mask2d),
+            "log":    _depth_avg_ts(log_sel, var_prefix, depth_indices, factor, mask2d),
+            "best":   _depth_avg_ts(best_sel, var_prefix, depth_indices, factor, mask2d),
+        }
 
     def to_dt(arr):
         return np.array([datetime.datetime(t.year, t.month, t.day) for t in arr])
 
     data["times"] = to_dt(pred_times)
     data["mask2d"] = mask2d
+    gt_ds.close()
+    lin_ds.close()
+    log_ds.close()
+    best_ds.close()
     print(f"    done in {_time.time()-t0:.1f}s")
     return data
 
@@ -166,53 +215,50 @@ def load_helmholtz_data():
     gt_ds   = xr.open_zarr(GT_PATH, consolidated=True)
     helm_ds = xr.open_zarr(LINEAR_PATH, consolidated=False)
     vel_ds  = xr.open_zarr(VELOCITY_PATH, consolidated=False)
+    best_ds = xr.open_zarr(BEST_PATH, consolidated=False)
+
+    mask2d = gt_ds["mask"].values  # 1=ocean, 0=land
+    lat    = gt_ds["lat"].values
+    lon    = gt_ds["lon"].values
+
+    def masked_snap(ds, target_arr):
+        field = _depth_avg_o2(_isel_nearest_times(ds, target_arr).isel(time=0), depth_indices)
+        field = field.astype(np.float64)
+        field[mask2d < 0.5] = np.nan  # land → NaN (some evals encode land as 1.0)
+        return field
 
     target = cf.DatetimeNoLeap(2014, 3, 21, 12)
-    pred_times = helm_ds.time.values
-    t_idx_pred = int(np.argmin(np.abs(pred_times - target)))
-    gt_times = gt_ds.time.values
-    t_idx_gt = int(np.argmin(np.abs(gt_times - target)))
+    target_arr = np.array([target], dtype=object)
+    gt_snap   = masked_snap(gt_ds,   target_arr)
+    helm_snap = masked_snap(helm_ds, target_arr)
+    vel_snap  = masked_snap(vel_ds,  target_arr)
+    best_snap = masked_snap(best_ds, target_arr)
+    gt_snap, helm_snap, vel_snap, best_snap = _crop_to_common_shape(
+        gt_snap, helm_snap, vel_snap, best_snap
+    )
 
-    gt_snap   = _depth_avg_o2(gt_ds.isel(time=t_idx_gt), depth_indices)
-    helm_snap = _depth_avg_o2(helm_ds.isel(time=t_idx_pred), depth_indices)
-    vel_snap  = _depth_avg_o2(vel_ds.isel(time=t_idx_pred), depth_indices)
+    # Crop lat/lon to match the (potentially) cropped spatial extent
+    ny_c, nx_c = gt_snap.shape
+    y0 = (mask2d.shape[0] - ny_c) // 2
+    x0 = (mask2d.shape[1] - nx_c) // 2
+    lat_c = lat[y0:y0 + ny_c]
+    lon_c = lon[x0:x0 + nx_c]
 
-    if gt_snap.shape != helm_snap.shape:
-        dt = gt_snap.shape[0] - helm_snap.shape[0]
-        dl = gt_snap.shape[1] - helm_snap.shape[1]
-        if dt > 0:
-            gt_snap = gt_snap[dt//2:-(dt - dt//2), :]
-        if dl > 0:
-            gt_snap = gt_snap[:, dl//2:-(dl - dl//2)]
+    # Power spectrum from the same 2014-03-21 snapshot
+    wl, gt_spec   = _azimuthal_power_spectrum(gt_snap,   DX_KM)
+    _,  helm_spec = _azimuthal_power_spectrum(helm_snap, DX_KM)
+    _,  vel_spec  = _azimuthal_power_spectrum(vel_snap,  DX_KM)
+    _,  best_spec = _azimuthal_power_spectrum(best_snap, DX_KM)
 
-    spec_indices = np.linspace(500, 1700, 8, dtype=int)
-    gt_specs, helm_specs, vel_specs = [], [], []
-    for ti in spec_indices:
-        ti_gt = int(np.argmin(np.abs(gt_times - pred_times[ti])))
-        gt_field   = _depth_avg_o2(gt_ds.isel(time=ti_gt), depth_indices)
-        helm_field = _depth_avg_o2(helm_ds.isel(time=ti), depth_indices)
-        vel_field  = _depth_avg_o2(vel_ds.isel(time=ti), depth_indices)
-        if gt_field.shape != helm_field.shape:
-            dt = gt_field.shape[0] - helm_field.shape[0]
-            dl = gt_field.shape[1] - helm_field.shape[1]
-            if dt > 0:
-                gt_field = gt_field[dt//2:-(dt - dt//2), :]
-            if dl > 0:
-                gt_field = gt_field[:, dl//2:-(dl - dl//2)]
-        wl, s = _azimuthal_power_spectrum(gt_field, DX_KM)
-        gt_specs.append(s)
-        _, s = _azimuthal_power_spectrum(helm_field, DX_KM)
-        helm_specs.append(s)
-        _, s = _azimuthal_power_spectrum(vel_field, DX_KM)
-        vel_specs.append(s)
-
-    gt_ds.close(); helm_ds.close(); vel_ds.close()
+    gt_ds.close(); helm_ds.close(); vel_ds.close(); best_ds.close()
     return {
-        "gt_snap": gt_snap, "helm_snap": helm_snap, "vel_snap": vel_snap,
+        "gt_snap": gt_snap, "helm_snap": helm_snap, "vel_snap": vel_snap, "best_snap": best_snap,
+        "lat": lat_c, "lon": lon_c,
         "wavelength_km": wl,
-        "gt_spec": np.mean(gt_specs, axis=0),
-        "helm_spec": np.mean(helm_specs, axis=0),
-        "vel_spec": np.mean(vel_specs, axis=0),
+        "gt_spec": gt_spec,
+        "helm_spec": helm_spec,
+        "vel_spec": vel_spec,
+        "best_spec": best_spec,
     }
 
 
@@ -222,23 +268,26 @@ def load_gradient_data(mask2d):
     gt_ds = xr.open_zarr(GT_PATH, consolidated=True)
     first_pred = xr.open_zarr(list(GRAD_PATHS.values())[0], consolidated=False)
     pred_times = first_pred.time.values
-    time_start, time_end = pred_times[0], pred_times[-1]
     first_pred.close()
 
-    gt_slice = gt_ds.sel(time=slice(str(time_start), str(time_end)))
+    gt_slice = _isel_nearest_times(gt_ds, pred_times)
     gt_ts = _depth_avg_ts(gt_slice, "o2", depth_indices, MOL_TO_UMOL, mask2d)
 
     grad_ts = {}
     for label, path in GRAD_PATHS.items():
         ds = xr.open_zarr(path, consolidated=False)
-        grad_ts[label] = _depth_avg_ts(ds, "o2", depth_indices, MOL_TO_UMOL, mask2d)
+        ds_sel = _isel_nearest_times(ds, pred_times)
+        grad_ts[label] = _depth_avg_ts(ds_sel, "o2", depth_indices, MOL_TO_UMOL, mask2d)
         ds.close()
+    best_ds = xr.open_zarr(BEST_PATH, consolidated=False)
+    best_ts = _depth_avg_ts(_isel_nearest_times(best_ds, pred_times), "o2", depth_indices, MOL_TO_UMOL, mask2d)
+    best_ds.close()
     gt_ds.close()
 
     def to_dt(arr):
         return np.array([datetime.datetime(t.year, t.month, t.day) for t in arr])
 
-    return {"times": to_dt(pred_times), "gt": gt_ts, "grad": grad_ts}
+    return {"times": to_dt(pred_times), "gt": gt_ts, "grad": grad_ts, "best": best_ts}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -246,25 +295,38 @@ def load_gradient_data(mask2d):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def draw_helmholtz_panel(axes, helm_data):
-    ax_gt, ax_helm, ax_vel, ax_spec = axes
+    ax_gt, ax_helm, ax_vel, ax_best, ax_spec = axes
+    lat, lon = helm_data["lat"], helm_data["lon"]
     vmin = min(np.nanpercentile(helm_data["gt_snap"], 2),
                np.nanpercentile(helm_data["helm_snap"], 2),
-               np.nanpercentile(helm_data["vel_snap"], 2))
+               np.nanpercentile(helm_data["vel_snap"], 2),
+               np.nanpercentile(helm_data["best_snap"], 2))
     vmax = max(np.nanpercentile(helm_data["gt_snap"], 98),
                np.nanpercentile(helm_data["helm_snap"], 98),
-               np.nanpercentile(helm_data["vel_snap"], 98))
+               np.nanpercentile(helm_data["vel_snap"], 98),
+               np.nanpercentile(helm_data["best_snap"], 98))
 
     for ax, field, title in [
         (ax_gt,   helm_data["gt_snap"],   "MOM6-DG"),
         (ax_helm, helm_data["helm_snap"], "Helmholtz (ψ, φ)"),
         (ax_vel,  helm_data["vel_snap"],  "Velocity (u, v)"),
+        (ax_best, helm_data["best_snap"], BEST_LABEL),
     ]:
-        im = ax.imshow(field, origin="lower", cmap="plasma",
-                        vmin=vmin, vmax=vmax, aspect="auto")
-        ax.set_title(title, fontsize=9, fontweight="bold")
-        ax.set_xticks([]); ax.set_yticks([])
+        im = ax.pcolormesh(lon, lat, field, cmap="plasma",
+                           vmin=vmin, vmax=vmax, shading="auto")
+        ax.set_facecolor("#cccccc")
+        ax.set_aspect("equal")
+        ax.text(0.5, 0.97, title, transform=ax.transAxes,
+                fontsize=9, fontweight="bold", ha="center", va="top",
+                bbox=dict(fc="white", ec="none", alpha=0.7, pad=2))
+        ax.tick_params(labelsize=7)
 
-    cb = plt.colorbar(im, ax=ax_vel, fraction=0.046, pad=0.04)
+    for ax in (ax_gt, ax_vel):
+        ax.set_ylabel("Latitude (°N)", fontsize=8)
+    for ax in (ax_vel, ax_best):
+        ax.set_xlabel("Longitude (°E)", fontsize=8)
+
+    cb = plt.colorbar(im, ax=ax_best, fraction=0.046, pad=0.04)
     cb.set_label("O₂ (µmol kg⁻¹)", fontsize=8)
     cb.ax.tick_params(labelsize=7)
 
@@ -272,28 +334,29 @@ def draw_helmholtz_panel(axes, helm_data):
                transform=ax_gt.transAxes, fontsize=11, fontweight="bold")
 
     wl = helm_data["wavelength_km"]
-    clrs = {"gt": "#333333", "helm": "#4878CF", "vel": "#E07B39"}
+    clrs = {"gt": "#333333", "helm": "#4878CF", "vel": "#E07B39", "best": "#2E8B57"}
     ax_spec.loglog(wl, helm_data["gt_spec"],   color=clrs["gt"],   lw=1.8, label="MOM6-DG")
     ax_spec.loglog(wl, helm_data["helm_spec"], color=clrs["helm"], lw=1.5, label="Helmholtz (ψ, φ)")
     ax_spec.loglog(wl, helm_data["vel_spec"],  color=clrs["vel"],  lw=1.5, ls="--", label="Velocity (u, v)")
+    ax_spec.loglog(wl, helm_data["best_spec"], color=clrs["best"], lw=2.0, label=BEST_LABEL)
     ax_spec.set_xlabel("Wavelength (km)", fontsize=10)
     ax_spec.set_ylabel("Power spectral density", fontsize=10)
     ax_spec.set_xlim(wl.max(), max(DX_KM * 2.5, wl.min()))
     ax_spec.legend(fontsize=8, loc="upper right", framealpha=0.7)
-    ax_spec.set_title("Power spectrum (averaged 2011–2014)", fontsize=9)
+    ax_spec.set_title("Power spectrum (2014-03-21)", fontsize=9)
 
 
-def draw_bgc_panel(ax_no3, ax_dic, data):
+def draw_bgc_panel(ax_o2, ax_dic, data):
     times = data["times"]
-    clrs = {"gt": "#333333", "linear": "#E07B39", "log": "#4878CF"}
-    lws  = {"gt": 1.8, "linear": 1.4, "log": 1.4}
-    lsts = {"gt": "-",  "linear": "--", "log": "-"}
+    clrs = {"gt": "#333333", "linear": "#E07B39", "log": "#4878CF", "best": "#2E8B57"}
+    lws  = {"gt": 1.8, "linear": 1.4, "log": 1.4, "best": 2.0}
+    lsts = {"gt": "-",  "linear": "--", "log": "-", "best": "-"}
 
     for ax, var, units, label in [
-        (ax_no3, "no3_0", "µmol kg⁻¹", "NO₃"),
-        (ax_dic, "dic_0", "µmol kg⁻¹", "DIC"),
+        (ax_o2,  "o2_surf",  "µmol kg⁻¹", "O₂ (0–100 m)"),
+        (ax_dic, "dic_surf", "µmol kg⁻¹", "DIC (0–100 m)"),
     ]:
-        for key, lbl in [("gt", "GT"), ("linear", "Linear BGC"), ("log", "Log BGC")]:
+        for key, lbl in [("gt", "MOM6-DG"), ("linear", "Linear BGC"), ("log", "Log BGC"), ("best", BEST_LABEL)]:
             ax.plot(times, data[var][key],
                     color=clrs[key], lw=lws[key], ls=lsts[key],
                     label=lbl, alpha=0.9)
@@ -301,13 +364,13 @@ def draw_bgc_panel(ax_no3, ax_dic, data):
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
         ax.xaxis.set_major_locator(mdates.YearLocator())
 
-    ax_no3.set_title("(b) BGC Representation — Linear vs Log", fontsize=12,
-                     fontweight="bold", loc="left")
-    plt.setp(ax_no3.get_xticklabels(), visible=False)
+    ax_o2.set_title("(b) BGC Representation — Linear vs Log (0–100 m)", fontsize=12,
+                    fontweight="bold", loc="left")
+    plt.setp(ax_o2.get_xticklabels(), visible=False)
     ax_dic.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax_dic.xaxis.set_major_locator(mdates.YearLocator())
     ax_dic.set_xlabel("Year")
-    ax_no3.legend(fontsize=9, framealpha=0.7, loc="upper right", ncol=3)
+    ax_o2.legend(fontsize=9, framealpha=0.7, loc="upper right", ncol=2)
 
 
 def draw_gradient_panel(ax_ts, ax_bias, grad_data):
@@ -315,24 +378,28 @@ def draw_gradient_panel(ax_ts, ax_bias, grad_data):
     gt = grad_data["gt"]
     clrs = {
         "α = 0":    "#E07B39",
-        "α = 0.10": "#4878CF",
         "α = 0.25": "#6ACC65",
         "α = 0.50": "#D65F5F",
+        "best": "#4878CF",
     }
 
     ax_ts.plot(times, gt, color="#333333", lw=1.8, label="MOM6-DG")
     for label, ts in grad_data["grad"].items():
         ax_ts.plot(times, ts, color=clrs[label], lw=1.3, label=label, alpha=0.9)
+    ax_ts.plot(times, grad_data["best"], color=clrs["best"], lw=2.0,
+               label=f"{BEST_LABEL} (α = 0.10)", alpha=0.95)
     ax_ts.set_ylabel("O₂ (µmol kg⁻¹)", fontsize=10)
     ax_ts.set_title("(c) Gradient Weight — O₂ (100–200 m)", fontsize=12,
                      fontweight="bold", loc="left")
-    ax_ts.legend(fontsize=8, framealpha=0.7, loc="upper right", ncol=3)
+    ax_ts.legend(fontsize=8, framealpha=0.7, loc="upper right", ncol=2)
     ax_ts.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax_ts.xaxis.set_major_locator(mdates.YearLocator())
     plt.setp(ax_ts.get_xticklabels(), visible=False)
 
     for label, ts in grad_data["grad"].items():
         ax_bias.plot(times, ts - gt, color=clrs[label], lw=1.3, label=label, alpha=0.9)
+    ax_bias.plot(times, grad_data["best"] - gt, color=clrs["best"], lw=2.0,
+                 label=f"{BEST_LABEL} (α = 0.10)", alpha=0.95)
     ax_bias.axhline(0, color="#999999", lw=0.8, ls="--")
     ax_bias.set_ylabel("Bias (µmol kg⁻¹)", fontsize=10)
     ax_bias.set_xlabel("Year")
@@ -355,26 +422,27 @@ def main():
     grad_data = load_gradient_data(bgc_data["mask2d"])
 
     print("  Plotting...")
-    fig = plt.figure(figsize=(18, 7))
+    fig = plt.figure(figsize=(20, 10))
 
     outer = mgridspec.GridSpec(1, 3, figure=fig, wspace=0.32)
 
-    # (a) Dynamics: 3 snapshots + spectrum
+    # (a) Dynamics: 2×2 snapshots + spectrum below
     dyn_inner = mgridspec.GridSpecFromSubplotSpec(
-        2, 3, subplot_spec=outer[0],
-        height_ratios=[1.0, 0.8], hspace=0.35, wspace=0.08)
+        3, 2, subplot_spec=outer[0],
+        height_ratios=[1.0, 1.0, 0.7], hspace=0.30, wspace=0.15)
     ax_gt   = fig.add_subplot(dyn_inner[0, 0])
     ax_helm = fig.add_subplot(dyn_inner[0, 1])
-    ax_vel  = fig.add_subplot(dyn_inner[0, 2])
-    ax_spec = fig.add_subplot(dyn_inner[1, :])
-    draw_helmholtz_panel((ax_gt, ax_helm, ax_vel, ax_spec), helm_data)
+    ax_vel  = fig.add_subplot(dyn_inner[1, 0])
+    ax_best = fig.add_subplot(dyn_inner[1, 1])
+    ax_spec = fig.add_subplot(dyn_inner[2, :])
+    draw_helmholtz_panel((ax_gt, ax_helm, ax_vel, ax_best, ax_spec), helm_data)
 
     # (b) BGC: 2 stacked time series
     bgc_inner = mgridspec.GridSpecFromSubplotSpec(
         2, 1, subplot_spec=outer[1], hspace=0.08)
-    ax_no3 = fig.add_subplot(bgc_inner[0])
-    ax_dic = fig.add_subplot(bgc_inner[1], sharex=ax_no3)
-    draw_bgc_panel(ax_no3, ax_dic, bgc_data)
+    ax_o2  = fig.add_subplot(bgc_inner[0])
+    ax_dic = fig.add_subplot(bgc_inner[1], sharex=ax_o2)
+    draw_bgc_panel(ax_o2, ax_dic, bgc_data)
 
     # (c) Gradient: time series + bias
     grad_inner = mgridspec.GridSpecFromSubplotSpec(

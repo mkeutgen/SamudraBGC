@@ -55,7 +55,7 @@ experiment:
     - "phase4-architecture"
     - "helmholtz-decomposition"
     - "deeper-wider"
-  prognostic_vars_key: helmholtz_log_all
+  prognostic_vars_key: helmholtz_log_no_logno3_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 

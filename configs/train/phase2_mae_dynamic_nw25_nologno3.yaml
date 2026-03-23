@@ -1,9 +1,8 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
 # ============================================================================
-# Paper Ablation Study - Phase 4: Architecture Ablation
-# Configuration: Baseline model (3 UNet levels, ch_width [320,440,600])
-# Base: Phase 2 winner (grad 0.10) — same architecture, trained for 50 epochs
-# Hypothesis: Control for the architecture ablation (wider / deeper / deeper+wider)
+# Paper Ablation Study - Phase 2: MAE Dynamic Loss (no-log-NO3)
+# Configuration: Helmholtz with mae_dynamic, gradient_weight = 0.0, n_window = 25
+# Hypothesis: Dynamic scaling helps learn slow-moving variables; NO3 kept linear
 # ============================================================================
 
 debug: false
@@ -15,9 +14,10 @@ batch_size: 1
 learning_rate: 0.0002
 scheduler:
   type: cosine
-loss: mae_gradient_weighted
-gradient_weight: 0.10
+loss: mae_dynamic
+gradient_weight: 0.0
 second_order_weight: 0.0
+dynamic_n_window: 25
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
@@ -42,19 +42,20 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: phase4_arch_baseline
+  name: phase2_mae_dynamic_nw25_nologno3
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: offline
     project: bgc-emulator
     entity: m2lines
-    group: paper-ablations-phase4
+    group: paper-ablations-phase2
     tags:
     - "paper-ablation"
-    - "phase4-architecture"
+    - "phase2-mae-dynamic"
     - "helmholtz-decomposition"
-    - "baseline"
+    - "no-log-no3"
+    - "nw25"
   prognostic_vars_key: helmholtz_log_no_logno3_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
@@ -99,7 +100,3 @@ model:
   corrector:
     non_negative_corrector_names: null
     ocean_heat_corrector: false
-
-# Variables: dic, o2, no3, chl, temp, salt, psi, phi, poc @ 50 levels + SSH
-# Forcing: Qnet, tauuo, tauvo (minimal forcing)
-# Architecture: baseline 3-level UNet, ch_width [320,440,600]

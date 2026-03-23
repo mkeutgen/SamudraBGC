@@ -290,11 +290,12 @@ class Trainer:
                 )
             
             case "mae_dynamic":
-                logger.info(f"Using dynamic MAE loss (α={cfg.gradient_weight})")
+                logger.info(f"Using dynamic MAE loss (α={cfg.gradient_weight}, n_window={cfg.dynamic_n_window})")
                 self.loss_fn = MaeDynamic(
                     wet=self.wet,
                     n_vars=len(self.prognostic_var_names),
                     gradient_weight=cfg.gradient_weight,
+                    n_window=cfg.dynamic_n_window,
                 )
 
             case "mae_gradient_weighted":
