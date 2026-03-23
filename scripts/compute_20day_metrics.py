@@ -41,7 +41,7 @@ VARIABLES = {
     'salt_0':  {'label': 'SSS',   'units': 'psu',     'scale': 1.0,  'pred_name': 'salt_0',     'gt_name': 'salt_0'},
     'dic_0':   {'label': 'DIC',   'units': 'µmol/kg', 'scale': 1e6,  'pred_name': 'log_dic_0',  'gt_name': 'dic_0'},
     'o2_0':    {'label': 'O₂',    'units': 'µmol/kg', 'scale': 1e6,  'pred_name': 'log_o2_0',   'gt_name': 'o2_0'},
-    'no3_0':   {'label': 'NO₃',   'units': 'µmol/kg', 'scale': 1e6,  'pred_name': 'log_no3_0',  'gt_name': 'no3_0'},
+    'no3_0':   {'label': 'NO₃',   'units': 'µmol/kg', 'scale': 1e6,  'pred_name': 'no3_0',      'gt_name': 'no3_0'},
     'chl_0':   {'label': 'Chl',   'units': 'µg/kg',   'scale': 1.0,  'pred_name': 'log_chl_0',  'gt_name': 'chl_0'},
     'psi_0':   {'label': 'ψ',     'units': 'm²/s',    'scale': 1.0,  'pred_name': 'psi_0',      'gt_name': 'psi_0'},
 }

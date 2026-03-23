@@ -287,7 +287,7 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
     "helmholtz_log_pca10_all": [
         k + str(j)
         for k in [
-            "log_dicpc_", "log_o2pc_", "log_no3pc_", "log_chlpc_",
+            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
             "temppc_", "saltpc_", "psipc_", "phipc_",
         ]
         for j in [str(i) for i in range(10)]

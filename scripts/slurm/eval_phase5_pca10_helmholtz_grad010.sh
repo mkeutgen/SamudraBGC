@@ -10,8 +10,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=400G
 #SBATCH --time=24:00:00
-#SBATCH --output=logs/eval_phase5_pca10_helmholtz_grad025_%j.out
-#SBATCH --error=logs/eval_phase5_pca10_helmholtz_grad025_%j.err
+#SBATCH --output=logs/eval_phase5_pca10_helmholtz_grad010_%j.out
+#SBATCH --error=logs/eval_phase5_pca10_helmholtz_grad010_%j.err
 
 set -e
 
@@ -20,19 +20,20 @@ module purge
 module load anaconda3/2024.10
 conda activate /scratch/cimes/maximek/envs/ocean-emulator
 cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
+export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:$PYTHONPATH
 
 mkdir -p logs
 
-CONFIG=configs/eval/phase5_pca10_helmholtz_grad025_eval.yaml
+CONFIG=configs/eval/phase5_pca10_helmholtz_grad010_eval.yaml
 
-echo "Evaluating phase5_pca10_helmholtz_grad025"
+echo "Evaluating phase5_pca10_helmholtz_grad010"
 echo "Config: ${CONFIG}"
 echo "Job ID: ${SLURM_JOB_ID}"
 
 # Step 1: Run standard evaluation (PCA coefficient space)
 python -m ocean_emulators.eval ${CONFIG}
 
-EVAL_DIR=outputs/phase5_pca10_helmholtz_grad025_eval
+EVAL_DIR=outputs/phase5_pca10_helmholtz_grad010_eval
 PRED_ZARR=${EVAL_DIR}/evaluation.zarr
 
 # Step 2: If zarr was saved, compute depth-level reconstruction metrics
@@ -42,19 +43,18 @@ if [ -d "${PRED_ZARR}" ]; then
     echo "Computing depth-level reconstruction metrics"
     echo "============================================="
 
-    PCA_DATA_DIR=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz_PCA10
-    ORIG_DATA_DIR=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+    DATA_DIR=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 
     python scripts/analysis/eval_pca_reconstruction.py \
         --pred-zarr ${PRED_ZARR} \
-        --pca-params ${PCA_DATA_DIR}/pca_params.npz \
-        --pca-means ${PCA_DATA_DIR}/bgc_means.zarr \
-        --pca-stds ${PCA_DATA_DIR}/bgc_stds.zarr \
-        --truth-data ${ORIG_DATA_DIR}/bgc_data.zarr \
-        --truth-means ${ORIG_DATA_DIR}/bgc_means.zarr \
-        --truth-stds ${ORIG_DATA_DIR}/bgc_stds.zarr \
+        --pca-params ${DATA_DIR}/pca_params.npz \
+        --pca-means ${DATA_DIR}/bgc_means.zarr \
+        --pca-stds ${DATA_DIR}/bgc_stds.zarr \
+        --truth-data ${DATA_DIR}/bgc_data.zarr \
+        --truth-means ${DATA_DIR}/bgc_means.zarr \
+        --truth-stds ${DATA_DIR}/bgc_stds.zarr \
         --output-dir ${EVAL_DIR}/depth_metrics \
-        --variables log_dic log_o2 log_no3 log_chl temp salt psi phi \
+        --variables log_dic log_o2 no3 log_chl temp salt psi phi \
         --n-components 10
 
     echo "Depth-level metrics saved to ${EVAL_DIR}/depth_metrics/"

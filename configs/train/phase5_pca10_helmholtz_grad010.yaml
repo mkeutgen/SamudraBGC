@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
 # ============================================================================
 # Phase 5: PCA Vertical Representation
-# Configuration: Helmholtz + Log BGC, PCA k=10, gradient_weight = 0.25
+# Configuration: Helmholtz + Log BGC, PCA k=10, gradient_weight = 0.10
 # Hypothesis: PCA-based vertical representation improves deep ocean performance
 # ============================================================================
 
@@ -15,7 +15,7 @@ learning_rate: 0.0002
 scheduler:
   type: cosine
 loss: mae_gradient_weighted
-gradient_weight: 0.25
+gradient_weight: 0.10
 second_order_weight: 0.0
 finetune: false
 resume_ckpt_path: null
@@ -41,7 +41,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: phase5_pca10_helmholtz_grad025
+  name: phase5_pca10_helmholtz_grad010
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -53,11 +53,11 @@ experiment:
     - "phase5-pca"
     - "helmholtz-decomposition"
     - "pca-k10"
-    - "grad-0.25"
+    - "grad-0.10"
   prognostic_vars_key: helmholtz_log_pca10_all
   boundary_vars_key: minimal_forcing
-  # PCA-transformed dataset (created by scripts/fit_pca.py)
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz_PCA10
+  # PCA variables appended to existing zarr by scripts/fit_pca.py
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 
 data:
   data_location: bgc_data.zarr
@@ -100,6 +100,6 @@ model:
     non_negative_corrector_names: null
     ocean_heat_corrector: false
 
-# Variables: log_dicpc, log_o2pc, log_no3pc, log_chlpc, temppc, saltpc, psipc, phipc @ 10 PCA components + SSH
+# Variables: log_dicpc, log_o2pc, no3pc, log_chlpc, temppc, saltpc, psipc, phipc @ 10 PCA components + SSH
 # Forcing: Qnet, tauuo, tauvo (minimal forcing)
 # Total prognostic channels: 8 vars * 10 components + 1 SSH = 81 (vs 401 with depth-levels)

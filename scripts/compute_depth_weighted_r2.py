@@ -2,7 +2,7 @@
 """
 Compute depth-thickness-weighted R² in native prediction space.
 
-For each 3D variable (temp, salt, psi, phi, log_dic, log_o2, log_no3, log_chl),
+For each 3D variable (temp, salt, psi, phi, log_dic, log_o2, no3, log_chl),
 compute a single R² that weights each depth level by its physical thickness:
 
     R²_var = 1 - Σ_z(dz_z · SS_res_z) / Σ_z(dz_z · SS_tot_z)
@@ -46,7 +46,7 @@ VARS_3D = {
     "phi":  "phi",
     "log_dic": "log_dic",
     "log_o2":  "log_o2",
-    "log_no3": "log_no3",
+    "no3": "no3",
     "log_chl": "log_chl",
 }
 VARS_2D = ["SSH"]
