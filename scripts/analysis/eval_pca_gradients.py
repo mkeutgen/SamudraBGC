@@ -29,6 +29,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.animation as manim
 import numpy as np
 import xarray as xr
 
@@ -41,6 +42,70 @@ logger = logging.getLogger(__name__)
 K_VALUES = [1, 2, 3, 5, 8, 10]
 # k values shown in snapshot plots (subset of K_VALUES)
 K_SNAPSHOT = [3, 5, 10]
+
+# Publication-quality figure style
+import matplotlib as mpl
+mpl.rcParams.update({
+    "font.family": "sans-serif",
+    "font.size": 11,
+    "axes.labelsize": 12,
+    "axes.titlesize": 13,
+    "xtick.labelsize": 10,
+    "ytick.labelsize": 10,
+    "legend.fontsize": 10,
+    "figure.dpi": 150,
+    "savefig.dpi": 300,
+    "savefig.bbox": "tight",
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "axes.linewidth": 1.2,
+    "xtick.major.width": 1.2,
+    "xtick.major.size": 4,
+    "ytick.major.width": 1.2,
+    "ytick.major.size": 4,
+})
+
+# Log → linear back-transform constants (same as convert_log_to_linear.py)
+EPSILON_MAP = {"dic": 1e-10, "o2": 1e-10, "chl": 1e-8, "no3": 1e-14}
+
+# Per-variable preferred depth levels for snapshot figures
+# Level 35 ≈ 131 m — oxycline/nutricline for BGC
+# Level 0  ≈ 1 m  — surface for physical vars
+VAR_SNAPSHOT_LEVELS: dict[str, list[int]] = {
+    "temp":    [0],
+    "salt":    [0],
+    "psi":     [0],
+    "phi":     [0],
+    "log_dic": [35],
+    "log_o2":  [35],
+    "no3":     [35],
+    "log_chl": [35],
+}
+
+UNITS: dict[str, str] = {
+    "temp":    "°C",
+    "salt":    "psu",
+    "psi":     "m² s⁻¹",
+    "phi":     "m² s⁻¹",
+    "log_dic": "µmol kg⁻¹",
+    "log_o2":  "µmol kg⁻¹",
+    "no3":     "µmol kg⁻¹",
+    "log_chl": "mg m⁻³",
+}
+
+
+def to_display_space(field: np.ndarray, base_var: str) -> np.ndarray:
+    """Convert log-transformed field to linear space for display only."""
+    if base_var.startswith("log_"):
+        name = base_var[4:]
+        eps = EPSILON_MAP.get(name, 1e-10)
+        return np.exp(field) - eps
+    return field
+
+
+def display_label(base_var: str) -> str:
+    """Human-readable label (strip log_ prefix for display)."""
+    return base_var[4:] if base_var.startswith("log_") else base_var
 
 
 def compute_gradient_magnitude(field: np.ndarray) -> np.ndarray:
@@ -125,84 +190,98 @@ def truncated_reconstruct(all_coeffs: np.ndarray, pca, mask_3d: np.ndarray,
 
 
 def plot_field_snapshots(raw: np.ndarray, recons: dict, depth_levels: list[int],
-                          base_var: str, t_idx: int, output_path: Path) -> None:
+                          base_var: str, t_idx: int, output_path: Path,
+                          lon: np.ndarray, lat: np.ndarray,
+                          mask_3d: np.ndarray, depth_values: np.ndarray) -> None:
     """Plot A: raw field vs. k-truncated reconstructions."""
+    label = display_label(base_var)
+    units = UNITS.get(base_var, "")
     n_rows = len(depth_levels)
-    n_cols = 1 + len(K_SNAPSHOT)  # raw + k snapshots
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3.5 * n_rows),
+    n_cols = 1 + len(K_SNAPSHOT)
+    fig, axes = plt.subplots(n_rows, n_cols,
+                              figsize=(4.5 * n_cols, 3.5 * n_rows),
                               squeeze=False)
-    fig.suptitle(f"{base_var} — field snapshots (t={t_idx})", fontsize=14)
 
     for row, lev in enumerate(depth_levels):
-        raw_map = raw[t_idx, lev]
+        depth_m = depth_values[lev]
+        raw_map = to_display_space(raw[t_idx, lev].astype(float), base_var)
+        raw_map[~mask_3d[lev]] = np.nan
         vmin = np.nanpercentile(raw_map, 2)
         vmax = np.nanpercentile(raw_map, 98)
 
-        # Raw truth
-        ax = axes[row, 0]
-        im = ax.imshow(raw_map, origin="lower", vmin=vmin, vmax=vmax, cmap="RdBu_r",
-                       aspect="auto")
-        ax.set_title(f"Raw (lev={lev})")
-        ax.axis("off")
-        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-
-        # k-truncated
-        for col, k in enumerate(K_SNAPSHOT, start=1):
+        col_titles = ["Raw (truth)"] + [f"k={k}" for k in K_SNAPSHOT]
+        all_maps = [raw_map] + [
+            np.where(mask_3d[lev],
+                     to_display_space(recons[k][t_idx, lev].astype(float), base_var),
+                     np.nan)
+            for k in K_SNAPSHOT
+        ]
+        for col, (title, fmap) in enumerate(zip(col_titles, all_maps)):
             ax = axes[row, col]
-            rec_map = recons[k][t_idx, lev]
-            im = ax.imshow(rec_map, origin="lower", vmin=vmin, vmax=vmax, cmap="RdBu_r",
-                           aspect="auto")
-            ax.set_title(f"k={k} (lev={lev})")
-            ax.axis("off")
-            plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            im = ax.pcolormesh(lon, lat, fmap, cmap="RdBu_r",
+                               vmin=vmin, vmax=vmax, shading="auto")
+            ax.set_facecolor("lightgray")
+            ax.set_aspect("equal")
+            depth_label = f"{depth_m:.0f} m"
+            ax.set_title(f"{title}  —  {label} @ {depth_label}")
+            ax.set_xlabel("Longitude (°E)")
+            ax.set_ylabel("Latitude (°N)" if col == 0 else "")
+            if col > 0:
+                ax.set_yticklabels([])
+            cbar = plt.colorbar(im, ax=ax, shrink=0.85, pad=0.02, extend="both")
+            cbar.set_label(units, fontsize=9)
 
     plt.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
     logger.info(f"  Saved {output_path.name}")
 
 
 def plot_gradient_snapshots(raw: np.ndarray, recons: dict, depth_levels: list[int],
                              base_var: str, t_idx: int, mask_3d: np.ndarray,
-                             output_path: Path) -> None:
+                             output_path: Path,
+                             lon: np.ndarray, lat: np.ndarray,
+                             depth_values: np.ndarray) -> None:
     """Plot B: horizontal gradient magnitude maps."""
+    label = display_label(base_var)
     n_rows = len(depth_levels)
     n_cols = 1 + len(K_SNAPSHOT)
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3.5 * n_rows),
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4.5 * n_cols, 3.5 * n_rows),
                               squeeze=False)
-    fig.suptitle(f"{base_var} — |∇X| gradient magnitude (t={t_idx})", fontsize=14)
 
     for row, lev in enumerate(depth_levels):
-        raw_map = raw[t_idx, lev].copy()
-        # Mask land
+        depth_m = depth_values[lev]
+        raw_map = raw[t_idx, lev].copy().astype(float)
         raw_map[~mask_3d[lev]] = np.nan
         raw_grad = compute_gradient_magnitude(np.nan_to_num(raw_map, nan=0.0))
         raw_grad[~mask_3d[lev]] = np.nan
-
-        vmin = 0.0
         vmax = np.nanpercentile(raw_grad, 98)
 
-        ax = axes[row, 0]
-        im = ax.imshow(raw_grad, origin="lower", vmin=vmin, vmax=vmax, cmap="viridis",
-                       aspect="auto")
-        ax.set_title(f"Raw |∇| (lev={lev})")
-        ax.axis("off")
-        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        col_titles = ["Raw (truth)"] + [f"k={k}" for k in K_SNAPSHOT]
+        all_grads = [raw_grad]
+        for k in K_SNAPSHOT:
+            rec = recons[k][t_idx, lev].copy().astype(float)
+            rec[~mask_3d[lev]] = np.nan
+            g = compute_gradient_magnitude(np.nan_to_num(rec, nan=0.0))
+            g[~mask_3d[lev]] = np.nan
+            all_grads.append(g)
 
-        for col, k in enumerate(K_SNAPSHOT, start=1):
+        for col, (title, grad) in enumerate(zip(col_titles, all_grads)):
             ax = axes[row, col]
-            rec_map = recons[k][t_idx, lev].copy()
-            rec_map[~mask_3d[lev]] = np.nan
-            rec_grad = compute_gradient_magnitude(np.nan_to_num(rec_map, nan=0.0))
-            rec_grad[~mask_3d[lev]] = np.nan
-            im = ax.imshow(rec_grad, origin="lower", vmin=vmin, vmax=vmax, cmap="viridis",
-                           aspect="auto")
-            ax.set_title(f"k={k} |∇| (lev={lev})")
-            ax.axis("off")
-            plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            im = ax.pcolormesh(lon, lat, grad, cmap="viridis",
+                               vmin=0, vmax=vmax, shading="auto")
+            ax.set_facecolor("lightgray")
+            ax.set_aspect("equal")
+            ax.set_title(f"{title}  —  |∇{label}| @ {depth_m:.0f} m")
+            ax.set_xlabel("Longitude (°E)")
+            ax.set_ylabel("Latitude (°N)" if col == 0 else "")
+            if col > 0:
+                ax.set_yticklabels([])
+            cbar = plt.colorbar(im, ax=ax, shrink=0.85, pad=0.02, extend="max")
+            cbar.set_label(f"|∇| {UNITS.get(base_var, '')}/px", fontsize=9)
 
     plt.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
     logger.info(f"  Saved {output_path.name}")
 
@@ -225,48 +304,171 @@ def compute_vertical_gradient(field: np.ndarray, depth_values: np.ndarray) -> np
 def plot_vertical_section(raw: np.ndarray, recons: dict,
                            base_var: str, t_idx: int,
                            mask_3d: np.ndarray, depth_values: np.ndarray,
-                           output_path: Path) -> None:
-    """Plot zonal-mean lat-depth section of the raw field vs. k reconstructions."""
+                           output_path: Path, lat: np.ndarray) -> None:
+    """Zonal-mean lat-depth section: raw | k=3 | k=5 | k=10."""
+    label = display_label(base_var)
+    units = UNITS.get(base_var, "")
     n_cols = 1 + len(K_SNAPSHOT)
-    fig, axes = plt.subplots(1, n_cols, figsize=(5 * n_cols, 5), squeeze=False)
-    fig.suptitle(f"{base_var} — zonal-mean field section (t={t_idx})", fontsize=14)
+    fig, axes = plt.subplots(1, n_cols, figsize=(5.5 * n_cols, 5), squeeze=False)
 
     def zonal_mean_section(field_t):
-        # field_t: (n_levels, lat, lon) — mask land, then zonal mean
-        out = field_t.copy().astype(float)
-        for lev in range(field_t.shape[0]):
+        out = to_display_space(field_t.copy().astype(float), base_var)
+        for lev in range(out.shape[0]):
             out[lev][~mask_3d[lev]] = np.nan
         return np.nanmean(out, axis=2)  # (n_levels, lat)
 
-    raw_section = zonal_mean_section(raw[t_idx])  # (n_lev, lat)
-    n_lat = raw_section.shape[1]
+    raw_section = zonal_mean_section(raw[t_idx])   # (n_lev, lat)
     vmin = np.nanpercentile(raw_section, 2)
     vmax = np.nanpercentile(raw_section, 98)
+    # Symmetric colormap for physical fields
+    if base_var in ("psi", "phi"):
+        vabs = max(abs(vmin), abs(vmax))
+        vmin, vmax = -vabs, vabs
 
-    ax = axes[0, 0]
-    im = ax.imshow(raw_section, origin="upper", aspect="auto",
-                   vmin=vmin, vmax=vmax, cmap="RdBu_r",
-                   extent=[0, n_lat, depth_values[-1], depth_values[0]])
-    ax.set_title("Raw")
-    ax.set_xlabel("Latitude index")
-    ax.set_ylabel("Depth (m)")
-    plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    col_titles = ["Raw (truth)"] + [f"k={k}" for k in K_SNAPSHOT]
+    all_sections = [raw_section] + [zonal_mean_section(recons[k][t_idx]) for k in K_SNAPSHOT]
 
-    for col, k in enumerate(K_SNAPSHOT, start=1):
-        rec_section = zonal_mean_section(recons[k][t_idx])
+    for col, (title, section) in enumerate(zip(col_titles, all_sections)):
         ax = axes[0, col]
-        im = ax.imshow(rec_section, origin="upper", aspect="auto",
-                       vmin=vmin, vmax=vmax, cmap="RdBu_r",
-                       extent=[0, n_lat, depth_values[-1], depth_values[0]])
-        ax.set_title(f"k={k}")
-        ax.set_xlabel("Latitude index")
-        ax.set_ylabel("Depth (m)")
-        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        # contourf: x=lat, y=depth (inverted)
+        n_levels_plot = 20
+        cf = ax.contourf(lat, depth_values, section,
+                         levels=n_levels_plot, vmin=vmin, vmax=vmax,
+                         cmap="RdBu_r", extend="both")
+        ax.set_ylim(depth_values[-1], depth_values[0])  # depth increases down
+        ax.set_title(f"{title}  —  {label}")
+        ax.set_xlabel("Latitude (°N)")
+        ax.set_ylabel("Depth (m)" if col == 0 else "")
+        if col > 0:
+            ax.set_yticklabels([])
+        cbar = plt.colorbar(cf, ax=ax, shrink=0.85, pad=0.02, extend="both")
+        cbar.set_label(units, fontsize=9)
 
     plt.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
     logger.info(f"  Saved {output_path.name}")
+
+
+def animate_variable(
+    raw: np.ndarray,
+    recons: dict,
+    base_var: str,
+    mask_3d: np.ndarray,
+    depth_values: np.ndarray,
+    output_dir: Path,
+    lon: np.ndarray,
+    lat: np.ndarray,
+    fps: int = 5,
+    anim_level: int = 35,
+) -> None:
+    """Produce section + map GIF animations (raw | k=3 | k=5 | k=10)."""
+    label = display_label(base_var)
+    units = UNITS.get(base_var, "")
+    ks = [3, 5, 10]
+    T = raw.shape[0]
+    titles = ["Raw (truth)"] + [f"k={k}" for k in ks]
+
+    def zonal_mean(field_t):
+        out = to_display_space(field_t.copy().astype(float), base_var)
+        for lev in range(out.shape[0]):
+            out[lev][~mask_3d[lev]] = np.nan
+        return np.nanmean(out, axis=2)  # (n_levels, lat)
+
+    # Pre-compute all frames
+    raw_sections = [zonal_mean(raw[t]) for t in range(T)]
+    rec_sections = {k: [zonal_mean(recons[k][t]) for t in range(T)] for k in ks}
+
+    all_sec = np.concatenate([np.stack(raw_sections)] +
+                              [np.stack(rec_sections[k]) for k in ks])
+    sec_vmin = np.nanpercentile(all_sec, 2)
+    sec_vmax = np.nanpercentile(all_sec, 98)
+    if base_var in ("psi", "phi"):
+        vabs = max(abs(sec_vmin), abs(sec_vmax))
+        sec_vmin, sec_vmax = -vabs, vabs
+
+    # --- Section animation (contourf-based, redrawn each frame) ---
+    import matplotlib.cm as cm
+    import matplotlib.colors as mcolors
+    fig_s, axes_s = plt.subplots(1, 4, figsize=(22, 5), squeeze=False)
+    # Add one shared colorbar using a ScalarMappable (stays fixed across frames)
+    norm_s = mcolors.Normalize(vmin=sec_vmin, vmax=sec_vmax)
+    sm_s = cm.ScalarMappable(cmap="RdBu_r", norm=norm_s)
+    sm_s.set_array([])
+    cbar_s = fig_s.colorbar(sm_s, ax=axes_s[0, -1], shrink=0.85, pad=0.02, extend="both")
+    cbar_s.set_label(units, fontsize=10)
+
+    def draw_section_frame(t):
+        for col, ax in enumerate(axes_s[0]):
+            ax.clear()
+            section = raw_sections[t] if col == 0 else rec_sections[ks[col - 1]][t]
+            ax.contourf(lat, depth_values, section, levels=20,
+                        vmin=sec_vmin, vmax=sec_vmax, cmap="RdBu_r", extend="both")
+            ax.set_ylim(depth_values[-1], depth_values[0])
+            ax.set_title(f"{titles[col]}  —  {label} (frame {t})")
+            ax.set_xlabel("Latitude (°N)")
+            if col == 0:
+                ax.set_ylabel("Depth (m)")
+
+    draw_section_frame(0)
+    plt.tight_layout()
+
+    def update_section(t):
+        draw_section_frame(t)
+        return axes_s[0]
+
+    anim_s = manim.FuncAnimation(fig_s, update_section, frames=T, blit=False)
+    sec_path = output_dir / f"{base_var}_section_animation.gif"
+    anim_s.save(str(sec_path), writer=manim.PillowWriter(fps=fps))
+    plt.close(fig_s)
+    logger.info(f"  Saved {sec_path.name}")
+
+    # --- Map animation at anim_level ---
+    depth_m = depth_values[anim_level] if anim_level < len(depth_values) else anim_level
+
+    def masked_map(field_t_lev):
+        out = to_display_space(field_t_lev.copy().astype(float), base_var)
+        out[~mask_3d[anim_level]] = np.nan
+        return out
+
+    raw_maps = [masked_map(raw[t, anim_level]) for t in range(T)]
+    rec_maps = {k: [masked_map(recons[k][t, anim_level]) for t in range(T)] for k in ks}
+
+    all_map = np.concatenate([np.stack(raw_maps)] +
+                              [np.stack(rec_maps[k]) for k in ks])
+    map_vmin = np.nanpercentile(all_map[np.isfinite(all_map)], 2)
+    map_vmax = np.nanpercentile(all_map[np.isfinite(all_map)], 98)
+
+    fig_m, axes_m = plt.subplots(1, 4, figsize=(22, 5), squeeze=False)
+    ims_m = []
+    for col, title in enumerate(titles):
+        ax = axes_m[0, col]
+        data = raw_maps[0] if col == 0 else rec_maps[ks[col - 1]][0]
+        im = ax.pcolormesh(lon, lat, data, cmap="RdBu_r",
+                           vmin=map_vmin, vmax=map_vmax, shading="auto")
+        ax.set_facecolor("lightgray")
+        ax.set_aspect("equal")
+        ax.set_title(f"{title}  —  {label} @ {depth_m:.0f} m")
+        ax.set_xlabel("Longitude (°E)")
+        if col == 0:
+            ax.set_ylabel("Latitude (°N)")
+        cbar = plt.colorbar(im, ax=ax, shrink=0.85, pad=0.02, extend="both")
+        cbar.set_label(units, fontsize=9)
+        ims_m.append(im)
+    plt.tight_layout()
+
+    def update_map(t):
+        ims_m[0].set_array(raw_maps[t].ravel())
+        for i, k in enumerate(ks):
+            ims_m[i + 1].set_array(rec_maps[k][t].ravel())
+        fig_m.suptitle(f"{label} @ {depth_m:.0f} m  (frame {t})", fontsize=12)
+        return ims_m
+
+    anim_m = manim.FuncAnimation(fig_m, update_map, frames=T, blit=True)
+    map_path = output_dir / f"{base_var}_map_animation.gif"
+    anim_m.save(str(map_path), writer=manim.PillowWriter(fps=fps))
+    plt.close(fig_m)
+    logger.info(f"  Saved {map_path.name}")
 
 
 def compute_vertical_gradient_rmse(raw: np.ndarray, recons: dict,
@@ -319,6 +521,17 @@ def main():
     parser.add_argument("--depth-levels", nargs="+", type=int, default=[0, 10, 25, 35, 40, 44, 45])
     parser.add_argument("--n-levels", type=int, default=50)
     parser.add_argument("--n-components", type=int, default=10)
+    parser.add_argument("--animate", action="store_true",
+                        help="Generate GIF animations for selected variables")
+    parser.add_argument("--animate-vars", nargs="+",
+                        default=["psi", "phi", "temp", "salt", "log_o2"])
+    parser.add_argument("--anim-fps", type=int, default=5)
+    parser.add_argument("--anim-level", type=int, default=35,
+                        help="Depth level index for horizontal map animation (~300m)")
+    parser.add_argument("--n-anim-timesteps", type=int, default=30,
+                        help="Number of frames in animation (loaded separately from --n-timesteps)")
+    parser.add_argument("--anim-time-start", type=str, default=None,
+                        help="Start date for animation (defaults to --time-start)")
     args = parser.parse_args()
 
     sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -335,6 +548,13 @@ def main():
 
     logger.info("Opening zarr dataset...")
     ds = xr.open_zarr(data_root / "bgc_data.zarr", consolidated=True)
+    lon = ds.lon.values  # (lon,) or (lat, lon) — extract 1-D arrays
+    lat = ds.lat.values
+    # If stored as 2-D, use the first row/col
+    if lon.ndim == 2:
+        lon = lon[0, :]
+    if lat.ndim == 2:
+        lat = lat[:, 0]
 
     # Select time indices — times may be cftime objects (DatetimeNoLeap)
     times = ds.time.values
@@ -392,16 +612,21 @@ def main():
             logger.info(f"  Reconstructing k={k}...")
             recons[k] = truncated_reconstruct(all_coeffs, pca, mask_3d, k)
 
+        # Per-variable depth levels for snapshots
+        snap_levels = VAR_SNAPSHOT_LEVELS.get(base_var, args.depth_levels)
+
         # Plot A: field snapshots
         plot_field_snapshots(
-            raw, recons, args.depth_levels, base_var, t_idx=0,
+            raw, recons, snap_levels, base_var, t_idx=0,
             output_path=output_dir / f"{base_var}_field_snapshots.png",
+            lon=lon, lat=lat, mask_3d=mask_3d, depth_values=depth_values,
         )
 
         # Plot B: gradient maps
         plot_gradient_snapshots(
-            raw, recons, args.depth_levels, base_var, t_idx=0, mask_3d=mask_3d,
+            raw, recons, snap_levels, base_var, t_idx=0, mask_3d=mask_3d,
             output_path=output_dir / f"{base_var}_gradient_maps.png",
+            lon=lon, lat=lat, depth_values=depth_values,
         )
 
         # Plot C: vertical section
@@ -409,6 +634,7 @@ def main():
             raw, recons, base_var, t_idx=0, mask_3d=mask_3d,
             depth_values=depth_values,
             output_path=output_dir / f"{base_var}_vertical_section.png",
+            lat=lat,
         )
 
         # Compute horizontal gradient RMSE
@@ -433,6 +659,32 @@ def main():
             r10 = vert_rmse[10][lev]
             logger.info(f"    lev={lev}: k=3 {r3:.4e}  k=10 {r10:.4e}")
 
+        # Animations (optional, separate time window)
+        if args.animate and base_var in args.animate_vars:
+            anim_start_str = args.anim_time_start or args.time_start
+            import cftime as _cftime
+            anim_target = _cftime.DatetimeNoLeap(
+                *[int(x) for x in anim_start_str.split("-")]
+            )
+            anim_start_idx = int(
+                np.searchsorted([t.toordinal() for t in times], anim_target.toordinal())
+            )
+            anim_indices = list(range(
+                anim_start_idx,
+                min(anim_start_idx + args.n_anim_timesteps, len(times))
+            ))
+            logger.info(f"  Generating animations ({len(anim_indices)} frames)...")
+            anim_raw = load_raw_truth(ds, base_var, args.n_levels, anim_indices)
+            anim_coeffs = load_pca_coefficients(ds, base_var, args.n_components, anim_indices)
+            anim_recons = {k: truncated_reconstruct(anim_coeffs, pca, mask_3d, k)
+                           for k in [3, 5, 10]}
+            animate_variable(
+                anim_raw, anim_recons, base_var, mask_3d, depth_values,
+                output_dir=output_dir, lon=lon, lat=lat,
+                fps=args.anim_fps, anim_level=args.anim_level,
+            )
+            del anim_raw, anim_coeffs, anim_recons
+
         del raw, recons, all_coeffs
 
     # Plot C: summary gradient RMSE vs k
@@ -447,13 +699,15 @@ def main():
     for idx, base_var in enumerate(plot_vars):
         ax = axes[idx // ncols][idx % ncols]
         rmse_results = all_rmse[base_var]
-        for lev in args.depth_levels:
+        snap_levels = VAR_SNAPSHOT_LEVELS.get(base_var, args.depth_levels)
+        for lev in snap_levels:
             depth_m = DEPTH_LEVELS[lev] if lev < len(DEPTH_LEVELS) else lev
             ys = [rmse_results[k][lev] for k in K_VALUES]
-            ax.plot(K_VALUES, ys, "o-", label=f"lev {lev} ({depth_m}m)")
-        ax.set_title(base_var)
+            ax.plot(K_VALUES, ys, "o-", label=f"{depth_m:.0f} m")
+        ax.axvline(x=5, color="gray", linestyle="--", alpha=0.6, label="k=5 threshold")
+        ax.set_title(display_label(base_var))
         ax.set_xlabel("k (PCA components)")
-        ax.set_ylabel("Gradient RMSE")
+        ax.set_ylabel(f"|∇| RMSE ({UNITS.get(base_var, '')})")
         ax.legend(fontsize=8)
         ax.grid(True, alpha=0.3)
         ax.set_xticks(K_VALUES)
@@ -480,11 +734,13 @@ def main():
     for idx, base_var in enumerate(plot_vars):
         ax = axes[idx // ncols][idx % ncols]
         vert_rmse = all_vert_rmse[base_var]
-        for lev in args.depth_levels:
+        snap_levels = VAR_SNAPSHOT_LEVELS.get(base_var, args.depth_levels)
+        for lev in snap_levels:
             depth_m = depth_values[lev] if lev < len(depth_values) else lev
             ys = [vert_rmse[k][lev] for k in K_VALUES]
-            ax.plot(K_VALUES, ys, "o-", label=f"lev {lev} ({depth_m:.0f}m)")
-        ax.set_title(base_var)
+            ax.plot(K_VALUES, ys, "o-", label=f"{depth_m:.0f} m")
+        ax.axvline(x=5, color="gray", linestyle="--", alpha=0.6, label="k=5 threshold")
+        ax.set_title(display_label(base_var))
         ax.set_xlabel("k (PCA components)")
         ax.set_ylabel("|dX/dz| RMSE")
         ax.legend(fontsize=8)

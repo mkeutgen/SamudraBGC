@@ -38,6 +38,11 @@ PYTHONUNBUFFERED=1 python scripts/analysis/eval_pca_gradients.py \
     --variables temp salt psi phi log_dic log_o2 no3 log_chl \
     --n-timesteps 5 \
     --time-start 1990-01-01 \
-    --depth-levels 0 10 25 35 40 44 45
+    --depth-levels 0 10 25 35 40 44 45 \
+    --animate \
+    --animate-vars psi phi temp salt log_o2 \
+    --n-anim-timesteps 30 \
+    --anim-fps 5 \
+    --anim-level 35
 
 echo "Done! Outputs in ${OUTPUT_DIR}"
