@@ -14,6 +14,9 @@ def get_cmap_limits(data: np.ndarray, diverging=False) -> tuple[float, float]:
     if diverging:
         vmax = max(abs(vmin), abs(vmax))
         vmin = -vmax
+    if vmin == vmax:
+        vmin -= 1.0
+        vmax += 1.0
     return vmin, vmax
 
 
@@ -75,6 +78,9 @@ def plot_paneled_data(
     if diverging:
         vmax = max(abs(vmin), abs(vmax))
         vmin = -vmax
+    if vmin == vmax:
+        vmin -= 1.0
+        vmax += 1.0
     if caption is not None:
         caption += " "
     else:

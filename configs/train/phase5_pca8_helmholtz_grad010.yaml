@@ -41,7 +41,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: phase5_pca10_helmholtz_grad010
+  name: phase5_pca8_helmholtz_grad010
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -52,9 +52,9 @@ experiment:
     tags:
     - "phase5-pca"
     - "helmholtz-decomposition"
-    - "pca-k10"
+    - "pca-k8"
     - "grad-0.10"
-  prognostic_vars_key: helmholtz_log_no_logno3_pca10_all
+  prognostic_vars_key: helmholtz_log_no_logno3_pca8_all
   boundary_vars_key: minimal_forcing
   # PCA variables appended to existing zarr by scripts/fit_pca.py
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz

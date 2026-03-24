@@ -275,6 +275,15 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
     # Each 3D variable's 50 depth levels replaced by k PCA coefficients.
     # Variable naming: {base}pc_{component} (e.g., temppc_0, log_dicpc_3)
     # PCA coefficients are 2D fields (time, lat, lon) — no depth dimension.
+    "helmholtz_log_no_logno3_pca8_all": [
+        k + str(j)
+        for k in [
+            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
+            "temppc_", "saltpc_", "psipc_", "phipc_",
+        ]
+        for j in [str(i) for i in range(8)]
+    ]
+    + ["SSH"],
     "helmholtz_log_no_logno3_pca10_all": [
         k + str(j)
         for k in [
