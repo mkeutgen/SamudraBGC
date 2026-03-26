@@ -10,8 +10,6 @@ experiments:
   "Grad = 0.10":            "outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr/"
   "Grad = 0.25":            "outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr/"
   "Grad = 0.50":            "outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr/"
-  "MAE Rel Grad = 0.10":    "outputs/phase2_mae_relative_gradient_grad010_eval/predictions.zarr/"
-  "MAE Rel Grad = 0.25":    "outputs/phase2_mae_relative_gradient_grad025_eval/predictions.zarr/"
 
 # Path to ground truth data
 ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
