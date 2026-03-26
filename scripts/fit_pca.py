@@ -180,15 +180,22 @@ def fit_one_variable(ds, base_var, n_levels, k, z_mean, z_std, mask_3d,
             f"  [{base_var}] Chunk {ci + 1}/{len(train_chunks)} done"
         )
 
-    cumulative_var = np.cumsum(ipca.explained_variance_ratio_)
+    evr = ipca.explained_variance_ratio_
+    if np.any(np.isnan(evr)):
+        ev_ = ipca.explained_variance_
+        total = ev_.sum()
+        evr = ev_ / total if total > 0 else evr
+        logger.warning(
+            f"  [{base_var}] explained_variance_ratio_ was NaN (land-column divide-by-zero) "
+            f"— using self-normalised eigenvalue ratio"
+        )
+    cumulative_var = np.cumsum(evr)
     elapsed = time.time() - t0
     logger.info(
         f"  [{base_var}] Done in {elapsed:.0f}s — "
         f"explained variance: {cumulative_var[-1] * 100:.2f}% (k={k})"
     )
-    for i, (ev, cv) in enumerate(
-        zip(ipca.explained_variance_ratio_, cumulative_var)
-    ):
+    for i, (ev, cv) in enumerate(zip(evr, cumulative_var)):
         logger.info(f"  [{base_var}]   PC{i}: {ev * 100:.3f}% (cumulative: {cv * 100:.2f}%)")
 
     from ocean_emulators.pca import VerticalPCA
@@ -460,9 +467,12 @@ def main():
             mean_val = float(var_data.mean().compute())
             std_val = float(var_data.std().compute())
 
-            if std_val < 1e-15:
+            if not np.isfinite(mean_val):
+                mean_val = 0.0
+                logger.warning(f"    NaN mean for {var_name}, setting to 0.0")
+            if not np.isfinite(std_val) or std_val < 1e-15:
                 std_val = 1.0
-                logger.warning(f"    Zero std for {var_name}, setting to 1.0")
+                logger.warning(f"    Zero/NaN std for {var_name}, setting to 1.0")
 
             existing_means[var_name] = xr.DataArray(mean_val)
             existing_stds[var_name] = xr.DataArray(std_val)
@@ -473,7 +483,9 @@ def main():
     shutil.rmtree(stds_path, ignore_errors=True)
 
     xr.Dataset(existing_means).to_zarr(means_path)
+    zarr.consolidate_metadata(str(means_path))
     xr.Dataset(existing_stds).to_zarr(stds_path)
+    zarr.consolidate_metadata(str(stds_path))
     logger.info(f"  Updated {means_path} and {stds_path}")
 
     # ── Verification ──────────────────────────────────────────────────────

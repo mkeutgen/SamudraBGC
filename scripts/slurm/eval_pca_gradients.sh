@@ -35,7 +35,8 @@ echo "Job ID: ${SLURM_JOB_ID}"
 PYTHONUNBUFFERED=1 python scripts/analysis/eval_pca_gradients.py \
     --data-root ${DATA_DIR} \
     --output-dir ${OUTPUT_DIR} \
-    --variables temp salt psi phi log_dic log_o2 no3 log_chl \
+    --variables temp salt psi phi log_dic log_o2 no3 \
+    --n-components 25 \
     --n-timesteps 5 \
     --time-start 1990-01-01 \
     --depth-levels 0 10 25 35 40 44 45 \

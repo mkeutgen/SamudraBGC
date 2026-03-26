@@ -2,7 +2,7 @@
 # Phase 5: PCA vertical representation training
 # Requires: PCA dataset created by scripts/slurm/fit_pca.sh
 
-#SBATCH --job-name=phase5_pca8_grad010
+#SBATCH --job-name=phase5_pca15_grad010
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -11,8 +11,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=300G
 #SBATCH --time=3-00:00:00
-#SBATCH --output=logs/phase5_pca8_helmholtz_grad010_train_%j.out
-#SBATCH --error=logs/phase5_pca8_helmholtz_grad010_train_%j.err
+#SBATCH --output=logs/phase5_pca15_helmholtz_grad010_train_%j.out
+#SBATCH --error=logs/phase5_pca15_helmholtz_grad010_train_%j.err
 
 set -e
 
@@ -39,9 +39,9 @@ export MASTER_ADDR=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 export MASTER_PORT=29500
 export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 
-CONFIG=configs/train/phase5_pca8_helmholtz_grad010.yaml
+CONFIG=configs/train/phase5_pca15_helmholtz_grad010.yaml
 
-echo "Training phase5_pca8_helmholtz_grad010"
+echo "Training phase5_pca15_helmholtz_grad010"
 echo "Config: ${CONFIG}"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes"
 echo "PCA params: ${PCA_PARAMS}"

@@ -39,9 +39,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # k values to evaluate
-K_VALUES = [1, 2, 3, 5, 8, 10]
+K_VALUES = [1, 2, 3, 5, 10, 15, 20, 25]
 # k values shown in snapshot plots (subset of K_VALUES)
-K_SNAPSHOT = [3, 5, 10]
+K_SNAPSHOT = [5, 10, 15, 20, 25]
 
 # Publication-quality figure style
 import matplotlib as mpl
@@ -67,6 +67,16 @@ mpl.rcParams.update({
 
 # Log → linear back-transform constants (same as convert_log_to_linear.py)
 EPSILON_MAP = {"dic": 1e-10, "o2": 1e-10, "chl": 1e-8, "no3": 1e-14}
+
+# Unit conversion factors applied AFTER exp(field) - eps.
+# The ocean model stores BGC concentrations in mol/kg; display uses µmol/kg
+# (1e6 factor).  Chlorophyll is stored in kg/m³ (?); display uses mg/m³.
+# Variables not listed here have a factor of 1 (no conversion needed).
+DISPLAY_SCALE: dict[str, float] = {
+    "dic": 1e6,   # mol/kg  → µmol/kg
+    "o2":  1e6,   # mol/kg  → µmol/kg
+    "no3": 1e6,   # mol/kg  → µmol/kg  (no3 is NOT log-transformed but still in mol/kg)
+}
 
 # Per-variable preferred depth levels for snapshot figures
 # Level 35 ≈ 131 m — oxycline/nutricline for BGC
@@ -95,12 +105,25 @@ UNITS: dict[str, str] = {
 
 
 def to_display_space(field: np.ndarray, base_var: str) -> np.ndarray:
-    """Convert log-transformed field to linear space for display only."""
+    """Convert field to human-readable display units.
+
+    Two transformations are applied in order:
+    1. **Log → linear**: if ``base_var`` starts with ``log_``, undo the
+       log-transform via ``exp(field) − ε``.  The result is in the ocean
+       model's native units (mol/kg for BGC tracers).
+    2. **Unit scaling**: multiply by ``DISPLAY_SCALE[name]`` (e.g. ×1e6 to
+       go from mol/kg → µmol/kg for DIC, O₂, NO₃).
+    """
+    name = base_var[4:] if base_var.startswith("log_") else base_var
     if base_var.startswith("log_"):
-        name = base_var[4:]
         eps = EPSILON_MAP.get(name, 1e-10)
-        return np.exp(field) - eps
-    return field
+        out = np.exp(field) - eps
+    else:
+        out = field.copy()
+    scale = DISPLAY_SCALE.get(name, 1.0)
+    if scale != 1.0:
+        out = out * scale
+    return out
 
 
 def display_label(base_var: str) -> str:
@@ -350,6 +373,51 @@ def plot_vertical_section(raw: np.ndarray, recons: dict,
     logger.info(f"  Saved {output_path.name}")
 
 
+def plot_vertical_gradient_section(raw: np.ndarray, recons: dict,
+                                    base_var: str, t_idx: int,
+                                    mask_3d: np.ndarray, depth_values: np.ndarray,
+                                    output_path: Path, lat: np.ndarray) -> None:
+    """Zonal-mean lat-depth section of |dX/dz| — raw | k values."""
+    label = display_label(base_var)
+    n_cols = 1 + len(K_SNAPSHOT)
+    fig, axes = plt.subplots(1, n_cols, figsize=(5.5 * n_cols, 5), squeeze=False)
+
+    def grad_section(field_t):
+        # field_t: (n_levels, lat, lon)
+        dXdz = np.abs(np.gradient(field_t.astype(float), depth_values, axis=0))
+        for lev in range(dXdz.shape[0]):
+            dXdz[lev][~mask_3d[lev]] = np.nan
+        return np.nanmean(dXdz, axis=2)  # (n_levels, lat)
+
+    raw_section = grad_section(raw[t_idx])
+    vmax = np.nanpercentile(raw_section, 98)
+    vmin = max(np.nanpercentile(raw_section, 2), 1e-10)  # keep > 0 for log scale
+    levels = np.logspace(np.log10(vmin), np.log10(vmax), 20)
+
+    col_titles = ["Raw (truth)"] + [f"k={k}" for k in K_SNAPSHOT]
+    all_sections = [raw_section] + [grad_section(recons[k][t_idx]) for k in K_SNAPSHOT]
+
+    for col, (title, section) in enumerate(zip(col_titles, all_sections)):
+        ax = axes[0, col]
+        section_pos = np.where(section > 0, section, vmin)
+        cf = ax.contourf(lat, depth_values, section_pos,
+                         levels=levels,
+                         cmap="plasma", extend="max")
+        ax.set_ylim(depth_values[-1], depth_values[0])
+        ax.set_title(f"{title}  —  |d{label}/dz|")
+        ax.set_xlabel("Latitude (°N)")
+        ax.set_ylabel("Depth (m)" if col == 0 else "")
+        if col > 0:
+            ax.set_yticklabels([])
+        cbar = plt.colorbar(cf, ax=ax, shrink=0.85, pad=0.02, extend="max")
+        cbar.set_label(f"{UNITS.get(base_var, '')} m⁻¹", fontsize=9)
+
+    plt.tight_layout()
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
+    logger.info(f"  Saved {output_path.name}")
+
+
 def animate_variable(
     raw: np.ndarray,
     recons: dict,
@@ -490,6 +558,22 @@ def compute_vertical_gradient_rmse(raw: np.ndarray, recons: dict,
     return results
 
 
+def compute_field_reconstruction_rmse(raw: np.ndarray, recons: dict,
+                                       mask_3d: np.ndarray) -> dict:
+    """Return {k: {lev: rmse}} of field reconstruction RMSE, averaged over time."""
+    n_levels = raw.shape[1]
+    results = {k: {} for k in K_VALUES}
+    for k in K_VALUES:
+        for lev in range(n_levels):
+            m = mask_3d[lev]
+            rmses = []
+            for t in range(raw.shape[0]):
+                diff = (recons[k][t, lev][m] - raw[t, lev][m]) ** 2
+                rmses.append(np.sqrt(np.mean(diff)))
+            results[k][lev] = float(np.mean(rmses))
+    return results
+
+
 def compute_gradient_rmse(raw: np.ndarray, recons: dict, depth_levels: list[int],
                            mask_3d: np.ndarray) -> dict:
     """Return {k: {lev: rmse}} averaged over all timesteps."""
@@ -588,6 +672,7 @@ def main():
     # Per-variable analysis
     all_rmse = {}
     all_vert_rmse = {}
+    all_field_rmse = {}
     for base_var in args.variables:
         if base_var not in pca_dict:
             logger.warning(f"No PCA params for {base_var}, skipping")
@@ -636,6 +721,19 @@ def main():
             output_path=output_dir / f"{base_var}_vertical_section.png",
             lat=lat,
         )
+
+        # Plot D: vertical gradient magnitude section
+        plot_vertical_gradient_section(
+            raw, recons, base_var, t_idx=0, mask_3d=mask_3d,
+            depth_values=depth_values,
+            output_path=output_dir / f"{base_var}_vertical_gradient_section.png",
+            lat=lat,
+        )
+
+        # Compute field reconstruction RMSE
+        logger.info("  Computing field reconstruction RMSE vs k...")
+        field_rmse = compute_field_reconstruction_rmse(raw, recons, mask_3d)
+        all_field_rmse[base_var] = field_rmse
 
         # Compute horizontal gradient RMSE
         logger.info("  Computing horizontal gradient RMSE vs k...")
@@ -782,6 +880,101 @@ def main():
     fig.savefig(depth_profile_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     logger.info(f"Saved {depth_profile_path}")
+
+    # Plot F: field reconstruction RMSE depth profile (all levels, selected k values)
+    logger.info("Generating field reconstruction RMSE depth-profile figure...")
+    plot_vars = [v for v in args.variables if v in all_field_rmse]
+    n_vars = len(plot_vars)
+    ncols = 4
+    nrows = (n_vars + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 5 * nrows), squeeze=False)
+    fig.suptitle("Field reconstruction RMSE depth profile per variable", fontsize=14)
+
+    for idx, base_var in enumerate(plot_vars):
+        ax = axes[idx // ncols][idx % ncols]
+        fr = all_field_rmse[base_var]
+        for k in [1, 3, 5, 10]:
+            ys = [fr[k][lev] for lev in range(args.n_levels)]
+            ax.plot(ys, depth_values, "o-", markersize=2, label=f"k={k}")
+        ax.invert_yaxis()
+        ax.set_title(display_label(base_var))
+        ax.set_xlabel(f"RMSE ({UNITS.get(base_var, '')})")
+        ax.set_ylabel("Depth (m)")
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+
+    for idx in range(len(plot_vars), nrows * ncols):
+        axes[idx // ncols][idx % ncols].set_visible(False)
+
+    plt.tight_layout()
+    field_depth_profile_path = output_dir / "field_rmse_depth_profile.png"
+    fig.savefig(field_depth_profile_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info(f"Saved {field_depth_profile_path}")
+
+    # Plot G: two-criteria comparison — field RMSE vs k AND vertical gradient RMSE vs k
+    # Both normalized by their k=1 value so all variables are on the same scale.
+    logger.info("Generating two-criteria optimal-k comparison figure...")
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle(
+        "How many PCA components are needed?\n"
+        "(Normalized RMSE relative to k=1; lower is better)",
+        fontsize=13,
+    )
+
+    ax_field = axes[0]
+    ax_grad = axes[1]
+
+    for base_var in [v for v in args.variables if v in all_field_rmse]:
+        fr = all_field_rmse[base_var]
+        depth_avg = {k: float(np.mean([fr[k][lev] for lev in range(args.n_levels)])) for k in K_VALUES}
+        norm = depth_avg[K_VALUES[0]]
+        if norm > 0:
+            ys = [depth_avg[k] / norm for k in K_VALUES]
+            ax_field.plot(K_VALUES, ys, "o-", label=display_label(base_var))
+
+    ax_field.set_title("Vertical structure (field RMSE)")
+    ax_field.set_xlabel("k (PCA components)")
+    ax_field.set_ylabel("Normalized RMSE (relative to k=1)")
+    ax_field.legend(fontsize=8)
+    ax_field.grid(True, alpha=0.3)
+    ax_field.set_xticks(K_VALUES)
+    ax_field.set_ylim(bottom=0)
+
+    for base_var in [v for v in args.variables if v in all_vert_rmse]:
+        vr = all_vert_rmse[base_var]
+        depth_avg = {k: float(np.mean([vr[k][lev] for lev in range(args.n_levels)])) for k in K_VALUES}
+        norm = depth_avg[K_VALUES[0]]
+        if norm > 0:
+            ys = [depth_avg[k] / norm for k in K_VALUES]
+            ax_grad.plot(K_VALUES, ys, "o-", label=display_label(base_var))
+
+    ax_grad.set_title("Vertical gradient representation (|dX/dz| RMSE)")
+    ax_grad.set_xlabel("k (PCA components)")
+    ax_grad.set_ylabel("Normalized RMSE (relative to k=1)")
+    ax_grad.legend(fontsize=8)
+    ax_grad.grid(True, alpha=0.3)
+    ax_grad.set_xticks(K_VALUES)
+    ax_grad.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    two_criteria_path = output_dir / "optimal_k_two_criteria.png"
+    fig.savefig(two_criteria_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info(f"Saved {two_criteria_path}")
+
+    # Summary table: depth-averaged normalized RMSE per variable per k
+    logger.info("\n=== Depth-averaged Normalized RMSE (relative to k=1) ===")
+    for criterion, store in [("Field", all_field_rmse), ("Vert.Grad", all_vert_rmse)]:
+        logger.info(f"\n  {criterion}:")
+        header = f"  {'Variable':<12} " + " ".join(f"k={k:>2}" for k in K_VALUES)
+        logger.info(header)
+        for base_var in [v for v in args.variables if v in store]:
+            d = store[base_var]
+            depth_avg = {k: float(np.mean([d[k][lev] for lev in range(args.n_levels)])) for k in K_VALUES}
+            norm = depth_avg[K_VALUES[0]]
+            vals = " ".join(f"{depth_avg[k]/norm:>6.3f}" for k in K_VALUES) if norm > 0 else "N/A"
+            logger.info(f"  {base_var:<12} {vals}")
 
     logger.info("\nDone! Output directory: " + str(output_dir))
 

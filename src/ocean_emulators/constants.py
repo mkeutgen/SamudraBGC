@@ -284,15 +284,6 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
         for j in [str(i) for i in range(5)]
     ]
     + ["SSH"],
-    "helmholtz_log_no_logno3_pca8_all": [
-        k + str(j)
-        for k in [
-            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
-            "temppc_", "saltpc_", "psipc_", "phipc_",
-        ]
-        for j in [str(i) for i in range(8)]
-    ]
-    + ["SSH"],
     "helmholtz_log_no_logno3_pca10_all": [
         k + str(j)
         for k in [
@@ -300,6 +291,24 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
             "temppc_", "saltpc_", "psipc_", "phipc_",
         ]
         for j in [str(i) for i in range(10)]
+    ]
+    + ["SSH"],
+    "helmholtz_log_no_logno3_pca15_all": [
+        k + str(j)
+        for k in [
+            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
+            "temppc_", "saltpc_", "psipc_", "phipc_",
+        ]
+        for j in [str(i) for i in range(15)]
+    ]
+    + ["SSH"],
+    "helmholtz_log_no_logno3_pca20_all": [
+        k + str(j)
+        for k in [
+            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
+            "temppc_", "saltpc_", "psipc_", "phipc_",
+        ]
+        for j in [str(i) for i in range(20)]
     ]
     + ["SSH"],
     "helmholtz_log_pca10_all": [

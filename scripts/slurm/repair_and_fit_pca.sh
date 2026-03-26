@@ -1,17 +1,14 @@
 #!/bin/bash
-# Fit PCA on vertical profiles and append PCA variables to existing zarr.
-# This is a preprocessing step — run ONCE before training.
-
-#SBATCH --job-name=fit_pca
+#SBATCH --job-name=repair_fit_pca
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=112
 #SBATCH --mem=900G
-#SBATCH --time=20:00:00
-#SBATCH --output=logs/fit_pca_%j.out
-#SBATCH --error=logs/fit_pca_%j.err
+#SBATCH --time=24:00:00
+#SBATCH --output=logs/repair_fit_pca_%j.out
+#SBATCH --error=logs/repair_fit_pca_%j.err
 
 set -e
 
@@ -26,10 +23,13 @@ mkdir -p logs
 
 DATA_DIR=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 
-echo "Fitting PCA and appending to existing zarr"
-echo "Data dir: ${DATA_DIR}"
+echo "=== Step 1: Repair bgc_means.zarr and bgc_stds.zarr ==="
 echo "Job ID: ${SLURM_JOB_ID}"
+PYTHONUNBUFFERED=1 python scripts/repair_stats.py \
+    --data-dir ${DATA_DIR} \
+    --workers 112
 
+echo "=== Step 2: Refit PCA (k=25) and rewrite PC coefficients ==="
 PYTHONUNBUFFERED=1 python scripts/fit_pca.py \
     --data-dir ${DATA_DIR} \
     --n-components 25 \
@@ -40,6 +40,4 @@ PYTHONUNBUFFERED=1 python scripts/fit_pca.py \
     --chunk-years 4 \
     --parallel-vars 4
 
-echo "PCA preprocessing complete!"
-echo "PCA params: ${DATA_DIR}/pca_params.npz"
-echo "Variables appended to: ${DATA_DIR}/bgc_data.zarr"
+echo "=== Done ==="
