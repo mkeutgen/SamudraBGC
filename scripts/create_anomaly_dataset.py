@@ -71,7 +71,8 @@ def _compute_one_climatology(src_path: str, var_name: str, out_path: str):
     clim = (clim / CLIM_YEARS).astype(np.float32)
 
     out = zarr.open(out_path, mode="r+")
-    out.create_dataset(var_name, data=clim, chunks=clim.shape, dtype=np.float32, overwrite=True)
+    ds = out.create_dataset(var_name, data=clim, chunks=clim.shape, dtype=np.float32, overwrite=True)
+    ds.attrs["_ARRAY_DIMENSIONS"] = ["dayofyear", "lat", "lon"][:len(clim.shape)]
     return var_name, clim.shape
 
 
@@ -119,6 +120,7 @@ def _create_one_anomaly(src_path: str, clim_path: str, out_path: str, var_name: 
         var_name, shape=arr.shape, chunks=(DAYS_PER_YEAR, *spatial_shape),
         dtype=np.float32, overwrite=True,
     )
+    out_arr.attrs["_ARRAY_DIMENSIONS"] = ["time", "lat", "lon"][:len(arr.shape)]
 
     for yr in range(N_YEARS):
         start = yr * DAYS_PER_YEAR
@@ -142,12 +144,20 @@ def create_anomaly_data(
     # Copy static variables as-is (fast, sequential)
     for var_name in static_vars:
         data = src_zarr[var_name][:]
-        out_store.create_dataset(var_name, data=data, chunks=data.shape, dtype=data.dtype)
+        ds = out_store.create_dataset(var_name, data=data, chunks=data.shape, dtype=data.dtype)
+        # Copy _ARRAY_DIMENSIONS from source if available
+        src_dims = src_zarr[var_name].attrs.get("_ARRAY_DIMENSIONS")
+        if src_dims:
+            ds.attrs["_ARRAY_DIMENSIONS"] = src_dims
         log.info(f"  Copied static {var_name}: shape={data.shape}")
 
     if "time" in src_zarr:
         time_data = src_zarr["time"][:]
-        out_store.create_dataset("time", data=time_data, chunks=(DAYS_PER_YEAR,), dtype=time_data.dtype)
+        ds = out_store.create_dataset("time", data=time_data, chunks=(DAYS_PER_YEAR,), dtype=time_data.dtype)
+        # Copy all attrs (includes calendar, units needed for cftime decoding)
+        for ak, av in src_zarr["time"].attrs.items():
+            ds.attrs[ak] = av
+        ds.attrs["_ARRAY_DIMENSIONS"] = ["time"]
         log.info(f"  Copied time: shape={time_data.shape}")
 
     # Parallel anomaly creation
@@ -212,8 +222,10 @@ def compute_means_stds(out_data_path: Path, out_dir: Path, time_varying_vars, wo
         }
         for future in as_completed(futures):
             var_name, mean_val, std_val = future.result()
-            means_store.create_dataset(var_name, data=mean_val, shape=(), dtype=np.float32)
-            stds_store.create_dataset(var_name, data=std_val, shape=(), dtype=np.float32)
+            ds_m = means_store.create_dataset(var_name, data=mean_val, shape=(), dtype=np.float32)
+            ds_m.attrs["_ARRAY_DIMENSIONS"] = []
+            ds_s = stds_store.create_dataset(var_name, data=std_val, shape=(), dtype=np.float32)
+            ds_s.attrs["_ARRAY_DIMENSIONS"] = []
             done += 1
             if done % 50 == 0 or done == total:
                 elapsed = time.time() - t_start

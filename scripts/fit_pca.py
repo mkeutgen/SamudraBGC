@@ -406,7 +406,7 @@ def main():
     time_chunk_size = ref_zarr.chunks[0]
 
     # Build time chunks for the full dataset
-    steps_per_chunk = 73 * args.chunk_years
+    steps_per_chunk = time_chunk_size * args.chunk_years
     time_chunks = []
     for t_start in range(0, n_time, steps_per_chunk):
         t_end = min(t_start + steps_per_chunk, n_time)
@@ -446,12 +446,12 @@ def main():
     # Reload dataset to pick up new variables
     ds = xr.open_zarr(data_path, consolidated=True)
 
-    # Load existing means/stds
+    # Load existing means/stds eagerly (must compute before we delete the zarrs)
     existing_means = {
-        k_: v for k_, v in xr.open_zarr(means_path, consolidated=True).data_vars.items()
+        k_: xr.DataArray(float(v)) for k_, v in xr.open_zarr(means_path, consolidated=True).data_vars.items()
     }
     existing_stds = {
-        k_: v for k_, v in xr.open_zarr(stds_path, consolidated=True).data_vars.items()
+        k_: xr.DataArray(float(v)) for k_, v in xr.open_zarr(stds_path, consolidated=True).data_vars.items()
     }
 
     # Compute stats for new PCA variables only
