@@ -1,7 +1,7 @@
 #!/bin/bash
-# Phase 5: PCA evaluation + depth-level reconstruction metrics
+# 5-year rollout (2015-2019) for phase5_pca10_helmholtz_grad010
 
-#SBATCH --job-name=eval_phase5_pca10
+#SBATCH --job-name=rollout5y_pca10
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -10,8 +10,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=400G
 #SBATCH --time=24:00:00
-#SBATCH --output=logs/eval_phase5_pca10_helmholtz_grad010_%j.out
-#SBATCH --error=logs/eval_phase5_pca10_helmholtz_grad010_%j.err
+#SBATCH --output=logs/eval_phase5_pca10_helmholtz_grad010_rollout5y_%j.out
+#SBATCH --error=logs/eval_phase5_pca10_helmholtz_grad010_rollout5y_%j.err
 
 set -e
 
@@ -24,19 +24,19 @@ export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:$PYTHONPAT
 
 mkdir -p logs
 
-CONFIG=configs/eval/phase5_pca10_helmholtz_grad010_eval.yaml
+CONFIG=configs/eval/phase5_pca10_helmholtz_grad010_eval_rollout2015_2019.yaml
 
-echo "Evaluating phase5_pca10_helmholtz_grad010"
+echo "Starting 5-year rollout evaluation for phase5_pca10_helmholtz_grad010"
 echo "Config: ${CONFIG}"
 echo "Job ID: ${SLURM_JOB_ID}"
+echo "Node: ${HOSTNAME}"
+echo "GPU: ${CUDA_VISIBLE_DEVICES}"
 
-# Step 1: Run standard evaluation (PCA coefficient space)
 python -m ocean_emulators.eval ${CONFIG}
 
-EVAL_DIR=outputs/phase5_pca10_helmholtz_grad010_eval
+EVAL_DIR=outputs/phase5_pca10_helmholtz_grad010_eval_rollout2015_2019
 PRED_ZARR=${EVAL_DIR}/predictions.zarr
 
-# Step 2: If zarr was saved, compute depth-level reconstruction metrics
 if [ -d "${PRED_ZARR}" ]; then
     echo ""
     echo "============================================="
@@ -60,4 +60,4 @@ else
     echo "WARNING: No evaluation zarr found at ${PRED_ZARR}, skipping depth reconstruction"
 fi
 
-echo "Evaluation complete!"
+echo "Rollout evaluation complete!"

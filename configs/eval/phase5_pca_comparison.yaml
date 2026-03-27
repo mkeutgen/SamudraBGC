@@ -1,0 +1,71 @@
+# 5-way comparison: Phase 5 PCA vertical representation ablation
+# Compares baseline (phase2 winner: depth-level, grad=0.25) against
+# PCA k=5, 10, 15, 20 on the validation period (2010-2014).
+#
+# All PCA experiments use: Helmholtz (ψ,φ) + Log BGC + gradient_weight = 0.10
+# Only varying: number of PCA components k ∈ {5, 10, 15, 20}
+#
+# Prerequisites: all reconstruct jobs must have completed:
+#   sbatch scripts/slurm/reconstruct_phase5_pca5_rollout2010_2014.sh
+#   sbatch scripts/slurm/reconstruct_phase5_pca10_rollout2010_2014.sh
+#   sbatch scripts/slurm/reconstruct_phase5_pca15_rollout2010_2014.sh
+#   sbatch scripts/slurm/reconstruct_phase5_pca20_rollout2010_2014.sh
+
+experiments:
+  "PCA k=15":  "outputs/phase5_pca15_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr/"
+  "PCA k=5":   "outputs/phase5_pca5_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr/"
+  "PCA k=10":  "outputs/phase5_pca10_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr/"
+  "Baseline (depth-level, grad=0.10)": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr/"
+#  "PCA k=20":  "outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr/"
+
+# Path to ground truth data
+ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+
+# Output directory for results
+output_dir: "outputs/phase5_pca_comparison"
+
+# Validation period: use 2013-2014 (last 2 years) for faster evaluation
+time_slice:
+  - "2013-01-01"
+  - "2014-12-31"
+
+# Grid spacing in kilometers (for spectral analysis)
+dx_km: 9.0
+
+# Analysis options
+compute_regional: true
+save_time_series: true
+save_spatial_fields: false
+
+# Visualization settings
+visualization:
+  # Single snapshot: Spring 2014 (day 444 from 2013-01-01)
+  snapshot_times: [444]
+
+  # Time index for spectral analysis (middle of test period, relative index)
+  spectral_time_idx: 365  # 2014-01-01
+
+  # Figure DPI
+  dpi: 150
+
+  # Plot types to generate
+  plot_types:
+    - spatial
+    - timeseries
+    - variable_pdf
+
+  # Skip surface-level _0 spatial figures
+  exclude_spatial_variables:
+    - temp_0
+    - salt_0
+    - psi_0
+    - phi_0
+    - dic_0
+    - o2_0
+    - no3_0
+    - chl_0
+
+# Memory management
+memory:
+  batch_size: 40
+  clear_cache_between_batches: true

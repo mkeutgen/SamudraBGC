@@ -1,19 +1,19 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# Evaluation for phase5_pca10_helmholtz_grad010
-# Evaluates on PCA coefficient space; use eval_pca_reconstruction.py for depth-level metrics
+# 5-year rollout (2010-2014, val period) for phase5_pca15_helmholtz_grad010
+# Use this for ablation comparison against previous phases.
 
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/phase5_pca10_helmholtz_grad010/saved_nets/ema_ckpt.pt
+ckpt_path: ./outputs/phase5_pca15_helmholtz_grad010/saved_nets/ema_ckpt.pt
 inference_time:
   start: '2010-01-01'
   end: '2014-12-31'
-num_model_steps_forward: 200
+num_model_steps_forward: 5
 backend: auto
 
 experiment:
-  name: phase5_pca10_helmholtz_grad010_eval
+  name: phase5_pca15_helmholtz_grad010_eval_rollout2010_2014
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -24,9 +24,10 @@ experiment:
     tags:
     - "phase5-pca"
     - "helmholtz-decomposition"
-    - "pca-k10"
+    - "pca-k15"
     - "eval"
-  prognostic_vars_key: helmholtz_log_no_logno3_pca10_all
+    - "rollout-2010-2014"
+  prognostic_vars_key: helmholtz_log_no_logno3_pca15_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 
@@ -71,9 +72,8 @@ model:
     non_negative_corrector_names: null
     ocean_heat_corrector: false
 
-# PCA reconstruction config for depth-level metrics
 pca:
   pca_params_path: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/pca_params.npz
   original_data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
   original_prognostic_vars_key: helmholtz_log_no_logno3_all
-  n_components: 10
+  n_components: 15
