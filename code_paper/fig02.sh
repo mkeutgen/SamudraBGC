@@ -1,23 +1,27 @@
 #!/bin/bash
 #SBATCH --job-name=fig02
-#SBATCH --account=lrgroup
+#SBATCH --partition=cimes
+#SBATCH --account=cimes3
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=800G
-#SBATCH --time=02:00:00
-#SBATCH --output=/scratch/cimes/maximek/INMOS/Ocean_Emulator/code_paper/logs/fig02_%j.out
-#SBATCH --error=/scratch/cimes/maximek/INMOS/Ocean_Emulator/code_paper/logs/fig02_%j.err
+#SBATCH --time=06:00:00
+#SBATCH --output=logs/fig02_%j.out
+#SBATCH --error=logs/fig02_%j.err
 
-# Figure 2: Champion model BGC performance
-# Computes upper-100m depth-weighted averages (33 levels × 3 vars × 2 datasets).
+# Figure 2: Champion model BGC performance (PCA k=15)
 
 set -e
 
+source ~/.bashrc
+module purge
 module load anaconda3/2024.10
 conda activate /scratch/cimes/maximek/envs/ocean-emulator
+cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
+export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:$PYTHONPATH
 
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
+mkdir -p logs
 
 PYTHONUNBUFFERED=1 python code_paper/fig02.py
 

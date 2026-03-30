@@ -222,6 +222,18 @@ def main():
         ds_t.attrs["_ARRAY_DIMENSIONS"] = ["time"]
         log.info(f"Copied time: shape={time_data.shape}")
 
+    # Copy lat/lon coordinates (required for xarray regional selection)
+    for coord_name, coord_len in [("lat", n_lat), ("lon", n_lon)]:
+        if coord_name in pred_zarr:
+            coord_data = pred_zarr[coord_name][:]
+            ds_c = out_store.create_dataset(coord_name, data=coord_data,
+                                             chunks=(coord_len,),
+                                             dtype=coord_data.dtype)
+            for ak, av in pred_zarr[coord_name].attrs.items():
+                ds_c.attrs[ak] = av
+            ds_c.attrs["_ARRAY_DIMENSIONS"] = [coord_name]
+            log.info(f"Copied {coord_name}: shape={coord_data.shape}")
+
     # Copy SSH as-is
     if "SSH" in pred_zarr:
         ssh = pred_zarr["SSH"][:]
