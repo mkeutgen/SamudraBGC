@@ -355,7 +355,7 @@ class EnsembleEvaluator:
                 axes[1, 0].set_title("Bias (Mean − Truth)")
 
                 masked_std = np.where(wet_mask, ens_std, np.nan)
-                im = axes[1, 1].pcolormesh(lon, lat, masked_std, cmap="hot_r", shading="auto")
+                im = axes[1, 1].pcolormesh(lon, lat, masked_std, cmap="viridis", shading="auto")
                 fig.colorbar(im, ax=axes[1, 1], label=info["units"])
                 axes[1, 1].set_title("Ensemble Spread (σ)")
 

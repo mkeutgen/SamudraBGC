@@ -37,17 +37,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from ocean_emulators.constants import DEPTH_LEVELS, DEPTH_THICKNESS
 
 GT_PATH = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-OUTPUTS_DIR = Path("outputs")
+DEFAULT_OUTPUTS_DIR = "outputs"
+DEFAULT_PRED_ZARR = "predictions.zarr"
 
 VARS_3D = {
     "temp": "temp",
     "salt": "salt",
     "psi":  "psi",
     "phi":  "phi",
-    "log_dic": "log_dic",
-    "log_o2":  "log_o2",
-    "log_no3": "log_no3",
-    "log_chl": "log_chl",
+    "dic":  "dic",
+    "o2":   "o2",
+    "no3":  "no3",
+    "chl":  "chl",
 }
 VARS_2D = ["SSH"]
 ALL_DEPTH_LEVELS = np.array(DEPTH_LEVELS[:50], dtype=np.float64)
@@ -87,9 +88,9 @@ def _compute_level_ss(gt_path, pred_path, key, time_start, time_end):
     return key, ss_res, ss_tot
 
 
-def compute_experiment(gt_path, exp_name, n_workers, n_levels):
+def compute_experiment(gt_path, exp_name, n_workers, n_levels, outputs_dir, pred_zarr):
     """Compute depth-weighted R² for one experiment using multiprocessing."""
-    pred_path = str(OUTPUTS_DIR / exp_name / "predictions.zarr")
+    pred_path = str(outputs_dir / exp_name / pred_zarr)
     dz = ALL_DZ[:n_levels]
 
     import xarray as xr
@@ -169,10 +170,10 @@ def compute_experiment(gt_path, exp_name, n_workers, n_levels):
     return exp_results, mean_r2, time_start, time_end
 
 
-def find_experiments():
+def find_experiments(outputs_dir, pred_zarr):
     results = []
-    for d in sorted(OUTPUTS_DIR.iterdir()):
-        if d.is_dir() and (d / "predictions.zarr").exists():
+    for d in sorted(outputs_dir.iterdir()):
+        if d.is_dir() and (d / pred_zarr).exists():
             results.append(d.name)
     return results
 
@@ -181,6 +182,10 @@ def main():
     parser = argparse.ArgumentParser(description="Compute depth-thickness-weighted R² in native prediction space")
     parser.add_argument("--experiments", nargs="*", default=None)
     parser.add_argument("--gt-path", default=GT_PATH)
+    parser.add_argument("--outputs-dir", default=DEFAULT_OUTPUTS_DIR,
+                        help="Base directory containing experiment folders (default: 'outputs')")
+    parser.add_argument("--pred-zarr", default=DEFAULT_PRED_ZARR,
+                        help="Name of prediction zarr inside each experiment dir (default: 'predictions.zarr')")
     parser.add_argument("--workers", type=int, default=None,
                         help="Number of parallel workers (default: SLURM_CPUS_PER_TASK or cpu_count/2)")
     parser.add_argument("--max-depth", type=float, default=None,
@@ -200,13 +205,17 @@ def main():
         n_levels = 50
         depth_label = f"all 50 levels (0–{ALL_DEPTH_LEVELS[49]:.0f} m)"
 
-    experiments = args.experiments or find_experiments()
+    outputs_dir = Path(args.outputs_dir)
+    pred_zarr = args.pred_zarr
+    experiments = args.experiments or find_experiments(outputs_dir, pred_zarr)
     if not experiments:
         print("No experiments found.")
         return
 
     print(f"Workers: {n_workers}")
     print(f"Ground truth: {args.gt_path}")
+    print(f"Outputs dir: {outputs_dir}")
+    print(f"Prediction zarr: {pred_zarr}")
     print(f"Depth range: {depth_label}")
     print(f"Experiments: {len(experiments)}")
 
@@ -221,13 +230,13 @@ def main():
     all_results = {}
 
     for exp_name in experiments:
-        pred_path = OUTPUTS_DIR / exp_name / "predictions.zarr"
+        pred_path = outputs_dir / exp_name / pred_zarr
         if not pred_path.exists():
-            print(f"  {exp_name}: predictions.zarr not found, skipping")
+            print(f"  {exp_name}: {pred_zarr} not found, skipping")
             continue
 
         exp_results, mean_r2, time_start, time_end = compute_experiment(
-            args.gt_path, exp_name, n_workers, n_levels
+            args.gt_path, exp_name, n_workers, n_levels, outputs_dir, pred_zarr
         )
         all_results[exp_name] = {"variables": exp_results, "mean_r2": mean_r2}
 
@@ -242,7 +251,7 @@ def main():
         print(row)
 
         # Save per-experiment detail file
-        metrics_dir = OUTPUTS_DIR / exp_name / "metrics"
+        metrics_dir = outputs_dir / exp_name / "metrics"
         metrics_dir.mkdir(parents=True, exist_ok=True)
         with open(metrics_dir / "depth_weighted_r2.txt", "w") as f:
             f.write(f"Experiment: {exp_name}\n")
