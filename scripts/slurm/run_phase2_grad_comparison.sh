@@ -11,7 +11,8 @@
 #SBATCH --error=logs/phase2_grad_comparison_%j.err
 
 # Phase 2 — Gradient Weight Ablation: 4-way comparison
-# Compares grad00 / grad010 / grad025 / grad050 on the validation period (2010-2014)
+# Compares grad00 / grad010 / grad025 / grad050
+# on the validation period (2010-2014)
 # Prerequisite: all 4 eval jobs must have completed:
 #   sbatch scripts/slurm/eval_phase2_helmholtz_grad00.sh
 #   sbatch scripts/slurm/eval_phase2_helmholtz_grad010.sh

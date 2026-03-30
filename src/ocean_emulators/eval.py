@@ -306,7 +306,6 @@ class Eval:
                 pert_std_temp=self.cfg.ensemble.pert_std_temp,
                 pert_rel_dic=self.cfg.ensemble.pert_rel_dic,
                 pert_rel_o2=self.cfg.ensemble.pert_rel_o2,
-                pert_rel_salt=self.cfg.ensemble.pert_rel_salt,
                 use_vertical_taper=self.cfg.ensemble.use_vertical_taper,
                 seed_offset=ensemble_idx * 100,  # Unique seed for each member
             )

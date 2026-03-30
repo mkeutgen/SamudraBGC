@@ -690,6 +690,7 @@ class TrainConfig(TopLevelConfig):
     loss: LossType = "mse"
     gradient_weight: float = 0.1
     second_order_weight: float = 0.0  # Laplacian/curvature penalty for sharper features
+    dynamic_n_window: int = 25  # Rolling window size for dynamic loss scaling
     gradient_scales: Optional[List[float]] = None 
     finetune: bool = False
     resume_ckpt_path: str | None = None
@@ -738,10 +739,9 @@ class EnsembleConfig(BaseConfig):
     depth_max_m: float = 100.0
     dx_km: float = 9.0
     corr_sigma_km: float = 90.0
-    pert_std_temp: float = 0.1
+    pert_std_temp: float = 0.1  # Temperature std in °C (physical units)
     pert_rel_dic: float = 0.1
     pert_rel_o2: float = 0.1
-    pert_rel_salt: float = 0.1
     use_vertical_taper: bool = True
     seed_offset: int = 0
     output_individual_members: bool = True

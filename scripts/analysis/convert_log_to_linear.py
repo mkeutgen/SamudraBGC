@@ -33,6 +33,15 @@ EPSILON_MAP = {
     "no3": 1e-14,   # mol/kg — below observed min (min ~7e-13)
 }
 
+# Physical upper bounds (mol/kg) to clamp exp() blowups from autoregressive drift.
+# Set to ~2× observed max to catch only catastrophic outliers.
+PHYSICAL_MAX = {
+    "no3": 5e-5,    # ~50 µmol/kg (observed max ~40 µmol/kg)
+    "o2":  5e-4,    # ~500 µmol/kg (observed max ~370 µmol/kg)
+    "dic": 3e-3,    # ~3000 µmol/kg (observed max ~2400 µmol/kg)
+    "chl": 20.0,    # µg/kg (observed max ~5 µg/kg)
+}
+
 
 def convert_log_to_linear(input_path: str, output_path: str):
     """
@@ -77,7 +86,18 @@ def convert_log_to_linear(input_path: str, output_path: str):
         logger.info(f"  {log_var} -> {linear_var_name} (epsilon={epsilon})")
 
         # Transform: linear = exp(log) - epsilon
-        linear_data = np.exp(ds[log_var]) - epsilon
+        # Mask land points: where log_var == 0 (fill value), set to NaN
+        # Clamp to physical bounds to catch autoregressive drift blowups
+        raw = ds[log_var]
+        linear_data = np.exp(raw) - epsilon
+        linear_data = linear_data.where(raw != 0)
+
+        phys_max = PHYSICAL_MAX.get(base_var)
+        if phys_max is not None:
+            n_clamped = (linear_data > phys_max).sum().values
+            if n_clamped > 0:
+                logger.warning(f"    Clamping {int(n_clamped)} values above {phys_max:.1e} for {linear_var_name}")
+            linear_data = linear_data.clip(max=phys_max)
 
         # Copy attributes
         attrs = ds[log_var].attrs.copy()

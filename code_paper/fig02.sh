@@ -11,6 +11,8 @@
 #SBATCH --error=logs/fig02_%j.err
 
 # Figure 2: Champion model BGC performance (PCA k=15)
+# Computes depth-weighted averages for 3 depth ranges (surface/interior/deep) x 7 vars x 2 datasets.
+# Produces SI timeseries and PDFs for 4 biomes x 3 depth ranges.
 
 set -e
 

@@ -1,48 +1,33 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# Ensemble evaluation for jra_helmholtz_min_grad05 on the held-out test period
+# Evaluation for: phase2_mae_relative_gradient_grad025
+# Paper Ablation - Phase 2: MAE Relative Gradient Loss (gradient_weight = 0.25)
 
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/jra_helmholtz_min_grad05/saved_nets/ema_ckpt.pt
+ckpt_path: ./outputs/phase2_mae_relative_gradient_grad025/saved_nets/ema_ckpt.pt
 inference_time:
-  start: '2015-01-01'   # start of test period
-  end: '2019-12-31'
-num_model_steps_forward: 5
+  start: '2010-01-01'
+  end: '2014-12-31'
+num_model_steps_forward: 25
 backend: auto
 
-# Ensemble configuration
-ensemble:
-  enabled: true
-  n_ensemble: 20
-  depth_max_m: 100.0
-  dx_km: 9.0
-  corr_sigma_km: 90.0
-  pert_std_temp: 0.1
-  pert_rel_dic: 0.1
-  pert_rel_o2: 0.1
-  use_vertical_taper: true
-  seed_offset: 0
-  output_individual_members: true
-  output_ensemble_mean: true
-  output_ensemble_std: true
-
 experiment:
-  name: jra_helmholtz_min_grad05_ensemble_eval_test
+  name: phase2_mae_relative_gradient_grad025_eval
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: offline
     project: bgc-emulator
     entity: m2lines
-    group: mom6-bgc-eval-jra60-ensemble
+    group: paper-ablations-phase2-eval
     tags:
-    - "ensemble"
-    - "phase1-forcing"
+    - "paper-ablation"
+    - "phase2-mae-relative-gradient"
     - "helmholtz-decomposition"
-    - "minimal-forcing"
-    - "test-2015-2019"
-  prognostic_vars_key: helmholtz_only_all
+    - "grad-0.25"
+    - "evaluation"
+  prognostic_vars_key: helmholtz_log_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 
@@ -51,9 +36,9 @@ data:
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 2
+  num_workers: 4
   persistent_workers: true
-  prefetch_factor: 3
+  prefetch_factor: 2
   hist: 1
   concurrent_compute: true
 

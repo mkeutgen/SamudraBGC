@@ -271,6 +271,13 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
         for j in DEPTH_I_LEVELS
     ]
     + ["SSH"],
+    # Phase 4: NO3 in linear space (log transform causes autoregressive blowup in subpolar gyre)
+    "helmholtz_log_no_logno3_all": [
+        k + str(j)
+        for k in ["log_dic_", "log_o2_", "no3_", "log_chl_", "temp_", "salt_", "psi_", "phi_"]
+        for j in DEPTH_I_LEVELS
+    ]
+    + ["SSH"],
     # ── PCA-based vertical representation ──
     # Each 3D variable's 50 depth levels replaced by k PCA coefficients.
     # Variable naming: {base}pc_{component} (e.g., temppc_0, log_dicpc_3)
