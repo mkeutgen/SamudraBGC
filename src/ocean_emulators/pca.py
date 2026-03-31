@@ -191,8 +191,11 @@ def inverse_transform(
         reconstructed: (time, n_levels, lat, lon) — reconstructed raw profiles
     """
     # Reconstruct z-scored profiles: z = coefficients @ components + mean
+    # Slice components to match the number of coefficients provided
+    k = coefficients.shape[1]
+    components = pca.components[:k]  # (k, n_levels)
     z_reconstructed = np.einsum(
-        "tcyx,cl->tlyx", coefficients, pca.components
+        "tcyx,cl->tlyx", coefficients, components
     ) + pca.profile_mean[np.newaxis, :, np.newaxis, np.newaxis]
 
     # Denormalize: raw = z * std + mean

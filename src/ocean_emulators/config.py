@@ -742,6 +742,7 @@ class EnsembleConfig(BaseConfig):
     pert_std_temp: float = 0.1  # Temperature std in °C (physical units)
     pert_rel_dic: float = 0.1
     pert_rel_o2: float = 0.1
+    pert_rel_no3: float = 0.1
     use_vertical_taper: bool = True
     seed_offset: int = 0
     output_individual_members: bool = True

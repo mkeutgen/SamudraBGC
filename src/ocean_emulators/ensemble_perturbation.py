@@ -50,6 +50,8 @@ class EnsemblePerturbationConfig:
     pert_std_temp: float = 0.1  # Temperature std in °C (physical units)
     pert_rel_dic: float = 0.1  # DIC relative std (lognormal sigma)
     pert_rel_o2: float = 0.1  # O2 relative std (lognormal sigma)
+    pert_rel_no3: float = 0.1  # NO3 relative std (lognormal sigma)
+    pca_params_path: str | None = None  # Path to pca_params.npz for PCA-mode perturbation
     use_vertical_taper: bool = True
     seed_offset: int = 0  # Random seed offset for this ensemble member
 
@@ -118,6 +120,8 @@ class PerturbationGenerator:
         config: EnsemblePerturbationConfig,
         prognostic_means: np.ndarray | None = None,
         prognostic_stds: np.ndarray | None = None,
+        pca_params: dict | None = None,
+        mask_3d: np.ndarray | None = None,
     ):
         """
         Initialize perturbation generator.
@@ -126,11 +130,15 @@ class PerturbationGenerator:
             config: Configuration for ensemble perturbations
             prognostic_means: Per-variable means for unnormalization [n_vars]
             prognostic_stds: Per-variable stds for unnormalization [n_vars]
+            pca_params: Dict of {var_name: VerticalPCA} for PCA-mode perturbation
+            mask_3d: Ocean mask [n_levels, lat, lon] for PCA transforms
         """
         self.config = config
         self.sigma_cells = config.corr_sigma_km / config.dx_km
         self.prognostic_means = prognostic_means
         self.prognostic_stds = prognostic_stds
+        self.pca_params = pca_params
+        self.mask_3d = mask_3d
 
         # Determine which depth levels to perturb
         self.depth_levels = np.array(DEPTH_LEVELS)
@@ -316,6 +324,14 @@ class PerturbationGenerator:
         if not self.config.enabled:
             return initial_prognostic
 
+        # Check if we're in PCA mode
+        is_pca = any("pc_" in name for name in prognostic_var_names)
+        if is_pca:
+            return self._perturb_pca_initial_conditions(
+                initial_prognostic, wet_mask, prognostic_var_names
+            )
+
+        # === Depth-level perturbation mode ===
         # Work with numpy for perturbation generation
         device = initial_prognostic.device
         dtype = initial_prognostic.dtype
@@ -379,6 +395,18 @@ class PerturbationGenerator:
             n_vars,
             var_name="o2",
             rel_std=self.config.pert_rel_o2,
+        )
+
+        # Perturb NO3 (multiplicative lognormal)
+        self._perturb_bgc_tracer(
+            perturbed,
+            batch_idx,
+            bgc_noise,
+            wet_mask_np,
+            prognostic_var_names,
+            n_vars,
+            var_name="no3",
+            rel_std=self.config.pert_rel_no3,
         )
 
         logger.info("Applied ensemble perturbations to initial conditions")
@@ -572,3 +600,285 @@ class PerturbationGenerator:
             # Only perturb first timestep (index var_idx in flattened dimension)
             # Don't perturb second timestep (index var_idx + n_vars)
             data[batch_idx, var_idx, :, :] *= factor
+
+    # ─── PCA round-trip perturbation ────────────────────────────────────
+
+    @staticmethod
+    def _pca_base_name(pc_var_name: str) -> str:
+        """Extract base variable name from a PCA variable name.
+
+        'temppc_0' -> 'temp', 'log_dicpc_3' -> 'log_dic', 'saltpc_14' -> 'salt'
+        """
+        # Remove trailing '_<component>'
+        base_with_pc = pc_var_name.rsplit("_", 1)[0]  # e.g. 'temppc' or 'log_dicpc'
+        # Remove 'pc' suffix
+        return base_with_pc.removesuffix("pc")  # e.g. 'temp' or 'log_dic'
+
+    def _group_pca_variables(
+        self, prognostic_var_names: list[str]
+    ) -> dict[str, list[int]]:
+        """Group prognostic variable indices by their PCA base variable name.
+
+        Returns dict like {'temp': [0,1,...,14], 'log_dic': [15,16,...,29], ...}
+        Non-PCA variables (e.g. 'SSH') get their own entry.
+        """
+        groups: dict[str, list[int]] = {}
+        for i, name in enumerate(prognostic_var_names):
+            if "pc_" in name:
+                base = self._pca_base_name(name)
+            else:
+                base = name
+            groups.setdefault(base, []).append(i)
+        return groups
+
+    def _perturb_pca_initial_conditions(
+        self,
+        initial_prognostic: torch.Tensor,
+        wet_mask: torch.Tensor,
+        prognostic_var_names: list[str],
+    ) -> torch.Tensor:
+        """Apply perturbations in PCA mode via inverse PCA → perturb → forward PCA.
+
+        1. Inverse-transform PCA coefficients to depth-level profiles
+        2. Perturb temp (density-compensated) and BGC tracers in depth space
+        3. Forward-transform back to PCA coefficients
+        """
+        from ocean_emulators.pca import inverse_transform, transform_profiles
+
+        if self.pca_params is None:
+            raise ValueError(
+                "PCA mode detected but no pca_params provided. "
+                "Set pca_params_path in ensemble config."
+            )
+        if self.mask_3d is None:
+            raise ValueError("PCA mode requires mask_3d for PCA transforms.")
+
+        device = initial_prognostic.device
+        dtype = initial_prognostic.dtype
+        perturbed = initial_prognostic.cpu().numpy().copy()
+
+        batch_idx = 0
+        n_vars = len(prognostic_var_names)
+        lat_size, lon_size = perturbed.shape[-2:]
+
+        # Surface wet mask for noise generation
+        wet_mask_2d = self.mask_3d[0]
+
+        # Generate correlated noise
+        base_seed = self.config.seed_offset
+        temp_noise = self._make_correlated_unit_noise(
+            (lat_size, lon_size), wet_mask_2d, base_seed + 10
+        )
+        bgc_noise = self._make_correlated_unit_noise(
+            (lat_size, lon_size), wet_mask_2d, base_seed + 20
+        )
+
+        logger.info(
+            f"PCA mode: generated correlated noise "
+            f"(sigma={self.sigma_cells:.1f} cells, ~{self.config.corr_sigma_km:.0f}km)"
+        )
+
+        # Group PCA variables by base name
+        groups = self._group_pca_variables(prognostic_var_names)
+
+        # Reconstruct depth profiles for variables we need to perturb
+        # We need temp + salt together for density compensation
+        perturb_vars = {"temp", "salt", "log_dic", "log_o2", "no3"}
+        # Also handle non-log variants if present
+        perturb_vars |= {"dic", "o2"}
+
+        # Reconstruct all needed variables to depth space
+        reconstructed: dict[str, np.ndarray] = {}  # base_name -> (1, n_levels, lat, lon)
+        coeff_indices: dict[str, list[int]] = {}  # base_name -> indices in prognostic
+
+        for base_name, indices in groups.items():
+            if base_name not in perturb_vars:
+                continue
+            if base_name not in self.pca_params:
+                continue
+
+            pca_full = self.pca_params[base_name]
+            k = len(indices)  # Number of PCA components used by the model
+
+            # Truncate PCA to match model's component count if needed
+            if k < pca_full.n_components:
+                from ocean_emulators.pca import VerticalPCA
+                pca = VerticalPCA(
+                    variable=pca_full.variable,
+                    n_components=k,
+                    components=pca_full.components[:k],
+                    profile_mean=pca_full.profile_mean,
+                    explained_variance_ratio=pca_full.explained_variance_ratio[:k],
+                    z_mean=pca_full.z_mean,
+                    z_std=pca_full.z_std,
+                )
+            else:
+                pca = pca_full
+
+            # Extract normalized PCA coefficients for first timestep only
+            idx_arr = np.array(indices)
+            norm_coeffs = perturbed[batch_idx, idx_arr, :, :]  # (k, lat, lon)
+            norm_coeffs = norm_coeffs[np.newaxis]  # (1, k, lat, lon)
+
+            # Unnormalize PCA coefficients
+            coeff_means = self.prognostic_means[idx_arr]  # (k,)
+            coeff_stds = self.prognostic_stds[idx_arr]  # (k,)
+            coeff_stds_safe = np.where(np.abs(coeff_stds) < 1e-15, 1.0, coeff_stds)
+            raw_coeffs = (
+                norm_coeffs * coeff_stds_safe[np.newaxis, :, np.newaxis, np.newaxis]
+                + coeff_means[np.newaxis, :, np.newaxis, np.newaxis]
+            )
+
+            # Inverse PCA to depth profiles (returns physical/raw values)
+            profiles = inverse_transform(raw_coeffs, pca, self.mask_3d)
+            # profiles shape: (1, n_levels, lat, lon)
+
+            reconstructed[base_name] = profiles
+            coeff_indices[base_name] = indices
+            # Store truncated PCA for forward transform
+            groups[base_name] = indices  # Keep original
+            self._pca_truncated = getattr(self, '_pca_truncated', {})
+            self._pca_truncated[base_name] = pca
+
+        # --- Apply perturbations in depth space ---
+
+        # Temperature + density-compensated salinity
+        if "temp" in reconstructed and "salt" in reconstructed:
+            T_profiles = reconstructed["temp"]  # (1, n_levels, lat, lon)
+            S_profiles = reconstructed["salt"]
+            n_levels = T_profiles.shape[1]
+            has_gsw = gsw is not None
+
+            n_compensated = 0
+            for level_idx in self.top_k_indices:
+                if level_idx >= n_levels:
+                    continue
+                depth_m = self.depth_levels[level_idx]
+                taper = self._vertical_taper(depth_m)
+                if taper <= 0:
+                    continue
+
+                wet_2d = self.mask_3d[level_idx]
+                T_phys = T_profiles[0, level_idx]
+                S_phys = S_profiles[0, level_idx]
+
+                if has_gsw:
+                    p_dbar = _depth_m_to_p_dbar(depth_m)
+                    wet = wet_2d & np.isfinite(T_phys) & np.isfinite(S_phys)
+                    if not wet.any():
+                        continue
+
+                    rho_target = np.full_like(T_phys, np.nan)
+                    rho_target[wet] = gsw.rho(S_phys[wet], T_phys[wet], p_dbar)
+
+                    dT = self.config.pert_std_temp * taper * temp_noise
+                    dT = np.where(wet, dT, 0.0)
+                    T_new = T_phys + dT
+
+                    S_new = S_phys.copy()
+                    S_new[wet] = _compensate_salinity(
+                        S_phys[wet], T_new[wet], rho_target[wet], p_dbar
+                    )
+
+                    T_profiles[0, level_idx] = T_new
+                    S_profiles[0, level_idx] = S_new
+                    n_compensated += 1
+                else:
+                    dT = self.config.pert_std_temp * taper * temp_noise
+                    dT = np.where(wet_2d, dT, 0.0)
+                    T_profiles[0, level_idx] += dT
+
+            logger.info(
+                f"PCA mode: perturbed temperature at {len(self.top_k_indices)} levels "
+                f"({n_compensated} density-compensated)"
+            )
+
+        # BGC tracers in log space (additive in log = multiplicative in linear)
+        for var_name, rel_std in [
+            ("log_dic", self.config.pert_rel_dic),
+            ("log_o2", self.config.pert_rel_o2),
+        ]:
+            if var_name not in reconstructed:
+                continue
+            profiles = reconstructed[var_name]  # (1, n_levels, lat, lon)
+            n_levels = profiles.shape[1]
+            for level_idx in self.top_k_indices:
+                if level_idx >= n_levels:
+                    continue
+                depth_m = self.depth_levels[level_idx]
+                taper = self._vertical_taper(depth_m)
+                if taper <= 0:
+                    continue
+                wet_2d = self.mask_3d[level_idx]
+                # Additive in log space = multiplicative lognormal in linear space
+                eps = rel_std * taper * bgc_noise
+                profiles[0, level_idx] += np.where(wet_2d, eps, 0.0)
+            logger.info(f"PCA mode: perturbed {var_name} (additive in log space)")
+
+        # BGC tracers in linear space (DIC/O2 if not log-transformed)
+        for var_name, rel_std in [
+            ("dic", self.config.pert_rel_dic),
+            ("o2", self.config.pert_rel_o2),
+        ]:
+            if var_name not in reconstructed:
+                continue
+            profiles = reconstructed[var_name]
+            n_levels = profiles.shape[1]
+            for level_idx in self.top_k_indices:
+                if level_idx >= n_levels:
+                    continue
+                depth_m = self.depth_levels[level_idx]
+                taper = self._vertical_taper(depth_m)
+                if taper <= 0:
+                    continue
+                wet_2d = self.mask_3d[level_idx]
+                eps = rel_std * taper * bgc_noise
+                factor = np.where(wet_2d, np.exp(eps), 1.0)
+                profiles[0, level_idx] *= factor
+            logger.info(f"PCA mode: perturbed {var_name} (multiplicative lognormal)")
+
+        # NO3 (linear space, multiplicative lognormal)
+        if "no3" in reconstructed:
+            profiles = reconstructed["no3"]
+            n_levels = profiles.shape[1]
+            for level_idx in self.top_k_indices:
+                if level_idx >= n_levels:
+                    continue
+                depth_m = self.depth_levels[level_idx]
+                taper = self._vertical_taper(depth_m)
+                if taper <= 0:
+                    continue
+                wet_2d = self.mask_3d[level_idx]
+                eps = self.config.pert_rel_no3 * taper * bgc_noise
+                factor = np.where(wet_2d, np.exp(eps), 1.0)
+                profiles[0, level_idx] *= factor
+            logger.info("PCA mode: perturbed no3 (multiplicative lognormal)")
+
+        # --- Forward PCA transform back to coefficients ---
+        for base_name, profiles in reconstructed.items():
+            if base_name not in self._pca_truncated:
+                continue
+            pca = self._pca_truncated[base_name]
+            indices = coeff_indices[base_name]
+            k = pca.n_components
+
+            # Forward PCA: physical profiles -> raw PCA coefficients
+            new_coeffs = transform_profiles(profiles, pca, self.mask_3d)
+            # new_coeffs shape: (1, k, lat, lon)
+
+            # Re-normalize PCA coefficients
+            idx_arr = np.array(indices)
+            coeff_means = self.prognostic_means[idx_arr]
+            coeff_stds = self.prognostic_stds[idx_arr]
+            coeff_stds_safe = np.where(np.abs(coeff_stds) < 1e-15, 1.0, coeff_stds)
+            norm_coeffs = (
+                new_coeffs - coeff_means[np.newaxis, :, np.newaxis, np.newaxis]
+            ) / coeff_stds_safe[np.newaxis, :, np.newaxis, np.newaxis]
+
+            # Write back to tensor (first timestep only)
+            for j, var_idx in enumerate(indices):
+                perturbed[batch_idx, var_idx, :, :] = norm_coeffs[0, j, :, :]
+
+        logger.info("PCA mode: applied ensemble perturbations via PCA round-trip")
+
+        return torch.from_numpy(perturbed).to(device=device, dtype=dtype)

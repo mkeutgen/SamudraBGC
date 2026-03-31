@@ -33,6 +33,7 @@ echo ""
 echo "=== Phase 1 / 1.5 / 2 experiments (local outputs) ==="
 python scripts/compute_depth_weighted_r2.py \
     --max-depth 500 \
+    --metrics r2 nrmse nbias nmae \
     --experiments \
     phase1_velocity_nograd_eval \
     phase1_helmholtz_nograd_eval \
@@ -46,6 +47,7 @@ echo ""
 echo "=== Phase 5 PCA experiments ==="
 python scripts/compute_depth_weighted_r2.py \
     --max-depth 500 \
+    --metrics r2 nrmse nbias nmae \
     --outputs-dir /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/ \
     --pred-zarr predictions_depth.zarr \
     --experiments \

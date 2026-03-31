@@ -235,6 +235,7 @@ class Eval:
         total_time = time.perf_counter() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         logger.info(f"Eval time (Including wandb logging) {total_time_str}")
+        self._reconstruct_pca_to_depth()
         self.finish()
 
     def run_ensemble(self) -> None:
@@ -306,6 +307,8 @@ class Eval:
                 pert_std_temp=self.cfg.ensemble.pert_std_temp,
                 pert_rel_dic=self.cfg.ensemble.pert_rel_dic,
                 pert_rel_o2=self.cfg.ensemble.pert_rel_o2,
+                pert_rel_no3=self.cfg.ensemble.pert_rel_no3,
+                pca_params_path=self.cfg.pca.pca_params_path if self.cfg.pca else None,
                 use_vertical_taper=self.cfg.ensemble.use_vertical_taper,
                 seed_offset=ensemble_idx * 100,  # Unique seed for each member
             )
@@ -376,6 +379,7 @@ class Eval:
             if self.distributed is not None:
                 logger.info(f"Distributed across {self.world_size} GPUs")
 
+        self._reconstruct_pca_to_depth()
         self.finish()
 
     def _gather_ensemble_stats(self, local_stats: list[dict]) -> list[dict]:
@@ -420,6 +424,111 @@ class Eval:
                 averaged[f"{key}_max"] = float(np.max(values))
 
         return averaged
+
+    def _reconstruct_pca_to_depth(self) -> None:
+        """Inverse-PCA transform predictions from PC space back to depth levels.
+
+        Reads each predictions.zarr (ensemble members + unperturbed), applies
+        inverse PCA reconstruction, and writes predictions_depth.zarr with
+        depth-level variables (e.g., temp_0..temp_49 instead of temppc_0..temppc_14).
+        """
+        if self.cfg.pca is None:
+            return
+
+        import xarray as xr
+        from ocean_emulators.pca import inverse_transform, load_pca_params
+
+        logger.info("\n" + "=" * 70)
+        logger.info("Reconstructing PCA predictions to depth levels")
+        logger.info("=" * 70 + "\n")
+
+        pca_dict = load_pca_params(self.cfg.pca.pca_params_path)
+        n_components = self.cfg.pca.n_components
+
+        # Build 3D ocean mask from original depth-level data
+        original_data = xr.open_zarr(
+            str(Path(self.cfg.pca.original_data_root) / "bgc_data.zarr")
+        )
+        # Use temp_0..temp_49 to build mask (NaN = land)
+        n_levels = pca_dict["temp"].components.shape[1]
+        mask_3d = np.stack(
+            [~np.isnan(original_data[f"temp_{i}"].isel(time=0).values) for i in range(n_levels)],
+            axis=0,
+        )  # (n_levels, lat, lon)
+        original_data.close()
+
+        # Mapping: PCA base name (e.g., "log_dic") -> pc prefix in zarr (e.g., "log_dicpc_")
+        # and depth prefix in output (e.g., "log_dic_")
+        pca_vars = list(pca_dict.keys())
+        logger.info(f"PCA variables to reconstruct: {pca_vars}")
+
+        # Find all prediction zarr directories to process
+        output_base = Path(self.output_dir)
+        zarr_dirs = []
+
+        # Unperturbed predictions (root level)
+        root_zarr = output_base / "predictions.zarr"
+        if root_zarr.exists():
+            zarr_dirs.append(output_base)
+
+        # Ensemble member predictions
+        for member_dir in sorted(output_base.glob("ensemble_*")):
+            if (member_dir / "predictions.zarr").exists():
+                zarr_dirs.append(member_dir)
+
+        logger.info(f"Found {len(zarr_dirs)} prediction zarr(s) to reconstruct")
+
+        for zarr_dir in zarr_dirs:
+            pred_path = zarr_dir / "predictions.zarr"
+            out_path = zarr_dir / "predictions_depth.zarr"
+            logger.info(f"Reconstructing {pred_path} -> {out_path}")
+
+            ds = xr.open_zarr(str(pred_path))
+
+            depth_vars = {}
+            # Copy non-PCA variables (e.g., SSH)
+            for var_name in ds.data_vars:
+                is_pc_var = any(f"{v}pc_" in var_name for v in pca_vars)
+                if not is_pc_var:
+                    depth_vars[var_name] = ds[var_name]
+
+            # Inverse PCA for each variable
+            for var_name in pca_vars:
+                pc_prefix = f"{var_name}pc_"
+                # Gather PC coefficients: (time, k, lat, lon)
+                pc_names = [f"{pc_prefix}{i}" for i in range(n_components)]
+                missing = [n for n in pc_names if n not in ds]
+                if missing:
+                    logger.warning(f"  Skipping {var_name}: missing {missing[:3]}...")
+                    continue
+
+                coefficients = np.stack(
+                    [ds[pc_name].values for pc_name in pc_names], axis=1
+                )  # (time, k, lat, lon)
+
+                # Inverse PCA: (time, k, lat, lon) -> (time, n_levels, lat, lon)
+                reconstructed = inverse_transform(coefficients, pca_dict[var_name], mask_3d)
+
+                # Write depth-level variables
+                depth_prefix = f"{var_name}_"
+                for lev in range(n_levels):
+                    depth_vars[f"{depth_prefix}{lev}"] = (
+                        ["time", "lat", "lon"],
+                        reconstructed[:, lev, :, :],
+                    )
+
+                logger.info(
+                    f"  {var_name}: {n_components} PCs -> {n_levels} depth levels"
+                )
+
+            # Write output zarr
+            ds_depth = xr.Dataset(depth_vars, coords=ds.coords, attrs=ds.attrs)
+            ds_depth.to_zarr(str(out_path), mode="w")
+            ds.close()
+
+            logger.info(f"  Written {len(ds_depth.data_vars)} variables to {out_path}")
+
+        logger.info("PCA reconstruction complete")
 
     @torch.no_grad()
     def standalone_inference(self):

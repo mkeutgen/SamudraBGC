@@ -13,6 +13,7 @@ from torch.utils.data import Dataset
 from xarray_einstats.einops import rearrange as xr_rearrange  # noqa: F401
 
 from ocean_emulators.constants import (
+    DEPTH_LEVELS,
     Boundary,
     BoundaryVarNames,
     Example,
@@ -95,10 +96,29 @@ class InferenceDataset(Dataset):
             else:
                 means_np = prog_src.means.to_array().to_numpy().reshape(-1)
                 stds_np = prog_src.stds.to_array().to_numpy().reshape(-1)
+            # Load PCA params if in PCA mode
+            pca_params = None
+            mask_3d = None
+            if ensemble_config.pca_params_path:
+                from ocean_emulators.pca import load_pca_params
+                pca_params = load_pca_params(ensemble_config.pca_params_path)
+                # Extract full 3D mask (50 levels) from data source
+                if "wetmask" in src.data:
+                    mask_3d = src.data["wetmask"].values.astype(bool)
+                else:
+                    wet_np = wet.cpu().numpy() if isinstance(wet, torch.Tensor) else wet
+                    mask_3d = wet_np.astype(bool) if wet_np.ndim == 3 else None
+                    logger.warning(
+                        "No wetmask variable found in data source; "
+                        "using wet mask for PCA transforms"
+                    )
+
             self._perturbation_generator = PerturbationGenerator(
                 ensemble_config,
                 prognostic_means=means_np,
                 prognostic_stds=stds_np,
+                pca_params=pca_params,
+                mask_3d=mask_3d,
             )
             logger.info(f"Ensemble perturbation enabled (seed_offset={ensemble_config.seed_offset})")
 
