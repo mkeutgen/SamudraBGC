@@ -2,7 +2,7 @@
 """
 Compute depth-thickness-weighted R² in native prediction space.
 
-For each 3D variable (temp, salt, psi, phi, log_dic, log_o2, log_no3, log_chl),
+For each 3D variable (temp, salt, psi, phi, log_dic, log_o2, no3, log_chl),
 compute a single R² that weights each depth level by its physical thickness:
 
     R²_var = 1 - Σ_z(dz_z · SS_res_z) / Σ_z(dz_z · SS_tot_z)
@@ -41,14 +41,14 @@ DEFAULT_OUTPUTS_DIR = "outputs"
 DEFAULT_PRED_ZARR = "predictions.zarr"
 
 VARS_3D = {
-    "temp": "temp",
-    "salt": "salt",
-    "psi":  "psi",
-    "phi":  "phi",
-    "dic":  "dic",
-    "o2":   "o2",
-    "no3":  "no3",
-    "chl":  "chl",
+    "temp": ["temp"],
+    "salt": ["salt"],
+    "psi": ["psi"],
+    "phi": ["phi"],
+    "dic": ["dic", "log_dic"],
+    "o2": ["o2", "log_o2"],
+    "no3": ["no3", "log_no3"],
+    "chl": ["chl", "log_chl"],
 }
 VARS_2D = ["SSH"]
 ALL_DEPTH_LEVELS = np.array(DEPTH_LEVELS[:50], dtype=np.float64)
@@ -99,9 +99,22 @@ def compute_experiment(gt_path, exp_name, n_workers, n_levels, outputs_dir, pred
     time_start = str(pred_times[0])
     time_end = str(pred_times[-1])
 
+    selected_prefixes = {}
+
     # Collect all keys to compute
     tasks = []
-    for vname, prefix in VARS_3D.items():
+    for vname, prefixes in VARS_3D.items():
+        prefix = next(
+            (
+                candidate
+                for candidate in prefixes
+                if f"{candidate}_0" in ds_pred.data_vars
+            ),
+            None,
+        )
+        selected_prefixes[vname] = prefix
+        if prefix is None:
+            continue
         for z in range(n_levels):
             key = f"{prefix}_{z}"
             if key in ds_pred.data_vars:
@@ -136,7 +149,10 @@ def compute_experiment(gt_path, exp_name, n_workers, n_levels, outputs_dir, pred
 
     # Aggregate per-variable depth-weighted R²
     exp_results = {}
-    for vname, prefix in VARS_3D.items():
+    for vname, prefix in selected_prefixes.items():
+        if prefix is None:
+            exp_results[vname] = None
+            continue
         ss_res_w = 0.0
         ss_tot_w = 0.0
         level_r2s = []

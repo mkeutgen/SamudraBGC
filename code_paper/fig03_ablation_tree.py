@@ -55,6 +55,15 @@ TREE_LEVELS = [
         ],
     },
     {
+        "header": "Latent Depth\n(PCA)",
+        "nodes": [
+            {"label": "15 PCs",             "r2": 0.7823, "champion": True},
+            {"label": "20 PCs",             "r2": 0.7685, "champion": False},
+            {"label": "10 PCs",             "r2": 0.7198, "champion": False},
+            {"label": "5 PCs",              "r2": 0.6837, "champion": False},
+        ],
+    },
+    {
         "header": "ML Architecture",
         "nodes": [
             {"label": "Baseline",            "r2": None, "champion": False},
@@ -78,8 +87,8 @@ CLR_EDGE_CH  = "#2E8B57"
 
 
 def draw_ablation_tree():
-    fig, ax = plt.subplots(figsize=(14, 6.5))
-    ax.set_xlim(-0.3, 10.5)
+    fig, ax = plt.subplots(figsize=(18, 6.5))
+    ax.set_xlim(-0.5, 11.5)
     ax.set_ylim(-1.5, 5.5)
     ax.set_aspect("equal")
     ax.axis("off")
@@ -90,8 +99,8 @@ def draw_ablation_tree():
     node_w = 1.8
     node_h = 0.7
 
-    # x positions for each level
-    x_positions = np.linspace(0.9, 9.3, n_levels)
+    # x positions for each level (spread over wider figure)
+    x_positions = np.linspace(0.8, 10.7, n_levels)
 
     # Compute y positions: champion on top, others below
     # Vertical spacing between nodes

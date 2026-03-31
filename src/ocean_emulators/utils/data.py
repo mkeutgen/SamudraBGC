@@ -368,12 +368,20 @@ def extract_wet_mask(
 
 
 def _parse_lev_from_output_var(prognostic_var_names: PrognosticVarNames) -> list[int]:
-    """Parse the `lev` dimension from the output var names. Default: 0 for surface."""
+    """Parse the `lev` dimension from the output var names. Default: 0 for surface.
+
+    PCA variables (containing "pc" in the token before the numeric index)
+    always map to the surface mask (depth index 0) because PCA coefficients
+    represent entire water columns, not individual depth levels.
+    """
     depth_inds = []
     for var_depth_i in prognostic_var_names:
-        # Examples: "so_18", "zos"
+        # Examples: "so_18", "zos", "temppc_3", "log_dicpc_5"
         var_split = var_depth_i.split("_")
         if len(var_split) == 1:
+            depth_inds.append(0)
+        elif len(var_split) >= 2 and "pc" in var_split[-2]:
+            # PCA variables always use surface mask
             depth_inds.append(0)
         else:
             depth_inds.append(int(var_split[-1]))

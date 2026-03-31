@@ -278,6 +278,55 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
         for j in DEPTH_I_LEVELS
     ]
     + ["SSH"],
+    # ── PCA-based vertical representation ──
+    # Each 3D variable's 50 depth levels replaced by k PCA coefficients.
+    # Variable naming: {base}pc_{component} (e.g., temppc_0, log_dicpc_3)
+    # PCA coefficients are 2D fields (time, lat, lon) — no depth dimension.
+    "helmholtz_log_no_logno3_pca5_all": [
+        k + str(j)
+        for k in [
+            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
+            "temppc_", "saltpc_", "psipc_", "phipc_",
+        ]
+        for j in [str(i) for i in range(5)]
+    ]
+    + ["SSH"],
+    "helmholtz_log_no_logno3_pca10_all": [
+        k + str(j)
+        for k in [
+            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
+            "temppc_", "saltpc_", "psipc_", "phipc_",
+        ]
+        for j in [str(i) for i in range(10)]
+    ]
+    + ["SSH"],
+    "helmholtz_log_no_logno3_pca15_all": [
+        k + str(j)
+        for k in [
+            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
+            "temppc_", "saltpc_", "psipc_", "phipc_",
+        ]
+        for j in [str(i) for i in range(15)]
+    ]
+    + ["SSH"],
+    "helmholtz_log_no_logno3_pca20_all": [
+        k + str(j)
+        for k in [
+            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
+            "temppc_", "saltpc_", "psipc_", "phipc_",
+        ]
+        for j in [str(i) for i in range(20)]
+    ]
+    + ["SSH"],
+    "helmholtz_log_pca10_all": [
+        k + str(j)
+        for k in [
+            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
+            "temppc_", "saltpc_", "psipc_", "phipc_",
+        ]
+        for j in [str(i) for i in range(10)]
+    ]
+    + ["SSH"],
 }
 
 BoundaryVarNames = list[str]
@@ -371,6 +420,19 @@ DEFAULT_METADATA = {
         "long_name": "Surface Chlorophyll (satellite)",
         "units": "ug/kg",
     },
+    # PCA coefficient metadata (base names without component index)
+    "temppc": {"long_name": "Temperature PCA Coefficient", "units": "1"},
+    "saltpc": {"long_name": "Salinity PCA Coefficient", "units": "1"},
+    "psipc": {"long_name": "Streamfunction PCA Coefficient", "units": "1"},
+    "phipc": {"long_name": "Velocity Potential PCA Coefficient", "units": "1"},
+    "o2pc": {"long_name": "Dissolved Oxygen PCA Coefficient", "units": "1"},
+    "dicpc": {"long_name": "DIC PCA Coefficient", "units": "1"},
+    "no3pc": {"long_name": "Nitrate PCA Coefficient", "units": "1"},
+    "chlpc": {"long_name": "Chlorophyll PCA Coefficient", "units": "1"},
+    "log_dicpc": {"long_name": "Log DIC PCA Coefficient", "units": "1"},
+    "log_o2pc": {"long_name": "Log O2 PCA Coefficient", "units": "1"},
+    "log_no3pc": {"long_name": "Log NO3 PCA Coefficient", "units": "1"},
+    "log_chlpc": {"long_name": "Log Chlorophyll PCA Coefficient", "units": "1"},
 }
 
 

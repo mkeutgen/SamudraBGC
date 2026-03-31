@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../schemas/EvalConfig.json
+# Evaluation for phase5_pca5_helmholtz_grad010
+# Evaluates on PCA coefficient space; use eval_pca_reconstruction.py for depth-level metrics
+
+debug: false
+save_zarr: true
+disk_mode: true
+ckpt_path: ./outputs/phase5_pca5_helmholtz_grad010/saved_nets/ema_ckpt.pt
+inference_time:
+  start: '2010-01-01'
+  end: '2014-12-31'
+num_model_steps_forward: 200
+backend: auto
+
+experiment:
+  name: phase5_pca5_helmholtz_grad010_eval
+  rand_seed: 42
+  base_output_dir: ./outputs
+  wandb:
+    mode: offline
+    project: bgc-emulator
+    entity: m2lines
+    group: phase5-pca-eval
+    tags:
+    - "phase5-pca"
+    - "helmholtz-decomposition"
+    - "pca-k5"
+    - "eval"
+  prognostic_vars_key: helmholtz_log_no_logno3_pca5_all
+  boundary_vars_key: minimal_forcing
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+
+data:
+  data_location: bgc_data.zarr
+  data_means_location: bgc_means.zarr
+  data_stds_location: bgc_stds.zarr
+  scaling_residuals_file: null
+  num_workers: 2
+  persistent_workers: true
+  prefetch_factor: 3
+  hist: 1
+  concurrent_compute: true
+
+model:
+  checkpointing: all
+  pred_residuals: false
+  last_kernel_size: 3
+  pad: constant
+  unet:
+    ch_width:
+    - 320
+    - 440
+    - 600
+    dilation:
+    - 1
+    - 2
+    - 4
+    n_layers:
+    - 1
+    - 1
+    - 1
+    core_block:
+      block_type: conv_next_block
+      kernel_size: 3
+      activation: capped_gelu
+      upscale_factor: 2
+      norm: batch
+    down_sampling_block: avg_pool
+    up_sampling_block: bilinear_upsample
+  corrector:
+    non_negative_corrector_names: null
+    ocean_heat_corrector: false
+
+# PCA reconstruction config for depth-level metrics
+pca:
+  pca_params_path: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/pca_params.npz
+  original_data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+  original_prognostic_vars_key: helmholtz_log_no_logno3_all
+  n_components: 5

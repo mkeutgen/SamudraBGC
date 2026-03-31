@@ -14,6 +14,8 @@ def get_cmap_limits(data: np.ndarray, diverging=False) -> tuple[float, float]:
     if diverging:
         vmax = max(abs(vmin), abs(vmax))
         vmin = -vmax
+    if not np.isfinite(vmin) or not np.isfinite(vmax) or vmin == vmax:
+        vmin, vmax = -1.0, 1.0
     return vmin, vmax
 
 
@@ -29,6 +31,9 @@ def plot_imshow(
     """Plot a 2D array using imshow, ensuring figure size is same as array size."""
     min_ = np.nanmin(data) if vmin is None else vmin
     max_ = np.nanmax(data) if vmax is None else vmax
+    if not np.isfinite(min_) or not np.isfinite(max_) or min_ == max_:
+        min_, max_ = -1.0, 1.0
+    vmin, vmax = min_, max_
 
     if flip_lat:
         lat_dim = -2
@@ -75,6 +80,8 @@ def plot_paneled_data(
     if diverging:
         vmax = max(abs(vmin), abs(vmax))
         vmin = -vmax
+    if not np.isfinite(vmin) or not np.isfinite(vmax) or vmin == vmax:
+        vmin, vmax = -1.0, 1.0
     if caption is not None:
         caption += " "
     else:

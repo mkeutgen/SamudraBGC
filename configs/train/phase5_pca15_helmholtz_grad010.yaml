@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=../../schemas/TrainConfig.json
+# ============================================================================
+# Phase 5: PCA Vertical Representation
+# Configuration: Helmholtz + Log BGC, PCA k=15, gradient_weight = 0.10
+# Hypothesis: PCA-based vertical representation improves deep ocean performance
+# ============================================================================
+
+debug: false
+disk_mode: true
+pin_mem: true
+save_freq: 5
+epochs: 50
+batch_size: 1
+learning_rate: 0.0002
+scheduler:
+  type: cosine
+loss: mae_gradient_weighted
+gradient_weight: 0.10
+second_order_weight: 0.0
+finetune: false
+resume_ckpt_path: null
+inference_epochs: []
+data_percent: 1.0
+
+# Time configuration (same as phase2 ablations)
+train_time:
+  start: '1960-01-01'
+  end: '2009-12-31'    # 50 years training
+val_time:
+  start: '2010-01-01'
+  end: '2014-12-31'    # 5 years validation
+inference_times:
+- start: '2015-01-01'
+  end: '2019-12-31'    # 5 years paper holdout
+
+data_stride:
+- 1
+steps:
+- 4
+step_transition: []
+backend: auto
+
+experiment:
+  name: phase5_pca15_helmholtz_grad010
+  rand_seed: 42
+  base_output_dir: ./outputs
+  wandb:
+    mode: offline
+    project: bgc-emulator
+    entity: m2lines
+    group: phase5-pca
+    tags:
+    - "phase5-pca"
+    - "helmholtz-decomposition"
+    - "pca-k15"
+    - "grad-0.10"
+  prognostic_vars_key: helmholtz_log_no_logno3_pca15_all
+  boundary_vars_key: minimal_forcing
+  # PCA variables appended to existing zarr by scripts/fit_pca.py
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+
+data:
+  data_location: bgc_data.zarr
+  data_means_location: bgc_means.zarr
+  data_stds_location: bgc_stds.zarr
+  scaling_residuals_file: null
+  num_workers: 4
+  persistent_workers: true
+  prefetch_factor: 2
+  hist: 1
+  concurrent_compute: true
+
+model:
+  checkpointing: null
+  pred_residuals: false
+  last_kernel_size: 3
+  pad: constant
+  unet:
+    ch_width:
+    - 320
+    - 440
+    - 600
+    dilation:
+    - 1
+    - 2
+    - 4
+    n_layers:
+    - 1
+    - 1
+    - 1
+    core_block:
+      block_type: conv_next_block
+      kernel_size: 3
+      activation: capped_gelu
+      upscale_factor: 2
+      norm: batch
+    down_sampling_block: avg_pool
+    up_sampling_block: bilinear_upsample
+  corrector:
+    non_negative_corrector_names: null
+    ocean_heat_corrector: false
+
+# Variables: log_dicpc, log_o2pc, no3pc, log_chlpc, temppc, saltpc, psipc, phipc @ 15 PCA components + SSH
+# Forcing: Qnet, tauuo, tauvo (minimal forcing)
+# Total prognostic channels: 8 vars * 15 components + 1 SSH = 121 (vs 401 with depth-levels)
