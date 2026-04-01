@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
 # ============================================================================
-# Phase 7: Architecture Ablation on PCA k=15 winner
+# Phase 7: Architecture Ablation on PCA k=20 winner
 # Configuration: Wider model (ch_width [400,550,750] vs baseline [320,440,600])
-# Base: Phase 5 PCA k=15 (best R²=0.6964)
+# Base: Phase 5 PCA k=20 (best R²=0.6964)
 # Hypothesis: Wider channels increase capacity for PCA representation
 # ============================================================================
 
@@ -41,7 +41,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: phase7_pca15_arch_wider
+  name: phase7_pca20_arch_wider
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -51,10 +51,10 @@ experiment:
     group: phase7-arch
     tags:
     - "phase7-architecture"
-    - "pca-k15"
+    - "pca-k20"
     - "wider"
     - "grad-0.10"
-  prognostic_vars_key: helmholtz_log_no_logno3_pca15_all
+  prognostic_vars_key: helmholtz_log_no_logno3_pca20_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 

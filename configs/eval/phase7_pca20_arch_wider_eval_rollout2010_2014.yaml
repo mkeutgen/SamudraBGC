@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# 5-year rollout (2010-2014, val period) for phase7_pca15_arch_much_wider
+# 5-year rollout (2010-2014, val period) for phase7_pca20_arch_wider
 
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/phase7_pca15_arch_much_wider/saved_nets/ema_ckpt.pt
+ckpt_path: ./outputs/phase7_pca20_arch_wider/saved_nets/ema_ckpt.pt
 inference_time:
   start: '2010-01-01'
   end: '2014-12-31'
@@ -12,7 +12,7 @@ num_model_steps_forward: 5
 backend: auto
 
 experiment:
-  name: phase7_pca15_arch_much_wider_eval_rollout2010_2014
+  name: phase7_pca20_arch_wider_eval_rollout2010_2014
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -22,11 +22,11 @@ experiment:
     group: phase7-arch-eval
     tags:
     - "phase7-architecture"
-    - "pca-k15"
-    - "much-wider"
+    - "pca-k20"
+    - "wider"
     - "eval"
     - "rollout-2010-2014"
-  prognostic_vars_key: helmholtz_log_no_logno3_pca15_all
+  prognostic_vars_key: helmholtz_log_no_logno3_pca20_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 
@@ -48,9 +48,9 @@ model:
   pad: constant
   unet:
     ch_width:
-    - 512
-    - 700
-    - 960
+    - 400
+    - 550
+    - 750
     dilation:
     - 1
     - 2
