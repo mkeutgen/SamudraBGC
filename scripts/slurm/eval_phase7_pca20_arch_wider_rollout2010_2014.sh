@@ -1,7 +1,7 @@
 #!/bin/bash
-# 5-year rollout (2010-2014) for phase7_pca15_arch_much_wider
+# 5-year rollout (2010-2014) for phase7_pca20_arch_wider
 
-#SBATCH --job-name=rollout_p7_mwider
+#SBATCH --job-name=rollout_p7_wider
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -10,8 +10,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=400G
 #SBATCH --time=24:00:00
-#SBATCH --output=logs/eval_phase7_pca15_arch_much_wider_rollout2010_2014_%j.out
-#SBATCH --error=logs/eval_phase7_pca15_arch_much_wider_rollout2010_2014_%j.err
+#SBATCH --output=logs/eval_phase7_pca20_arch_wider_rollout2010_2014_%j.out
+#SBATCH --error=logs/eval_phase7_pca20_arch_wider_rollout2010_2014_%j.err
 
 set -e
 
@@ -24,9 +24,9 @@ export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:$PYTHONPAT
 
 mkdir -p logs
 
-CONFIG=configs/eval/phase7_pca15_arch_much_wider_eval_rollout2010_2014.yaml
+CONFIG=configs/eval/phase7_pca20_arch_wider_eval_rollout2010_2014.yaml
 
-echo "Starting 5-year rollout (2010-2014) for phase7_pca15_arch_much_wider"
+echo "Starting 5-year rollout (2010-2014) for phase7_pca20_arch_wider"
 echo "Config: ${CONFIG}"
 echo "Job ID: ${SLURM_JOB_ID}"
 

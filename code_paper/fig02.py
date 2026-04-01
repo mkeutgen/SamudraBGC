@@ -49,7 +49,7 @@ mpl.rcParams.update({
 
 # ── Config ────────────────────────────────────────────────────────────────────
 GT_PATH   = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-PRED_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca15_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr"
+PRED_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr"
 OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig02_panels"
 
 SNAPSHOT_DATE = "2012-04-15"

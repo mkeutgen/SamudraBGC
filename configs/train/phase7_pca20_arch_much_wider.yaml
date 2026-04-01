@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
 # ============================================================================
-# Phase 7: Architecture Ablation on PCA k=15 winner
-# Configuration: Wider + Deeper model (4 UNet levels, ch_width [400,550,650,750])
-# Base: Phase 5 PCA k=15 (best R²=0.6964)
-# Hypothesis: Combined depth + width scaling maximizes capacity for PCA repr.
+# Phase 7: Architecture Ablation on PCA k=20 winner
+# Configuration: Much wider model (ch_width [512,700,960] vs baseline [320,440,600])
+# Base: Phase 5 PCA k=20 (best R²=0.6964)
+# Hypothesis: Significantly wider channels exploit PCA's compact representation
 # ============================================================================
 
 debug: false
@@ -41,7 +41,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: phase7_pca15_arch_wider_deeper
+  name: phase7_pca20_arch_much_wider
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -51,10 +51,10 @@ experiment:
     group: phase7-arch
     tags:
     - "phase7-architecture"
-    - "pca-k15"
-    - "wider-deeper"
+    - "pca-k20"
+    - "much-wider"
     - "grad-0.10"
-  prognostic_vars_key: helmholtz_log_no_logno3_pca15_all
+  prognostic_vars_key: helmholtz_log_no_logno3_pca20_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 
@@ -76,17 +76,14 @@ model:
   pad: constant
   unet:
     ch_width:
-    - 400
-    - 550
-    - 650
-    - 750
+    - 512
+    - 700
+    - 960
     dilation:
     - 1
     - 2
     - 4
-    - 8
     n_layers:
-    - 1
     - 1
     - 1
     - 1
@@ -103,4 +100,4 @@ model:
     ocean_heat_corrector: false
 
 # 121 prognostic channels (8 vars × 15 PCs + SSH)
-# Architecture: ch_width [400,550,650,750] — 4 levels + ~25% wider
+# Architecture: ch_width [512,700,960] — ~60% wider than baseline [320,440,600]

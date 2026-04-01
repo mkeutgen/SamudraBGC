@@ -1,31 +1,55 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# 5-year rollout (2010-2014, val period) for phase7_pca15_arch_wider_deeper
+# 10-member ensemble evaluation for phase5_pca15_helmholtz_grad010
+# Test holdout period 2015-2019
+# Perturbations mimic numerical MOM6-COBALT ensemble generation:
+#   - Density-compensated T/S (0.05°C, 90km correlation)
+#   - Lognormal BGC (DIC, O2, NO3 at 2% relative std)
+#   - Cosine taper to zero at 100m depth
 
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/phase7_pca15_arch_wider_deeper/saved_nets/ema_ckpt.pt
+ckpt_path: ./outputs/phase5_pca15_helmholtz_grad010/saved_nets/ema_ckpt.pt
 inference_time:
-  start: '2010-01-01'
-  end: '2014-12-31'
-num_model_steps_forward: 5
+  start: '2015-01-01'
+  end: '2015-12-31'
+num_model_steps_forward: 12
 backend: auto
 
+# Ensemble configuration
+ensemble:
+  enabled: true
+  n_ensemble: 10
+  depth_max_m: 100.0
+  dx_km: 9.0
+  corr_sigma_km: 90.0
+  pert_std_temp: 0.05
+  pert_rel_dic: 0.02
+  pert_rel_o2: 0.02
+  pert_rel_no3: 0.02
+  use_vertical_taper: true
+  seed_offset: 0
+  output_individual_members: true
+  output_ensemble_mean: true
+  output_ensemble_std: true
+
 experiment:
-  name: phase7_pca15_arch_wider_deeper_eval_rollout2010_2014
+  name: phase5_pca15_helmholtz_grad010_eval_ensemble10_2015
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: offline
     project: bgc-emulator
     entity: m2lines
-    group: phase7-arch-eval
+    group: phase5-pca-ensemble
     tags:
-    - "phase7-architecture"
+    - "ensemble"
+    - "phase5-pca"
+    - "helmholtz-decomposition"
     - "pca-k15"
-    - "wider-deeper"
-    - "eval"
-    - "rollout-2010-2014"
+    - "grad-0.10"
+    - "test-holdout-2015"
+    - "10-members"
   prognostic_vars_key: helmholtz_log_no_logno3_pca15_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
@@ -48,17 +72,14 @@ model:
   pad: constant
   unet:
     ch_width:
-    - 400
-    - 550
-    - 650
-    - 750
+    - 320
+    - 440
+    - 600
     dilation:
     - 1
     - 2
     - 4
-    - 8
     n_layers:
-    - 1
     - 1
     - 1
     - 1
