@@ -159,7 +159,8 @@ def _aggregate_var_metrics(results, prefix, n_levels, dz, metrics):
     return out
 
 
-def compute_experiment(gt_path, exp_name, n_workers, n_levels, outputs_dir, pred_zarr, metrics):
+def compute_experiment(gt_path, exp_name, n_workers, n_levels, outputs_dir, pred_zarr, metrics,
+                       exclude_vars=frozenset(), time_start_override=None, time_end_override=None):
     """Compute depth-weighted metrics for one experiment using multiprocessing."""
     pred_path = str(outputs_dir / exp_name / pred_zarr)
     dz = ALL_DZ[:n_levels]
@@ -167,14 +168,16 @@ def compute_experiment(gt_path, exp_name, n_workers, n_levels, outputs_dir, pred
     import xarray as xr
     ds_pred = xr.open_zarr(pred_path, consolidated=False)
     pred_times = ds_pred.time.values
-    time_start = str(pred_times[0])
-    time_end = str(pred_times[-1])
+    time_start = time_start_override or str(pred_times[0])
+    time_end = time_end_override or str(pred_times[-1])
 
     selected_prefixes = {}
 
     # Collect all keys to compute
     tasks = []
     for vname, prefixes in VARS_3D.items():
+        if vname in exclude_vars:
+            continue
         prefix = next(
             (
                 candidate
@@ -191,6 +194,8 @@ def compute_experiment(gt_path, exp_name, n_workers, n_levels, outputs_dir, pred
             if key in ds_pred.data_vars:
                 tasks.append((vname, z, key))
     for vname in VARS_2D:
+        if vname in exclude_vars:
+            continue
         if vname in ds_pred.data_vars:
             tasks.append((vname, -1, vname))
 
@@ -301,6 +306,16 @@ def main():
     parser.add_argument("--metrics", nargs="+", default=["r2"],
                         choices=["r2", "nrmse", "nbias", "nmae"],
                         help="Metrics to compute (default: r2)")
+    parser.add_argument("--exclude-vars", nargs="*", default=[],
+                        help="Variables to exclude from computation and MEAN "
+                             "(e.g. --exclude-vars psi phi for fair comparison "
+                             "when not all experiments predict these)")
+    parser.add_argument("--time-start", default=None,
+                        help="Override prediction time start (e.g. '2012-01-01'). "
+                             "Default: first timestep in predictions.")
+    parser.add_argument("--time-end", default=None,
+                        help="Override prediction time end (e.g. '2014-12-31'). "
+                             "Default: last timestep in predictions.")
     args = parser.parse_args()
 
     n_workers = args.workers or int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count() // 2))
@@ -327,11 +342,16 @@ def main():
     print(f"Ground truth: {args.gt_path}")
     print(f"Outputs dir: {outputs_dir}")
     print(f"Prediction zarr: {pred_zarr}")
+    exclude_vars = set(args.exclude_vars)
     print(f"Depth range: {depth_label}")
     print(f"Metrics: {', '.join(metrics)}")
+    if exclude_vars:
+        print(f"Excluded vars: {', '.join(sorted(exclude_vars))}")
+    if args.time_start or args.time_end:
+        print(f"Time override: {args.time_start or 'auto'} to {args.time_end or 'auto'}")
     print(f"Experiments: {len(experiments)}")
 
-    all_var_names = list(VARS_3D.keys()) + VARS_2D
+    all_var_names = [v for v in list(VARS_3D.keys()) + VARS_2D if v not in exclude_vars]
     all_results = {}
 
     for exp_name in experiments:
@@ -341,7 +361,8 @@ def main():
             continue
 
         exp_results, metric_means, time_start, time_end = compute_experiment(
-            args.gt_path, exp_name, n_workers, n_levels, outputs_dir, pred_zarr, metrics
+            args.gt_path, exp_name, n_workers, n_levels, outputs_dir, pred_zarr, metrics,
+            exclude_vars, args.time_start, args.time_end
         )
         all_results[exp_name] = {"variables": exp_results, "metric_means": metric_means}
 

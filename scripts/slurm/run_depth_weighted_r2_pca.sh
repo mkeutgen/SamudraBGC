@@ -4,14 +4,16 @@
 #SBATCH --account=cimes3
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=112
+#SBATCH --cpus-per-task=56
 #SBATCH --mem=900G
 #SBATCH --time=4:00:00
 #SBATCH --output=logs/depth_weighted_r2_pca_%j.out
 #SBATCH --error=logs/depth_weighted_r2_pca_%j.err
 
-# Compute depth-thickness-weighted R² in physical space for all ablation experiments
+# Compute depth-thickness-weighted metrics in physical space for all ablation experiments
 # Includes phase1, phase15, phase2 (eval_linear), and phase5 PCA experiments
+# All metrics computed on last 3 years of val period (2012-2014) to penalize drift
+# psi/phi excluded from MEAN for fair comparison (phase1_velocity doesn't have them)
 
 set -e
 
@@ -24,7 +26,8 @@ cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 export PYTHONUNBUFFERED=1
 
 echo "==========================================="
-echo "Depth-Thickness-Weighted R² (Physical Space)"
+echo "Depth-Thickness-Weighted Metrics (Physical Space)"
+echo "Time range: 2012-01-01 to 2014-12-31 (last 3y of val)"
 echo "==========================================="
 echo "Job ID: $SLURM_JOB_ID"
 echo "CPUs: $SLURM_CPUS_PER_TASK"
@@ -34,6 +37,8 @@ echo "=== Phase 1 / 1.5 / 2 experiments (local outputs) ==="
 python scripts/compute_depth_weighted_r2.py \
     --max-depth 500 \
     --metrics r2 nrmse nbias nmae \
+    --exclude-vars psi phi \
+    --time-start 2012-01-01 --time-end 2014-12-31 \
     --experiments \
     phase1_velocity_nograd_eval \
     phase1_helmholtz_nograd_eval \
@@ -48,6 +53,8 @@ echo "=== Phase 5 PCA experiments ==="
 python scripts/compute_depth_weighted_r2.py \
     --max-depth 500 \
     --metrics r2 nrmse nbias nmae \
+    --exclude-vars psi phi \
+    --time-start 2012-01-01 --time-end 2014-12-31 \
     --outputs-dir /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/ \
     --pred-zarr predictions_depth.zarr \
     --experiments \
