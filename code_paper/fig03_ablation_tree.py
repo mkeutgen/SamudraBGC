@@ -12,12 +12,13 @@ Usage:
 import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 import numpy as np
-from matplotlib.patches import FancyBboxPatch
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 from pathlib import Path
 
 mpl.rcParams.update({
-    "font.family": "sans-serif", "font.size": 11,
+    "font.family": "DejaVu Sans", "font.size": 11,
     "figure.dpi": 150, "savefig.dpi": 300, "savefig.bbox": "tight",
 })
 
@@ -34,175 +35,226 @@ TREE_LEVELS = [
     {
         "header": "Ocean Dynamics\nRepresentation",
         "nodes": [
-            {"label": "Helmholtz (ψ, φ)",   "r2": 0.5559, "champion": True},
-            {"label": "Velocity (u, v)",     "r2": 0.5198, "champion": False},
+            {"label": "Helmholtz (ψ, φ)",   "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": True},
+            {"label": "Velocity (u, v)",     "r2": -0.0659, "nrmse": 0.1896, "nmae": 0.1442, "nbias": -0.0189, "champion": False},
         ],
     },
     {
         "header": "Biogeochemistry\nRepresentation",
         "nodes": [
-            {"label": "Log BGC",             "r2": 0.5870, "champion": True},
-            {"label": "Linear BGC",          "r2": 0.5559, "champion": False},
+            {"label": "Log BGC",             "r2": 0.6345, "nrmse": 0.1052, "nmae": 0.0714, "nbias":  0.0052, "champion": True},
+            {"label": "Linear BGC",          "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": False},
         ],
     },
     {
         "header": "Gradient Weight\nin Loss Function",
         "nodes": [
-            {"label": "α = 0.10",           "r2": 0.7481, "champion": True},
-            {"label": "α = 0",              "r2": 0.7404, "champion": False},
-            {"label": "α = 0.25",           "r2": 0.7398, "champion": False},
-            {"label": "α = 0.50",           "r2": 0.7538, "champion": False},
+            {"label": "α = 0.10",           "r2": 0.7954, "nrmse": 0.0828, "nmae": 0.0527, "nbias":  0.0049, "champion": True},
+            {"label": "α = 0",              "r2": 0.7489, "nrmse": 0.0903, "nmae": 0.0591, "nbias":  0.0026, "champion": False},
+            {"label": "α = 0.25",           "r2": 0.7720, "nrmse": 0.0848, "nmae": 0.0556, "nbias":  0.0019, "champion": False},
+            {"label": "α = 0.50",           "r2": 0.7791, "nrmse": 0.0837, "nmae": 0.0539, "nbias":  0.0047, "champion": False},
         ],
     },
     {
         "header": "Latent Depth\n(PCA)",
         "nodes": [
-            {"label": "15 PCs",             "r2": 0.7823, "champion": True},
-            {"label": "20 PCs",             "r2": 0.7685, "champion": False},
-            {"label": "10 PCs",             "r2": 0.7198, "champion": False},
-            {"label": "5 PCs",              "r2": 0.6837, "champion": False},
+            {"label": "20 PCs",             "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias":  0.0010, "champion": True},
+            {"label": "15 PCs",             "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias":  0.0016, "champion": False},
+            {"label": "10 PCs",             "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias":  0.0046, "champion": False},
+            {"label": "5 PCs",              "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
         ],
     },
     {
         "header": "ML Architecture",
         "nodes": [
-            {"label": "Baseline",            "r2": None, "champion": False},
-            {"label": "Deeper",              "r2": None, "champion": False},
-            {"label": "Wider",               "r2": None, "champion": False},
-            {"label": "Deeper+Wider",        "r2": None, "champion": False},
+            {"label": "Baseline",            "r2": None, "nrmse": None, "nmae": None, "nbias": None, "champion": False},
+            {"label": "Deeper",              "r2": None, "nrmse": None, "nmae": None, "nbias": None, "champion": False},
+            {"label": "Wider",               "r2": None, "nrmse": None, "nmae": None, "nbias": None, "champion": False},
+            {"label": "Deeper+Wider",        "r2": None, "nrmse": None, "nmae": None, "nbias": None, "champion": False},
         ],
     },
 ]
 
 # ── Colors ────────────────────────────────────────────────────────────────────
-CLR_CHAMP    = "#2E8B57"
-CLR_CHAMP_BG = "#E8F5E9"
-CLR_NORM     = "#555555"
-CLR_NORM_BG  = "#FAFAFA"
-CLR_NORM_BD  = "#BBBBBB"
+CLR_CHAMP    = "#1B6E3E"
+CLR_CHAMP_BG = "#EAF5EE"
+CLR_CHAMP_HD = "#D0EBDA"   # header band inside champion node
+CLR_NORM     = "#444444"
+CLR_NORM_BG  = "#FFFFFF"
+CLR_NORM_BD  = "#C8C8C8"
+CLR_NORM_HD  = "#F0F0F0"   # header band inside normal node
 CLR_PEND     = "#BBBBBB"
-CLR_PEND_BG  = "#F0F0F0"
-CLR_EDGE     = "#AAAAAA"
-CLR_EDGE_CH  = "#2E8B57"
+CLR_PEND_BG  = "#F5F5F5"
+CLR_PEND_HD  = "#E8E8E8"
+CLR_EDGE_CH  = "#1B6E3E"
+CLR_STAR     = "#E07B00"   # amber star for best-per-metric
+
+
+def _best_flags(level_nodes):
+    """Return dict of {metric: index_of_best} for nodes that have data."""
+    data = [(i, n) for i, n in enumerate(level_nodes) if n["r2"] is not None]
+    if len(data) < 2:
+        return {}
+    best = {}
+    # R²: higher is better
+    best["r2"]    = max(data, key=lambda t: t[1]["r2"])[0]
+    # nRMSE/nMAE: lower is better
+    best["nrmse"] = min(data, key=lambda t: t[1]["nrmse"])[0]
+    best["nmae"]  = min(data, key=lambda t: t[1]["nmae"])[0]
+    # nBias: closest to zero is best
+    best["nbias"] = min(data, key=lambda t: abs(t[1]["nbias"]))[0]
+    return best
 
 
 def draw_ablation_tree():
-    fig, ax = plt.subplots(figsize=(18, 6.5))
-    ax.set_xlim(-0.5, 11.5)
-    ax.set_ylim(-1.5, 5.5)
-    ax.set_aspect("equal")
-    ax.axis("off")
+    node_w   = 2.55
+    node_h   = 1.75
+    hdr_h    = 0.40   # label-band height inside node
+    v_gap    = 0.35   # gap between nodes
+    v_spacing = node_h + v_gap
 
     n_levels = len(TREE_LEVELS)
 
-    # Node dimensions
-    node_w = 1.8
-    node_h = 0.7
+    # ── figure / axes ─────────────────────────────────────────────────────────
+    # Width driven by levels; height by tallest column (4 nodes)
+    max_nodes = max(len(lv["nodes"]) for lv in TREE_LEVELS)
+    fig_w = n_levels * (node_w + 1.6) + 0.8
+    fig_h = max_nodes * v_spacing + 2.8
 
-    # x positions for each level (spread over wider figure)
-    x_positions = np.linspace(0.8, 10.7, n_levels)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    ax.set_aspect("equal")
+    ax.axis("off")
 
-    # Compute y positions: champion on top, others below
-    # Vertical spacing between nodes
-    v_spacing = 1
+    # x centres for each level
+    col_gap = node_w + 1.6
+    x_positions = [node_w / 2 + 0.7 + li * col_gap for li in range(n_levels)]
+
+    # y centres: top-align each group at the same y_top
+    y_top_global = (max_nodes - 1) * v_spacing / 2 + 0.6
     level_coords = []
     for li, level in enumerate(TREE_LEVELS):
-        x = x_positions[li]
-        nodes = level["nodes"]
-        n = len(nodes)
-        # Champion is first (index 0) → placed at top
-        # Center the group vertically around y=2.0
-        y_top = 2.0 + (n - 1) * v_spacing / 2
-        ys = [y_top - i * v_spacing for i in range(n)]
-        level_coords.append([(x, y) for y in ys])
+        n = len(level["nodes"])
+        ys = [y_top_global - i * v_spacing for i in range(n)]
+        level_coords.append([(x_positions[li], y) for y in ys])
 
-    # ── Draw edges (org-chart style: horizontal + vertical) ──────────────────
+    ax.set_xlim(-0.3, x_positions[-1] + node_w / 2 + 0.5)
+    y_vals_all = [y for lc in level_coords for (_, y) in lc]
+    ax.set_ylim(min(y_vals_all) - node_h / 2 - 1.4,
+                max(y_vals_all) + node_h / 2 + 1.6)
+
+    # ── Draw edges ────────────────────────────────────────────────────────────
     for li in range(n_levels - 1):
-        level = TREE_LEVELS[li]
-        for ni, node in enumerate(level["nodes"]):
-            if not node["champion"]:
-                continue
-            # Champion → children in next level
-            x0, y0 = level_coords[li][ni]
-            children = TREE_LEVELS[li + 1]["nodes"]
-            child_coords = level_coords[li + 1]
-            n_children = len(children)
+        champ_idx = next(ni for ni, n in enumerate(TREE_LEVELS[li]["nodes"]) if n["champion"])
+        x0, y0 = level_coords[li][champ_idx]
+        child_coords = level_coords[li + 1]
+        is_pending = TREE_LEVELS[li + 1]["nodes"][0]["r2"] is None
 
-            # Midpoint x between parent right edge and children left edge
-            x_mid = (x0 + node_w / 2 + child_coords[0][0] - node_w / 2) / 2
+        ec  = CLR_PEND   if is_pending else CLR_EDGE_CH
+        lw  = 1.4        if is_pending else 2.2
+        ls  = (0, (4,3)) if is_pending else "-"
 
-            is_pending = children[0]["r2"] is None
-            ec = CLR_PEND if is_pending else CLR_EDGE_CH
-            lw = 1.2 if is_pending else 1.8
-            ls = (0, (3, 3)) if is_pending else "-"
+        x_mid = (x0 + node_w / 2 + child_coords[0][0] - node_w / 2) / 2
+        y_children = [c[1] for c in child_coords]
 
-            # Horizontal line from champion right edge to midpoint
-            ax.plot([x0 + node_w / 2, x_mid], [y0, y0],
+        ax.plot([x0 + node_w / 2, x_mid], [y0, y0],
+                color=ec, lw=lw, ls=ls, zorder=1, solid_capstyle="butt")
+        ax.plot([x_mid, x_mid], [min(y_children), max(y_children)],
+                color=ec, lw=lw, ls=ls, zorder=1, solid_capstyle="butt")
+        for x1, y1 in child_coords:
+            ax.plot([x_mid, x1 - node_w / 2], [y1, y1],
                     color=ec, lw=lw, ls=ls, zorder=1, solid_capstyle="butt")
-
-            # Vertical trunk from top child to bottom child
-            y_children = [c[1] for c in child_coords]
-            y_top_c = max(y_children)
-            y_bot_c = min(y_children)
-            ax.plot([x_mid, x_mid], [y_top_c, y_bot_c],
-                    color=ec, lw=lw, ls=ls, zorder=1, solid_capstyle="butt")
-
-            # Horizontal stubs from trunk to each child
-            for nj in range(n_children):
-                x1, y1 = child_coords[nj]
-                ax.plot([x_mid, x1 - node_w / 2], [y1, y1],
-                        color=ec, lw=lw, ls=ls, zorder=1, solid_capstyle="butt")
 
     # ── Draw nodes ────────────────────────────────────────────────────────────
+    METRICS = [
+        ("r2",    "R²",     "{:.3f}",  True),   # higher_better
+        ("nrmse", "nRMSE",  "{:.4f}",  False),
+        ("nmae",  "nMAE",   "{:.4f}",  False),
+        ("nbias", "nBias",  "{:+.4f}", None),    # None = closest-to-zero
+    ]
+    metric_dy = (node_h - hdr_h) / (len(METRICS) + 0.6)   # row height in body
+
     for li, level in enumerate(TREE_LEVELS):
+        best = _best_flags(level["nodes"])
+
         for ni, node in enumerate(level["nodes"]):
             x, y = level_coords[li][ni]
-            is_champ = node["champion"]
+            is_champ   = node["champion"]
             is_pending = node["r2"] is None
 
             if is_pending:
-                fc, ec, tc = CLR_PEND_BG, CLR_PEND, CLR_PEND
-                bw = 1.2
+                fc, bd, tc, hd = CLR_PEND_BG, CLR_PEND,   CLR_PEND,  CLR_PEND_HD
+                bw = 1.0
             elif is_champ:
-                fc, ec, tc = CLR_CHAMP_BG, CLR_CHAMP, CLR_CHAMP
-                bw = 2.2
+                fc, bd, tc, hd = CLR_CHAMP_BG, CLR_CHAMP, CLR_CHAMP, CLR_CHAMP_HD
+                bw = 2.4
             else:
-                fc, ec, tc = CLR_NORM_BG, CLR_NORM_BD, CLR_NORM
+                fc, bd, tc, hd = CLR_NORM_BG, CLR_NORM_BD, CLR_NORM, CLR_NORM_HD
                 bw = 1.2
 
+            # Outer box
             rect = FancyBboxPatch(
                 (x - node_w / 2, y - node_h / 2), node_w, node_h,
-                boxstyle="round,pad=0.08",
-                facecolor=fc, edgecolor=ec, linewidth=bw, zorder=2,
+                boxstyle="round,pad=0.07",
+                facecolor=fc, edgecolor=bd, linewidth=bw, zorder=2,
             )
             ax.add_patch(rect)
 
-            # Label
-            fw = "bold" if is_champ else "normal"
-            ax.text(x, y + 0.08, node["label"],
-                    ha="center", va="center", fontsize=10, fontweight=fw,
-                    color=tc, zorder=3)
+            # Header band (coloured strip at top of node)
+            hdr_y = y + node_h / 2 - hdr_h
+            hdr_rect = FancyBboxPatch(
+                (x - node_w / 2 + 0.03, hdr_y), node_w - 0.06, hdr_h - 0.03,
+                boxstyle="round,pad=0.04",
+                facecolor=hd, edgecolor="none", linewidth=0, zorder=3,
+            )
+            ax.add_patch(hdr_rect)
 
-            # R² value or "pending"
-            if node["r2"] is not None:
-                ax.text(x, y - 0.18, f"R² = {node['r2']:.3f}",
-                        ha="center", va="center", fontsize=9,
-                        color=tc, zorder=3, fontstyle="italic")
+            # Label inside header
+            fw = "bold" if (is_champ or not is_pending) else "normal"
+            ax.text(x, hdr_y + hdr_h / 2 - 0.01, node["label"],
+                    ha="center", va="center",
+                    fontsize=10.5, fontweight="bold" if is_champ else "semibold",
+                    color=tc, zorder=4)
+
+            # Divider line between header and body
+            ax.plot([x - node_w / 2 + 0.05, x + node_w / 2 - 0.05],
+                    [hdr_y, hdr_y], color=bd, lw=0.8, zorder=4)
+
+            # Metrics in body
+            if not is_pending:
+                body_top = hdr_y - 0.08
+                for mi, (key, label, fmt, _) in enumerate(METRICS):
+                    row_y = body_top - (mi + 0.55) * metric_dy
+                    is_best = best.get(key) == ni
+                    star = " ★" if is_best else ""
+                    val_str = fmt.format(node[key])
+                    # Left-aligned label, right-aligned value
+                    ax.text(x - node_w / 2 + 0.14, row_y,
+                            label + ":", ha="left", va="center",
+                            fontsize=8.8, color=tc, zorder=4)
+                    val_color = CLR_STAR if is_best else tc
+                    ax.text(x + node_w / 2 - 0.10, row_y,
+                            val_str + star, ha="right", va="center",
+                            fontsize=8.8, color=val_color,
+                            fontweight="bold" if is_best else "normal", zorder=4)
             else:
-                ax.text(x, y - 0.18, "pending",
+                ax.text(x, y - 0.10, "pending",
                         ha="center", va="center", fontsize=9,
-                        color=CLR_PEND, zorder=3, fontstyle="italic")
+                        color=CLR_PEND, zorder=4)
 
     # ── Column headers ────────────────────────────────────────────────────────
-    header_y = max(level_coords[li][0][1] for li in range(n_levels)) + node_h / 2 + 0.55
+    header_y = max(lc[0][1] for lc in level_coords) + node_h / 2 + 0.65
     for li, level in enumerate(TREE_LEVELS):
-        x = x_positions[li]
-        ax.text(x, header_y, level["header"],
-                ha="center", va="bottom", fontsize=12, fontweight="bold",
-                color="#333333", multialignment="center")
+        ax.text(x_positions[li], header_y, level["header"],
+                ha="center", va="bottom", fontsize=11.5, fontweight="bold",
+                color="#222222", multialignment="center",
+                linespacing=1.35)
+        # Underline
+        ax.plot([x_positions[li] - node_w / 2, x_positions[li] + node_w / 2],
+                [header_y - 0.08, header_y - 0.08],
+                color="#AAAAAA", lw=0.8, zorder=1)
 
     out = OUTPUT_DIR / "fig03_ablation_tree.png"
-    fig.savefig(out, dpi=300, bbox_inches="tight")
+    fig.savefig(out, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"Saved: {out}")
     return out

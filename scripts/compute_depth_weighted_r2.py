@@ -68,8 +68,11 @@ def _compute_level_ss(gt_path, pred_path, key, time_start, time_end):
     true = ds_true[key].sel(time=time_slice).values.astype(np.float64)
     pred = ds_pred[key].sel(time=time_slice).values.astype(np.float64)
 
-    # Trim GT to match pred spatial dims (predictions trim 1px border)
+    # Trim GT to match pred dims (time mismatch from slicing, spatial from 1px border crop)
     if pred.shape != true.shape:
+        min_t = min(pred.shape[0], true.shape[0])
+        pred = pred[:min_t]
+        true = true[:min_t]
         dt = true.shape[1] - pred.shape[1]
         dl = true.shape[2] - pred.shape[2]
         if dt > 0:
@@ -316,6 +319,9 @@ def main():
     parser.add_argument("--time-end", default=None,
                         help="Override prediction time end (e.g. '2014-12-31'). "
                              "Default: last timestep in predictions.")
+    parser.add_argument("--csv", default=None,
+                        help="Path to write consolidated CSV with all metrics "
+                             "(columns: experiment, metric, var1, var2, ..., MEAN)")
     args = parser.parse_args()
 
     n_workers = args.workers or int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count() // 2))
@@ -437,6 +443,31 @@ def main():
         for rank, (name, res) in enumerate(ranked, 1):
             val = res["metric_means"].get(metric, np.nan)
             print(f"  {rank}. {name}: {val:.4f}")
+
+
+    # Write consolidated CSV
+    if args.csv and all_results:
+        import csv
+        csv_path = Path(args.csv)
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["experiment", "metric"] + all_var_names + ["MEAN"])
+            for exp_name, res in all_results.items():
+                exp_results = res["variables"]
+                for metric in metrics:
+                    row = [exp_name, metric]
+                    for vname in all_var_names:
+                        if (vname in exp_results and exp_results[vname] is not None
+                                and metric in exp_results[vname]
+                                and np.isfinite(exp_results[vname][metric]["value"])):
+                            row.append(f"{exp_results[vname][metric]['value']:.6f}")
+                        else:
+                            row.append("")
+                    mean_val = res["metric_means"].get(metric, np.nan)
+                    row.append(f"{mean_val:.6f}" if np.isfinite(mean_val) else "")
+                    writer.writerow(row)
+        print(f"\nCSV written to: {csv_path}")
 
 
 if __name__ == "__main__":

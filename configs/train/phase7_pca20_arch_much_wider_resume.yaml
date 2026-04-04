@@ -1,0 +1,103 @@
+backend: auto
+batch_size: 1
+data:
+  concurrent_compute: true
+  data_location: bgc_data.zarr
+  data_means_location: bgc_means.zarr
+  data_stds_location: bgc_stds.zarr
+  hist: 1
+  loader_version: om4-torch
+  log_transform_vars: null
+  masked_fill_value: 0.0
+  normalize_before_mask: true
+  num_workers: 4
+  persistent_workers: true
+  prefetch_factor: 2
+  scaling_residuals_file: null
+  static_data_vars: null
+data_percent: 1.0
+data_stride:
+- 1
+debug: false
+disk_mode: true
+dynamic_n_window: 25
+ema_decay: 0.999
+epochs: 50
+experiment:
+  base_output_dir: ./outputs
+  boundary_vars_key: minimal_forcing
+  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+  name: phase7_pca20_arch_much_wider
+  prognostic_vars_key: helmholtz_log_no_logno3_pca20_all
+  rand_seed: 42
+  wandb:
+    entity: m2lines
+    group: phase7-arch
+    mode: offline
+    notes: null
+    project: bgc-emulator
+    tags:
+    - phase7-architecture
+    - pca-k20
+    - much_wider
+    - grad-0.10
+faster_decay_at_start: true
+finetune: false
+gradient_scales: null
+gradient_weight: 0.1
+inference_epochs: []
+inference_times:
+- end: '2019-12-31'
+  start: '2015-01-01'
+learning_rate: 0.0002
+loss: mae_gradient_weighted
+model:
+  checkpointing: all
+  corrector:
+    non_negative_corrector_names: null
+    ocean_heat_corrector: false
+  last_kernel_size: 3
+  pad: constant
+  pos_channels: 0
+  pred_residuals: false
+  unet:
+    ch_width:
+    - 512
+    - 700
+    - 960
+    core_block:
+      activation: capped_gelu
+      block_type: conv_next_block
+      kernel_size: 3
+      norm: batch
+      upscale_factor: 2
+    dilation:
+    - 1
+    - 2
+    - 4
+    down_sampling_block: avg_pool
+    n_layers:
+    - 1
+    - 1
+    - 1
+    up_sampling_block: bilinear_upsample
+pin_mem: true
+preemptible: true
+profiler:
+  cuda_snapshot_frequency: null
+resume_ckpt_path: ./outputs/phase7_pca20_arch_much_wider/saved_nets/ckpt_35.pt
+save_freq: 5
+scheduler:
+  target_epochs: null
+  type: cosine
+second_order_weight: 0.0
+step_transition: []
+steps:
+- 4
+test_using_ema: true
+train_time:
+  end: '2009-12-31'
+  start: '1960-01-01'
+val_time:
+  end: '2014-12-31'
+  start: '2010-01-01'
