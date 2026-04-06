@@ -64,4 +64,18 @@ python scripts/compute_depth_weighted_r2.py \
     phase5_pca20_helmholtz_grad010_eval_rollout2010_2014
 
 echo ""
+echo "=== Phase 7 PCA20 architecture experiments ==="
+python scripts/compute_depth_weighted_r2.py \
+    --max-depth 500 \
+    --metrics r2 nrmse nbias nmae \
+    --exclude-vars psi phi \
+    --time-start 2012-01-01 --time-end 2014-12-31 \
+    --outputs-dir /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/ \
+    --pred-zarr predictions_depth.zarr \
+    --experiments \
+    phase7_pca20_arch_wider_eval_rollout2010_2014 \
+    phase7_pca20_arch_much_wider_eval_rollout2010_2014 \
+    phase7_pca20_arch_wider_deeper_eval_rollout2010_2014
+
+echo ""
 echo "Done!"
