@@ -1,7 +1,7 @@
 #!/bin/bash
-# Reconstruct depth-space predictions for the 100-member PCA-20 ensemble eval (2015-2019).
+# Reconstruct depth-space predictions for the 20-member PCA-15 ensemble eval (2015-2019, full BGC pert).
 
-#SBATCH --job-name=recon_pca20_ens100_5y
+#SBATCH --job-name=recon_pca15_ens20_5y
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --nodes=1
@@ -9,9 +9,9 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=200G
 #SBATCH --time=8:00:00
-#SBATCH --array=0-99%10
-#SBATCH --output=logs/reconstruct_phase5_pca20_ensemble100_2015_2019_%A_%a.out
-#SBATCH --error=logs/reconstruct_phase5_pca20_ensemble100_2015_2019_%A_%a.err
+#SBATCH --array=0-19%10
+#SBATCH --output=logs/reconstruct_phase5_pca15_ensemble20_2015_2019_%A_%a.out
+#SBATCH --error=logs/reconstruct_phase5_pca15_ensemble20_2015_2019_%A_%a.err
 
 source ~/.bashrc
 module purge
@@ -30,7 +30,7 @@ export NUMEXPR_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 mkdir -p logs
 
 DATA_DIR=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
-EVAL_ROOT=outputs/phase5_pca20_helmholtz_grad010_eval_ensemble100_2015_2019
+EVAL_ROOT=outputs/phase5_pca15_helmholtz_grad010_eval_ensemble20_2015_2019
 
 printf -v ENSEMBLE_ID "%03d" "${SLURM_ARRAY_TASK_ID}"
 ENSEMBLE_DIR=${EVAL_ROOT}/ensemble_${ENSEMBLE_ID}
@@ -57,7 +57,7 @@ PYTHONUNBUFFERED=1 python scripts/analysis/reconstruct_from_pca.py \
     --pca-params "${DATA_DIR}/pca_params.npz" \
     --truth-data "${DATA_DIR}/bgc_data.zarr" \
     --output "${OUT_ZARR}" \
-    --n-components 20 \
+    --n-components 15 \
     --time-chunk 365
 
 echo "Reconstruction complete: ${OUT_ZARR}"

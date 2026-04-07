@@ -2,10 +2,11 @@
 """
 Figure 4 — Design Choice Illustrations
 ========================================
-Three panels illustrating key ablation choices:
+Four panels in a 2x2 grid illustrating key ablation choices:
   (a) Dynamics: Helmholtz vs Velocity — O₂ snapshots + power spectrum
   (b) BGC Representation: Linear vs Log — NO₃ & DIC time series
   (c) Gradient Weight: O₂ (100-200m) time series + bias
+  (d) TODO : Depth Representation - 20 principal components win over 15 PCs, 10 PCs, 5 PCs and baseline (native depth representation)
 
 Usage:
     python code_paper/fig04_design_choices.py

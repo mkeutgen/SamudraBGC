@@ -1,7 +1,7 @@
 #!/bin/bash
-# Reconstruct depth-space predictions for the 100-member PCA-20 ensemble eval (2015).
+# Reconstruct depth-space predictions for the 50-member PCA-20 ensemble eval (2015).
 
-#SBATCH --job-name=recon_pca20_ens100_2015
+#SBATCH --job-name=recon_pca20_ens50_2015
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --nodes=1
@@ -10,8 +10,8 @@
 #SBATCH --mem=200G
 #SBATCH --time=8:00:00
 #SBATCH --array=0-99%10
-#SBATCH --output=logs/reconstruct_phase5_pca20_ensemble100_2015_%A_%a.out
-#SBATCH --error=logs/reconstruct_phase5_pca20_ensemble100_2015_%A_%a.err
+#SBATCH --output=logs/reconstruct_phase5_pca20_ensemble50_2015_%A_%a.out
+#SBATCH --error=logs/reconstruct_phase5_pca20_ensemble50_2015_%A_%a.err
 
 source ~/.bashrc
 module purge
@@ -30,7 +30,7 @@ export NUMEXPR_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 mkdir -p logs
 
 DATA_DIR=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
-EVAL_ROOT=outputs/phase5_pca20_helmholtz_grad010_eval_ensemble100_2015
+EVAL_ROOT=outputs/phase5_pca20_helmholtz_grad010_eval_ensemble50_2015
 
 printf -v ENSEMBLE_ID "%03d" "${SLURM_ARRAY_TASK_ID}"
 ENSEMBLE_DIR=${EVAL_ROOT}/ensemble_${ENSEMBLE_ID}

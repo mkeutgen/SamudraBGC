@@ -58,8 +58,8 @@ TREE_LEVELS = [
     {
         "header": "Latent Depth\n(PCA)",
         "nodes": [
-            {"label": "20 PCs",             "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias":  0.0010, "champion": True},
-            {"label": "15 PCs",             "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias":  0.0016, "champion": False},
+            {"label": "15 PCs",             "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias":  0.0016, "champion": True},
+            {"label": "20 PCs",             "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias":  0.0010, "champion": False},
             {"label": "10 PCs",             "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias":  0.0046, "champion": False},
             {"label": "5 PCs",              "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
         ],
@@ -67,10 +67,10 @@ TREE_LEVELS = [
     {
         "header": "ML Architecture",
         "nodes": [
-            {"label": "Baseline",            "r2": None, "nrmse": None, "nmae": None, "nbias": None, "champion": False},
-            {"label": "Deeper",              "r2": None, "nrmse": None, "nmae": None, "nbias": None, "champion": False},
-            {"label": "Wider",               "r2": None, "nrmse": None, "nmae": None, "nbias": None, "champion": False},
-            {"label": "Deeper+Wider",        "r2": None, "nrmse": None, "nmae": None, "nbias": None, "champion": False},
+            {"label": "Baseline",             "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias":  0.0010, "champion": True},
+            {"label": "Wider",               "r2": 0.8084, "nrmse": 0.0791, "nmae": 0.0515, "nbias": -0.0046, "champion": False},
+            {"label": "Much Wider",           "r2": 0.7832, "nrmse": 0.0842, "nmae": 0.0565, "nbias":  0.0002, "champion": False},
+            {"label": "Wider+Deeper",         "r2": -93893.8253, "nrmse": 0.8103, "nmae": 0.0545, "nbias": -0.0022, "champion": False},
         ],
     },
 ]
@@ -106,18 +106,21 @@ def _best_flags(level_nodes):
     return best
 
 
-def draw_ablation_tree():
+def draw_ablation_tree(tree_levels=None, output_name="fig03_ablation_tree.png"):
+    if tree_levels is None:
+        tree_levels = TREE_LEVELS
+
     node_w   = 2.55
     node_h   = 1.75
     hdr_h    = 0.40   # label-band height inside node
     v_gap    = 0.35   # gap between nodes
     v_spacing = node_h + v_gap
 
-    n_levels = len(TREE_LEVELS)
+    n_levels = len(tree_levels)
 
     # ── figure / axes ─────────────────────────────────────────────────────────
     # Width driven by levels; height by tallest column (4 nodes)
-    max_nodes = max(len(lv["nodes"]) for lv in TREE_LEVELS)
+    max_nodes = max(len(lv["nodes"]) for lv in tree_levels)
     fig_w = n_levels * (node_w + 1.6) + 0.8
     fig_h = max_nodes * v_spacing + 2.8
 
@@ -132,7 +135,7 @@ def draw_ablation_tree():
     # y centres: top-align each group at the same y_top
     y_top_global = (max_nodes - 1) * v_spacing / 2 + 0.6
     level_coords = []
-    for li, level in enumerate(TREE_LEVELS):
+    for li, level in enumerate(tree_levels):
         n = len(level["nodes"])
         ys = [y_top_global - i * v_spacing for i in range(n)]
         level_coords.append([(x_positions[li], y) for y in ys])
@@ -173,7 +176,7 @@ def draw_ablation_tree():
     ]
     metric_dy = (node_h - hdr_h) / (len(METRICS) + 0.6)   # row height in body
 
-    for li, level in enumerate(TREE_LEVELS):
+    for li, level in enumerate(tree_levels):
         best = _best_flags(level["nodes"])
 
         for ni, node in enumerate(level["nodes"]):
@@ -226,7 +229,11 @@ def draw_ablation_tree():
                     row_y = body_top - (mi + 0.55) * metric_dy
                     is_best = best.get(key) == ni
                     star = " ★" if is_best else ""
-                    val_str = fmt.format(node[key])
+                    raw = node[key]
+                    if abs(raw) >= 100:
+                        val_str = f"{raw:.0e}"
+                    else:
+                        val_str = fmt.format(raw)
                     # Left-aligned label, right-aligned value
                     ax.text(x - node_w / 2 + 0.14, row_y,
                             label + ":", ha="left", va="center",
@@ -243,7 +250,7 @@ def draw_ablation_tree():
 
     # ── Column headers ────────────────────────────────────────────────────────
     header_y = max(lc[0][1] for lc in level_coords) + node_h / 2 + 0.65
-    for li, level in enumerate(TREE_LEVELS):
+    for li, level in enumerate(tree_levels):
         ax.text(x_positions[li], header_y, level["header"],
                 ha="center", va="bottom", fontsize=11.5, fontweight="bold",
                 color="#222222", multialignment="center",
@@ -253,7 +260,7 @@ def draw_ablation_tree():
                 [header_y - 0.08, header_y - 0.08],
                 color="#AAAAAA", lw=0.8, zorder=1)
 
-    out = OUTPUT_DIR / "fig03_ablation_tree.png"
+    out = OUTPUT_DIR / output_name
     fig.savefig(out, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"Saved: {out}")
@@ -262,3 +269,7 @@ def draw_ablation_tree():
 
 if __name__ == "__main__":
     draw_ablation_tree()
+    draw_ablation_tree(
+        tree_levels=TREE_LEVELS[:4],
+        output_name="fig03_ablation_tree_bis.png",
+    )

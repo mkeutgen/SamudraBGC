@@ -65,13 +65,14 @@ python scripts/compute_depth_weighted_r2.py \
 
 echo ""
 echo "=== Phase 7 PCA20 architecture experiments ==="
-python scripts/compute_depth_weighted_r2.py \
+python /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/scripts/compute_depth_weighted_r2.py \
     --max-depth 500 \
     --metrics r2 nrmse nbias nmae \
     --exclude-vars psi phi \
     --time-start 2012-01-01 --time-end 2014-12-31 \
     --outputs-dir /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/ \
     --pred-zarr predictions_depth.zarr \
+    --csv /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/depth_weighted_metrics_phase7_pca20.csv \
     --experiments \
     phase7_pca20_arch_wider_eval_rollout2010_2014 \
     phase7_pca20_arch_much_wider_eval_rollout2010_2014 \

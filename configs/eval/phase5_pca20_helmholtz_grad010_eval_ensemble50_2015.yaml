@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# 100-member ensemble evaluation for phase5_pca20_helmholtz_grad010
+# 50-member ensemble evaluation for phase5_pca20_helmholtz_grad010
 # Test holdout period 2015
 # Perturbations mimic numerical MOM6-COBALT ensemble generation:
 #   - Density-compensated T/S (0.05°C, 90km correlation)
@@ -19,7 +19,7 @@ backend: auto
 # Ensemble configuration
 ensemble:
   enabled: true
-  n_ensemble: 100
+  n_ensemble: 50
   depth_max_m: 100.0
   dx_km: 9.0
   corr_sigma_km: 90.0
@@ -34,7 +34,7 @@ ensemble:
   output_ensemble_std: true
 
 experiment:
-  name: phase5_pca20_helmholtz_grad010_eval_ensemble100_2015
+  name: phase5_pca20_helmholtz_grad010_eval_ensemble50_2015
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -49,7 +49,7 @@ experiment:
     - "pca-k20"
     - "grad-0.10"
     - "test-holdout-2015"
-    - "100-members"
+    - "50-members"
   prognostic_vars_key: helmholtz_log_no_logno3_pca20_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz

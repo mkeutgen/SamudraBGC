@@ -44,8 +44,14 @@ DATA_PATH = (
 OUTPUT_DIR    = Path(__file__).parent / "figures" / "fig01_3d_schematic"
 SNAPSHOT_DATE = (2005, 4, 15)          # (year, month, day) — spring bloom
 
-# All 50 MOM6-COBALT depth levels (surface → ~1000 m)
-DEPTH_INDICES = list(range(50))
+# MOM6-COBALT depth levels 0–46 (surface → ~484 m).
+# Levels 47–49 (582–999 m) excluded: deep ocean is too uniform for the schematic.
+DEPTH_INDICES = list(range(47))
+
+# Spatial stride for 3D voxel cubes.  Full grid (362×362×50) = 6.5 M voxels
+# which takes hours in ax.voxels().  Stride 4 → 90×90×50 ≈ 400 k voxels,
+# fast enough for a schematic.
+SPATIAL_STRIDE = 4
 
 # Unit conversion
 MOL_TO_UMOL = 1e6
@@ -55,16 +61,21 @@ RHO_0       = 1025.0
 # corner (high lon × low lat) to expose two interior cross-section walls.
 CUTAWAY_FRAC = 0.45
 
+# Variables that get lon/lat/depth labels (decorated).
+# All others get naked figures only.
+DECORATED_STATE   = {"temp", "dic"}
+DECORATED_FORCING = {"Qnet"}
+
 # ── Variable definitions ──────────────────────────────────────────────────────
 # Each entry: (zarr_base, cmap, norm_type, vmin, vmax)
 STATE_VARS = [
-    ("temp", cmocean.cm.thermal, "linear",    5,    28),
-    ("salt", cmocean.cm.haline,  "linear",   34,    37),
+    ("temp", cmocean.cm.thermal, "linear",    1,    30),
+    ("salt", cmocean.cm.haline,  "linear",   33,  37.5),
     ("psi",  cmocean.cm.balance, "twoslope", None, None),
     ("phi",  cmocean.cm.balance, "twoslope", None, None),
-    ("dic",  cmocean.cm.matter,  "linear",  1900, 2200),
-    ("o2",   cmocean.cm.oxy,     "linear",   180,  300),
-    ("no3",  cmocean.cm.deep,    "linear",     0,   20),
+    ("dic",  cmocean.cm.matter,  "linear",  1900, 2400),
+    ("o2",   cmocean.cm.oxy,     "linear",    10,  350),
+    ("no3",  cmocean.cm.deep,    "linear",     0,   40),
     # SSH is 2D (no depth levels) → rendered as a flat forcing plane below
 ]
 
@@ -151,6 +162,11 @@ def _build_voxel_arrays(data_vox: np.ndarray, cmap, norm) -> tuple:
 
     data_vox : (n_lon, n_lat, n_lev)  — surface at z = n_lev-1 (top).
 
+    Colours are normalised **per depth level** so that every horizontal slice
+    uses the full colour range.  On the vertical cutaway walls, this produces
+    visible depth banding that conveys the vertical structure through discrete
+    colour jumps between layers.
+
     An L-shaped corner cutaway removes voxels in the near-camera corner
     (high lon × low lat at azim=-45) so that two interior walls are exposed,
     revealing the true vertical structure rather than just the domain boundary.
@@ -158,11 +174,23 @@ def _build_voxel_arrays(data_vox: np.ndarray, cmap, norm) -> tuple:
     n_lon, n_lat, n_lev = data_vox.shape
     ocean = np.isfinite(data_vox)  # True where real ocean data
 
-    # Build RGBA colours  -------------------------------------------------------
-    safe = np.where(ocean, data_vox, 0.0)
-    facecolors = cmap(norm(safe)).copy()          # (n_lon, n_lat, n_lev, 4)
-    facecolors[~ocean, 3] = 0.0                   # land → transparent
-    facecolors[ ocean, 3] = 1.0                   # ocean → fully opaque
+    # Build RGBA colours — per-level normalisation  -----------------------------
+    facecolors = np.zeros((*data_vox.shape, 4), dtype=np.float32)
+    for k in range(n_lev):
+        slab = data_vox[:, :, k]
+        mask = ocean[:, :, k]
+        vals = slab[mask]
+        if vals.size == 0:
+            continue
+        vmin, vmax = np.percentile(vals, [1, 99])
+        if vmin == vmax:
+            vmax = vmin + 1.0
+        level_norm = Normalize(vmin=vmin, vmax=vmax)
+        safe_slab = np.where(mask, slab, 0.0)
+        rgba = cmap(level_norm(safe_slab))
+        rgba[~mask, 3] = 0.0
+        rgba[ mask, 3] = 1.0
+        facecolors[:, :, k, :] = rgba
 
     # Filled mask with interior cutaway -----------------------------------------
     filled = ocean.copy()
@@ -176,63 +204,67 @@ def _build_voxel_arrays(data_vox: np.ndarray, cmap, norm) -> tuple:
 # ── Axes decorator ────────────────────────────────────────────────────────────
 def _depth_to_z_edges(depths: list[float]) -> np.ndarray:
     """
-    Build z-edge coordinates proportional to real depth.
+    Uniform z-edges: every depth level gets the same visual thickness.
 
-    Returns an array of length ``len(depths) + 1`` with z=0 at the deepest
-    level and z=max_depth at the surface, so that each voxel's thickness
-    reflects its true physical extent.
+    This avoids discontinuities from the highly irregular MOM6 level spacing
+    (e.g., 20 m steps near surface vs 100+ m jumps at depth).  It's a
+    schematic — visual clarity matters more than geometric accuracy.
+
+    Returns ``np.arange(n_lev + 1)`` (same as the original uniform grid).
     """
-    max_depth = depths[-1]
-    # depths is surface→deep; reversed gives deep→surface (bottom→top).
-    # Edge between two levels sits at the midpoint of their centres.
-    centres = np.array(depths[::-1])          # deep→surface
-    edges = [0.0]                             # bottom of deepest level
-    for k in range(len(centres) - 1):
-        edges.append((centres[k] + centres[k + 1]) / 2.0)
-    edges.append(max_depth)                   # top of shallowest level
-    # Flip so that z increases upward (surface = high z)
-    edges = max_depth - np.array(edges)
-    return edges
+    return np.arange(len(depths) + 1, dtype=float)
 
 
 def _styled_ax(fig, lons: np.ndarray, lats: np.ndarray,
                depths: list[float], n_lev: int,
-               z_edges: np.ndarray | None = None) -> "Axes3D":
+               z_edges: np.ndarray | None = None,
+               decorated: bool = True) -> "Axes3D":
     ax = fig.add_subplot(111, projection="3d")
     ax.view_init(elev=30, azim=-45)
     ax.set_box_aspect([1, 1, 0.4]) # Slightly taller for better depth visibility
 
-    # --- X-Axis (Longitude) ---
-    # We set 5 ticks across the width of the cube
-    n_lon = len(lons)
-    tick_indices_x = np.linspace(0, n_lon - 1, 5, dtype=int)
-    ax.set_xticks(tick_indices_x)
-    # Format labels: e.g., 45°W
-    ax.set_xticklabels([f"{abs(lons[i]):.1f}°{'E' if lons[i]>=0 else 'W'}" for i in tick_indices_x], fontsize=8)
-    ax.set_xlabel("Longitude", fontsize=10, labelpad=15)
+    if decorated:
+        # --- X-Axis (Longitude) ---
+        n_lon = len(lons)
+        tick_indices_x = np.linspace(0, n_lon - 1, 5, dtype=int)
+        ax.set_xticks(tick_indices_x)
+        ax.set_xticklabels([f"{abs(lons[i]):.1f}°{'E' if lons[i]>=0 else 'W'}" for i in tick_indices_x], fontsize=8)
+        ax.set_xlabel("Longitude", fontsize=10, labelpad=15)
 
-    # --- Y-Axis (Latitude) ---
-    n_lat = len(lats)
-    tick_indices_y = np.linspace(0, n_lat - 1, 5, dtype=int)
-    ax.set_yticks(tick_indices_y)
-    ax.set_yticklabels([f"{abs(lats[i]):.1f}°{'N' if lats[i]>=0 else 'S'}" for i in tick_indices_y], fontsize=8)
-    ax.set_ylabel("Latitude", fontsize=10, labelpad=15)
+        # --- Y-Axis (Latitude) ---
+        n_lat = len(lats)
+        tick_indices_y = np.linspace(0, n_lat - 1, 5, dtype=int)
+        ax.set_yticks(tick_indices_y)
+        ax.set_yticklabels([f"{abs(lats[i]):.1f}°{'N' if lats[i]>=0 else 'S'}" for i in tick_indices_y], fontsize=8)
+        ax.set_ylabel("Latitude", fontsize=10, labelpad=15)
 
-    # --- Z-Axis (Depth) ---
-    if z_edges is not None:
-        max_depth = depths[-1]
-        # Place ticks at real-depth positions: 0m (surface), 500m, max depth
-        tick_depths = [0, 500, int(max_depth)]
-        tick_z = [max_depth - d for d in tick_depths]  # convert depth to z
-        ax.set_zticks(tick_z)
-        ax.set_zticklabels([f"{d}m" for d in tick_depths], fontsize=8)
-    else:
+        # --- Z-Axis (Depth) ---
+        # Uniform voxels: z=0 is deepest, z=n_lev is surface.
+        # Voxel k (0-based from bottom) corresponds to depths[n_lev-1-k].
         ax.set_zticks([0, n_lev // 2, n_lev])
-        ax.set_zticklabels(["", "", "0m"], fontsize=8)
-    ax.set_zlabel("Depth", fontsize=10, labelpad=10)
+        ax.set_zticklabels(
+            [f"{depths[-1]:.0f}m",
+             f"{depths[n_lev - 1 - n_lev // 2]:.0f}m",
+             "0m"],
+            fontsize=8,
+        )
+        ax.set_zlabel("Depth", fontsize=10, labelpad=10)
+    else:
+        # Naked: hide all ticks, labels, and axis lines
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_zticks([])
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+        ax.set_zlabel("")
+        ax.xaxis.line.set_color((1, 1, 1, 0))
+        ax.yaxis.line.set_color((1, 1, 1, 0))
+        ax.zaxis.line.set_color((1, 1, 1, 0))
 
-    # Clean up the panes for a "floating" look
-    ax.xaxis.pane.fill = ax.yaxis.pane.fill = ax.zaxis.pane.fill = False
+    # Clean up the panes — transparent fill and edges
+    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        axis.pane.fill = False
+        axis.pane.set_edgecolor((1, 1, 1, 0))
     return ax
 
 
@@ -245,8 +277,14 @@ def render_voxel_cube(
     cmap,
     norm,
     out_path: Path,
+    decorated: bool = True,
 ):
     """Render a single 3D voxel figure and save as a fixed-size square PNG."""
+    # Subsample horizontally for speed (schematic, not pixel-perfect)
+    s = SPATIAL_STRIDE
+    data_3d = data_3d[:, ::s, ::s]
+    lats = lats[::s]
+    lons = lons[::s]
     n_lev, n_lat, n_lon = data_3d.shape
 
     # Transpose to voxel order: (n_lon, n_lat, n_lev)
@@ -263,23 +301,16 @@ def render_voxel_cube(
     X, Y, Z = np.meshgrid(x_edges, y_edges, z_edges, indexing="ij")
 
     fig = plt.figure(figsize=(12, 10))
-    ax  = _styled_ax(fig, lons, lats, depths, n_lev, z_edges=z_edges)
+    ax  = _styled_ax(fig, lons, lats, depths, n_lev, z_edges=z_edges,
+                     decorated=decorated)
 
     print(f"    Calling ax.voxels() for '{base}' "
-          f"({filled.sum():,} filled / {filled.size:,} total)…", flush=True)
+          f"(decorated={decorated}, {filled.sum():,} filled / "
+          f"{filled.size:,} total)…", flush=True)
 
     # No edgecolor → smooth faces without grid artefact
     ax.voxels(X, Y, Z, filled, facecolors=facecolors,
               edgecolor="none", linewidth=0)
-
-    # Colorbar
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    cbar = fig.colorbar(sm, ax=ax, shrink=0.55, pad=0.10, aspect=20)
-    units = DISPLAY_UNITS.get(base, "")
-    name  = DISPLAY_NAMES.get(base, base)
-    cbar.set_label(f"{name} ({units})" if units else name, fontsize=10)
-    cbar.ax.tick_params(labelsize=9)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=300, transparent=True)
@@ -296,49 +327,52 @@ def render_forcing_plane(
     cmap,
     norm,
     out_path: Path,
+    decorated: bool = True,
 ):
-    """Render a 2D field as a perfectly flat, zero-thickness plane."""
+    """Render a 2D forcing field as a flat map (no 3D grid)."""
     n_lat, n_lon = field_2d.shape
 
     ocean = np.isfinite(field_2d)
-    safe = np.where(ocean, field_2d, 0.0)
-    facecolors = cmap(norm(safe)).copy()
-    facecolors[~ocean, 3] = 0.0
-    facecolors[ocean, 3] = 1.0
+    safe = np.where(ocean, field_2d, np.nan)
 
-    # Create n+1 edges for plot_surface to match the voxel boundaries perfectly
-    x_edges = np.arange(n_lon + 1, dtype=float)
-    y_edges = np.arange(n_lat + 1, dtype=float)
-    X, Y = np.meshgrid(x_edges, y_edges)
-    Z = np.zeros_like(X, dtype=float)
+    print(f"    Rendering flat map for '{varname}' "
+          f"(decorated={decorated})…", flush=True)
 
-    fig = plt.figure(figsize=(12, 10))
-    ax  = _styled_ax(fig, lons, lats, depths[:1], n_lev=1)
+    fig, ax = plt.subplots(figsize=(12, 8))
 
-    # Hide the z-axis for flat planes
-    ax.set_zlabel("")
-    ax.set_zticks([])
-    ax.zaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+    im = ax.pcolormesh(
+        np.arange(n_lon + 1), np.arange(n_lat + 1), safe,
+        cmap=cmap, norm=norm, shading="flat",
+    )
 
-    print(f"    Calling ax.plot_surface() for '{varname}'…", flush=True)
+    if decorated:
+        # Longitude tick labels
+        tick_indices_x = np.linspace(0, n_lon - 1, 5, dtype=int)
+        ax.set_xticks(tick_indices_x)
+        ax.set_xticklabels(
+            [f"{abs(lons[i]):.1f}°{'E' if lons[i]>=0 else 'W'}" for i in tick_indices_x],
+            fontsize=8,
+        )
+        ax.set_xlabel("Longitude", fontsize=10)
 
-    ax.plot_surface(X, Y, Z, facecolors=facecolors,
-                    rstride=1, cstride=1, linewidth=0,
-                    shade=False, antialiased=False)
+        # Latitude tick labels
+        tick_indices_y = np.linspace(0, n_lat - 1, 5, dtype=int)
+        ax.set_yticks(tick_indices_y)
+        ax.set_yticklabels(
+            [f"{abs(lats[i]):.1f}°{'N' if lats[i]>=0 else 'S'}" for i in tick_indices_y],
+            fontsize=8,
+        )
+        ax.set_ylabel("Latitude", fontsize=10)
+    else:
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel("")
+        ax.set_ylabel("")
 
-    ax.set_box_aspect([1, 1, 0.35])
-
-    # Colorbar
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    cbar = fig.colorbar(sm, ax=ax, shrink=0.55, pad=0.10, aspect=20)
-    units = DISPLAY_UNITS.get(varname, "")
-    name  = DISPLAY_NAMES.get(varname, varname)
-    cbar.set_label(f"{name} ({units})" if units else name, fontsize=10)
-    cbar.ax.tick_params(labelsize=9)
+    ax.set_aspect("equal")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=300, transparent=True)
+    fig.savefig(out_path, dpi=300, transparent=True, bbox_inches="tight")
     plt.close(fig)
     print(f"    Saved → {out_path.name}", flush=True)
 
@@ -346,14 +380,16 @@ def render_forcing_plane(
 # ── Per-variable worker (called in subprocess) ────────────────────────────────
 def _worker(args):
     """Top-level worker so multiprocessing can pickle it."""
-    kind, base, data, depths, lats, lons, cmap, norm_type, vmin, vmax, out_path = args
+    kind, base, data, depths, lats, lons, cmap, norm_type, vmin, vmax, out_path, decorated = args
 
     norm = build_norm(norm_type, vmin, vmax, data.ravel())
 
     if kind == "state":
-        render_voxel_cube(base, data, depths, lats, lons, cmap, norm, out_path)
+        render_voxel_cube(base, data, depths, lats, lons, cmap, norm,
+                          out_path, decorated=decorated)
     else:
-        render_forcing_plane(base, data, depths, lats, lons, cmap, norm, out_path)
+        render_forcing_plane(base, data, depths, lats, lons, cmap, norm,
+                             out_path, decorated=decorated)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -383,20 +419,34 @@ def main():
     lons = ds.lon.values
 
     # ── Build task list ───────────────────────────────────────────────────────
+    # Every variable gets a naked figure. Variables in DECORATED_STATE /
+    # DECORATED_FORCING also get a decorated version with labels + colorbar.
     tasks = []
 
     for base, cmap, norm_type, vmin, vmax in STATE_VARS:
         print(f"  Preparing [{base}]…", flush=True)
         data_3d = load_3d(snapshot, base, DEPTH_INDICES)
         data_3d = to_display(data_3d, base).astype(np.float32)
-        out     = OUTPUT_DIR / f"{base}.png"
-        tasks.append(("state", base, data_3d, depths, lats, lons, cmap, norm_type, vmin, vmax, out))
+        # Naked version (always)
+        tasks.append(("state", base, data_3d, depths, lats, lons, cmap,
+                       norm_type, vmin, vmax, OUTPUT_DIR / f"{base}.png", False))
+        # Decorated version (only for selected vars)
+        if base in DECORATED_STATE:
+            tasks.append(("state", base, data_3d, depths, lats, lons, cmap,
+                           norm_type, vmin, vmax,
+                           OUTPUT_DIR / f"{base}_decorated.png", True))
 
     for varname, cmap, norm_type, vmin, vmax in FORCING_VARS:
         print(f"  Preparing [{varname}]…", flush=True)
         field = snapshot[varname].values.astype(np.float32)
-        out   = OUTPUT_DIR / f"{varname}.png"
-        tasks.append(("forcing", varname, field, depths, lats, lons, cmap, norm_type, vmin, vmax, out))
+        # Naked version (always)
+        tasks.append(("forcing", varname, field, depths, lats, lons, cmap,
+                       norm_type, vmin, vmax, OUTPUT_DIR / f"{varname}.png", False))
+        # Decorated version (only for selected vars)
+        if varname in DECORATED_FORCING:
+            tasks.append(("forcing", varname, field, depths, lats, lons, cmap,
+                           norm_type, vmin, vmax,
+                           OUTPUT_DIR / f"{varname}_decorated.png", True))
 
     # ── Render — one process per variable ─────────────────────────────────────
     # ax.voxels() is single-threaded per figure but independent across variables.

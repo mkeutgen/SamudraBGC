@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../schemas/EvalConfig.json
-# 100-member ensemble evaluation for phase5_pca20_helmholtz_grad010
-# Test holdout period 2015-2019 (5-year rollout)
+# 50-member ensemble evaluation for phase5_pca15_helmholtz_grad010
+# Test holdout period 2015
 # Perturbations mimic numerical MOM6-COBALT ensemble generation:
 #   - Density-compensated T/S (0.05°C, 90km correlation)
 #   - Lognormal BGC (DIC, O2, NO3 at 2% relative std)
@@ -9,17 +9,17 @@
 debug: false
 save_zarr: true
 disk_mode: true
-ckpt_path: ./outputs/phase5_pca20_helmholtz_grad010/saved_nets/ema_ckpt.pt
+ckpt_path: ./outputs/phase5_pca15_helmholtz_grad010/saved_nets/ema_ckpt.pt
 inference_time:
   start: '2015-01-01'
-  end: '2019-12-31'
+  end: '2015-12-31'
 num_model_steps_forward: 20
 backend: auto
 
 # Ensemble configuration
 ensemble:
   enabled: true
-  n_ensemble: 100
+  n_ensemble: 50
   depth_max_m: 100.0
   dx_km: 9.0
   corr_sigma_km: 90.0
@@ -34,7 +34,7 @@ ensemble:
   output_ensemble_std: true
 
 experiment:
-  name: phase5_pca20_helmholtz_grad010_eval_ensemble100_2015_2019
+  name: phase5_pca15_helmholtz_grad010_eval_ensemble50_2015
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
@@ -46,11 +46,11 @@ experiment:
     - "ensemble"
     - "phase5-pca"
     - "helmholtz-decomposition"
-    - "pca-k20"
+    - "pca-k15"
     - "grad-0.10"
-    - "test-holdout-2015-2019"
-    - "100-members"
-  prognostic_vars_key: helmholtz_log_no_logno3_pca20_all
+    - "test-holdout-2015"
+    - "50-members"
+  prognostic_vars_key: helmholtz_log_no_logno3_pca15_all
   boundary_vars_key: minimal_forcing
   data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
 
@@ -99,4 +99,4 @@ pca:
   pca_params_path: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/pca_params.npz
   original_data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
   original_prognostic_vars_key: helmholtz_log_no_logno3_all
-  n_components: 20
+  n_components: 15
