@@ -49,10 +49,10 @@ mpl.rcParams.update({
 
 # ── Config ────────────────────────────────────────────────────────────────────
 GT_PATH   = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-PRED_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca15_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr"
+PRED_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca20_helmholtz_grad010_eval_rollout2015_2019/predictions_depth.zarr"
 OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig02_panels"
 
-SNAPSHOT_DATE = "2012-04-15"
+SNAPSHOT_DATE = "2017-04-15"
 
 MOL_TO_UMOL = 1e6
 RHO_0 = 1025.0
@@ -79,9 +79,9 @@ FINE_DEPTH_RANGES = OrderedDict([
 # DIC and O₂: 100–500 m interior; Chl: 0–100 m surface
 _c = plt.cm.viridis(np.linspace(0.15, 0.85, 3))
 BGC_TRIO = [
-    ("dic_int",  "DIC (100–500m)", "µmol kg⁻¹", _c[0]),
-    ("o2_int",   "O₂ (100–500m)", "µmol kg⁻¹", _c[1]),
-    ("chl_surf", "Chl (0–100m)",  "mg m⁻³",    _c[2]),
+    ("dic_100_200m",  "DIC (100–200m)", "µmol kg⁻¹", _c[0]),
+    ("o2_100_200m",   "O₂ (100–200m)", "µmol kg⁻¹", _c[1]),
+    ("chl_surf",      "Chl (0–100m)",  "mg m⁻³",    _c[2]),
 ]
 
 # ── SI variables (base names; depth suffix added dynamically) ─────────────────
@@ -207,8 +207,8 @@ def load_data():
     wet = mask > 0.5
 
     pred_times = pred_ds.time.values
-    t_start = cftime.DatetimeNoLeap(2010, 1, 1, 12, 0, 0)
-    t_end   = cftime.DatetimeNoLeap(2014, 12, 31, 12, 0, 0)
+    t_start = cftime.DatetimeNoLeap(2015, 1, 1, 12, 0, 0)
+    t_end   = cftime.DatetimeNoLeap(2019, 12, 31, 12, 0, 0)
     gt_all_times = gt_ds.time.values
     gt_slice_mask = (gt_all_times >= t_start) & (gt_all_times <= t_end)
     gt_slice_idx  = np.where(gt_slice_mask)[0]
@@ -284,7 +284,7 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times):
     w2d = np.where(wet, np.broadcast_to(cos_lat[:, None], mask.shape), 0.0)
     w2d_norm = w2d / w2d.sum()
 
-    eval_start = cftime.DatetimeNoLeap(2010, 1, 1, 12, 0, 0)
+    eval_start = cftime.DatetimeNoLeap(2015, 1, 1, 12, 0, 0)
     eval_idx = int(np.argmin(np.abs(pred_times - eval_start)))
     print(f"\nEval slice starts at index {eval_idx} ({pred_times[eval_idx]})")
 
@@ -330,7 +330,9 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times):
 
             print(f"  ✓ {v}")
 
-    # ── Fine depth band biome time series (no PDFs needed, diagnostic only) ──
+    # ── Fine depth band biome time series + PDFs for main-figure vars ──────
+    # BGC_TRIO vars that come from fine depth ranges need PDFs for the main figure
+    main_fig_fine_vars = {v for v, _, _, _ in BGC_TRIO if v not in ts_gt}
     print("\nComputing fine depth band biome time series...")
     for drng_key in FINE_DEPTH_RANGES:
         si_vars = si_vars_for_fine(drng_key)
@@ -340,6 +342,15 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times):
             for bkey, bw in biome_weights.items():
                 ts_gt_biome[(v, bkey)]   = np.nansum(gt_disp_eval   * bw[None], axis=(1, 2))
                 ts_pred_biome[(v, bkey)] = np.nansum(pred_disp_eval * bw[None], axis=(1, 2))
+            if v in main_fig_fine_vars:
+                # Also compute domain-avg time series + PDFs for main figure
+                ts_gt[v]   = np.nansum(gt_disp_eval   * w2d_norm[None], axis=(1, 2))
+                ts_pred[v] = np.nansum(pred_disp_eval * w2d_norm[None], axis=(1, 2))
+                gt_sub   = gt_disp_eval[::PDF_STEP]
+                pred_sub = pred_disp_eval[::PDF_STEP]
+                use_log  = v.startswith("chl")
+                for bkey in biome_weights:
+                    pdf_biome_hists[(v, bkey)] = make_hist(gt_sub, pred_sub, biome_masks[bkey], use_log)
             print(f"  ✓ {v}")
 
     # ── Metrics ───────────────────────────────────────────────────────────────
@@ -381,7 +392,7 @@ def compute_grad_pdf_hists(gt_arrays, pred_arrays, biome_masks, pred_times):
     print("="*70)
     print(f"Start time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    eval_start = cftime.DatetimeNoLeap(2010, 1, 1, 12, 0, 0)
+    eval_start = cftime.DatetimeNoLeap(2015, 1, 1, 12, 0, 0)
     eval_idx = int(np.argmin(np.abs(pred_times - eval_start)))
     PDF_STEP = 20
     grad_hists = {}
@@ -422,7 +433,7 @@ def plot_main(gt_ds, pred_ds, gt_arrays, pred_arrays, mask, lat, lon, wet, pred_
     print("="*70)
     print(f"Start time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    target = cftime.DatetimeNoLeap(2012, 4, 15, 12, 0, 0)
+    target = cftime.DatetimeNoLeap(2017, 4, 15, 12, 0, 0)
     snap_gt   = int(np.argmin(np.abs(gt_ds.time.values  - target)))
     snap_pred = int(np.argmin(np.abs(pred_times - target)))
 
@@ -432,9 +443,9 @@ def plot_main(gt_ds, pred_ds, gt_arrays, pred_arrays, mask, lat, lon, wet, pred_
     gt_chl   = np.where(wet & (gt_chl > 0),   gt_chl,   np.nan)
     pred_chl = np.where(wet & (pred_chl > 0), pred_chl, np.nan)
 
-    # O₂ interior snapshots (100–500 m, depth-weighted average, already in µmol/kg)
-    gt_o2_int   = to_display(gt_arrays["o2_int"][snap_pred],   "o2_int")
-    pred_o2_int = to_display(pred_arrays["o2_int"][snap_pred], "o2_int")
+    # O₂ interior snapshots (100–200 m, depth-weighted average, already in µmol/kg)
+    gt_o2_int   = to_display(gt_arrays["o2_100_200m"][snap_pred],   "o2_100_200m")
+    pred_o2_int = to_display(pred_arrays["o2_100_200m"][snap_pred], "o2_100_200m")
     gt_o2_int   = np.where(wet, gt_o2_int,   np.nan)
     pred_o2_int = np.where(wet, pred_o2_int, np.nan)
     o2_vmin = np.nanpercentile(gt_o2_int, 2)
@@ -469,14 +480,14 @@ def plot_main(gt_ds, pred_ds, gt_arrays, pred_arrays, mask, lat, lon, wet, pred_
     im_o2 = ax_c.pcolormesh(lon, lat, pred_o2_int, cmap="cividis",
                              vmin=o2_vmin, vmax=o2_vmax, shading="auto")
     ax_c.set_aspect("equal"); ax_c.set_facecolor("#cccccc")
-    ax_c.set_title(f"(c) ML — O₂ (100–500m)\n{SNAPSHOT_DATE}", fontsize=12, fontweight="bold")
+    ax_c.set_title(f"(c) ML — O₂ (100–200m)\n{SNAPSHOT_DATE}", fontsize=12, fontweight="bold")
 
     # (d) GT O₂ interior
     ax_d = fig.add_subplot(gs[0, 3])
     ax_d.pcolormesh(lon, lat, gt_o2_int, cmap="cividis",
                     vmin=o2_vmin, vmax=o2_vmax, shading="auto")
     ax_d.set_aspect("equal"); ax_d.set_facecolor("#cccccc")
-    ax_d.set_title(f"(d) MOM6-DG — O₂ (100–500m)\n{SNAPSHOT_DATE}", fontsize=12, fontweight="bold")
+    ax_d.set_title(f"(d) MOM6-DG — O₂ (100–200m)\n{SNAPSHOT_DATE}", fontsize=12, fontweight="bold")
 
     cbar_o2 = fig.colorbar(im_o2, ax=[ax_c, ax_d], shrink=0.55, pad=0.03,
                            extend="both", aspect=20, location="right")
@@ -501,7 +512,7 @@ def plot_main(gt_ds, pred_ds, gt_arrays, pred_arrays, mask, lat, lon, wet, pred_
     ax_ts[-1].xaxis.set_major_locator(mdates.YearLocator())
     ax_ts[-1].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax_ts[-1].tick_params(axis="x", rotation=0, labelsize=11)
-    ax_ts[0].set_title("(e) Domain-averaged time series (2010–2014)", fontsize=14, fontweight="bold", pad=6)
+    ax_ts[0].set_title("(e) Domain-averaged time series (2015–2019)", fontsize=14, fontweight="bold", pad=6)
     ax_ts[0].legend(handles=[
         Line2D([0], [0], color="k",   lw=1.6, label="DG-MOM6-COBALTv2"),
         Line2D([0], [0], color="0.5", lw=1.6, ls="--", label="ML Emulator")],
@@ -526,7 +537,7 @@ def plot_main(gt_ds, pred_ds, gt_arrays, pred_arrays, mask, lat, lon, wet, pred_
                 bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
 
     pdf_axes[-1].legend(loc="upper right", fontsize=10, frameon=False)
-    pdf_axes[0].annotate("(f) Probability density functions (2010–2014)",
+    pdf_axes[0].annotate("(f) Probability density functions (2015–2019)",
                          xy=(0.5, 1.0), xycoords="axes fraction",
                          xytext=(0, 28), textcoords="offset points",
                          ha="center", va="bottom",
@@ -590,7 +601,7 @@ def plot_si_timeseries(ts_gt_biome, ts_pred_biome, times_plot, ts_biome_met, out
             handles=[Line2D([0], [0], color="k",   lw=1.4, label="DG-MOM6-COBALTv2"),
                      Line2D([0], [0], color="0.5", lw=1.4, ls="--", label="ML Emulator")],
             loc="upper center", ncol=2, fontsize=11, frameon=False, bbox_to_anchor=(0.5, 0.998))
-        fig.suptitle(f"SI — Time series by biome ({drng_info['label']}, 2010–2014)",
+        fig.suptitle(f"SI — Time series by biome ({drng_info['label']}, 2015–2019)",
                      fontsize=13, fontweight="bold", y=1.015)
 
         out = output_dir / f"fig02_si_timeseries_{drng_info['file_suffix']}.png"
@@ -644,7 +655,7 @@ def plot_si_pdfs(pdf_biome_hists, output_dir):
             handles=[Line2D([0], [0], color="k",   lw=1.4, label="DG-MOM6-COBALTv2"),
                      Line2D([0], [0], color="0.5", lw=1.4, ls="--", label="ML Emulator")],
             loc="upper center", ncol=2, fontsize=11, frameon=False, bbox_to_anchor=(0.5, 0.998))
-        fig.suptitle(f"SI — PDFs by biome ({drng_info['label']}, 2010–2014)",
+        fig.suptitle(f"SI — PDFs by biome ({drng_info['label']}, 2015–2019)",
                      fontsize=13, fontweight="bold", y=1.015)
 
         out = output_dir / f"fig02_si_pdfs_{drng_info['file_suffix']}.png"
@@ -697,7 +708,7 @@ def plot_si_gradient_pdfs(grad_hists, output_dir):
             handles=[Line2D([0], [0], color="k",   lw=1.4, label="DG-MOM6-COBALTv2"),
                      Line2D([0], [0], color="0.5", lw=1.4, ls="--", label="ML Emulator")],
             loc="upper center", ncol=2, fontsize=11, frameon=False, bbox_to_anchor=(0.5, 0.998))
-        fig.suptitle(f"SI — Gradient magnitude PDFs by biome ({drng_info['label']}, 2010–2014)",
+        fig.suptitle(f"SI — Gradient magnitude PDFs by biome ({drng_info['label']}, 2015–2019)",
                      fontsize=13, fontweight="bold", y=1.015)
 
         out = output_dir / f"fig02_si_grad_pdfs_{drng_info['file_suffix']}.png"
@@ -779,7 +790,7 @@ def plot_fine_depth_timeseries(ts_gt_biome, ts_pred_biome, times_plot, ts_biome_
 def compute_per_level_metrics(gt_ds, pred_ds, lat, wet, pred_times):
     """Compute R2, RMSE for each variable at each of 50 depth levels, for each biome.
 
-    Uses the same time-slicing as load_data(): GT is sliced to match pred_times (2010-2014).
+    Uses the same time-slicing as load_data(): GT is sliced to match pred_times (2015-2019).
     Processes one level at a time to keep memory usage low.
     """
     t0 = time.time()
@@ -799,8 +810,8 @@ def compute_per_level_metrics(gt_ds, pred_ds, lat, wet, pred_times):
         biome_weights[bkey] = bw / bw_sum if bw_sum > 0 else bw
 
     # Slice GT to match pred time range (same as load_data)
-    t_start = cftime.DatetimeNoLeap(2010, 1, 1, 12, 0, 0)
-    t_end   = cftime.DatetimeNoLeap(2014, 12, 31, 12, 0, 0)
+    t_start = cftime.DatetimeNoLeap(2015, 1, 1, 12, 0, 0)
+    t_end   = cftime.DatetimeNoLeap(2019, 12, 31, 12, 0, 0)
     gt_times = gt_ds.time.values
     gt_slice_idx = np.where((gt_times >= t_start) & (gt_times <= t_end))[0]
     n = len(pred_times)

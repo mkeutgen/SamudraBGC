@@ -5,15 +5,15 @@
 
 set -e
 
-echo "=== Fig02 Pipeline: PCA k=15 rollout 2015-2019 → figures ==="
+echo "=== Fig02 Pipeline: PCA k=20 rollout 2015-2019 → figures ==="
 echo ""
 
 # Step 1: Eval rollout 2015-2019
-EVAL_JOB=$(sbatch --parsable scripts/slurm/eval_phase5_pca15_helmholtz_grad010_rollout2015_2019.sh)
+EVAL_JOB=$(sbatch --parsable scripts/slurm/eval_phase5_pca20_helmholtz_grad010_rollout2015_2019.sh)
 echo "1) Eval rollout 2015-2019: job ${EVAL_JOB}"
 
 # Step 2: Reconstruct PCA → depth (after eval)
-RECON_JOB=$(sbatch --parsable --dependency=afterok:${EVAL_JOB} scripts/slurm/reconstruct_phase5_pca15_rollout2015_2019.sh)
+RECON_JOB=$(sbatch --parsable --dependency=afterok:${EVAL_JOB} scripts/slurm/reconstruct_phase5_pca20_rollout5y.sh)
 echo "2) Reconstruct PCA→depth: job ${RECON_JOB} (after ${EVAL_JOB})"
 
 # Step 3: Figures (all 3 in parallel, after reconstruct)

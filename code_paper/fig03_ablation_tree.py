@@ -58,8 +58,8 @@ TREE_LEVELS = [
     {
         "header": "Latent Depth\n(PCA)",
         "nodes": [
-            {"label": "15 PCs",             "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias":  0.0016, "champion": True},
-            {"label": "20 PCs",             "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias":  0.0010, "champion": False},
+            {"label": "20 PCs",             "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias":  0.0010, "champion": True},
+            {"label": "15 PCs",             "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias":  0.0016, "champion": False},
             {"label": "10 PCs",             "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias":  0.0046, "champion": False},
             {"label": "5 PCs",              "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
         ],

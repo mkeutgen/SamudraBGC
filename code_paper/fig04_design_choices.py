@@ -6,12 +6,13 @@ Four panels in a 2x2 grid illustrating key ablation choices:
   (a) Dynamics: Helmholtz vs Velocity — O₂ snapshots + power spectrum
   (b) BGC Representation: Linear vs Log — NO₃ & DIC time series
   (c) Gradient Weight: O₂ (100-200m) time series + bias
-  (d) TODO : Depth Representation - 20 principal components win over 15 PCs, 10 PCs, 5 PCs and baseline (native depth representation)
+  (d) Depth Representation: PCA k=15 vs k=5, 10, 20 and baseline — vertical profiles + RMSE vs depth
 
 Usage:
     python code_paper/fig04_design_choices.py
 """
 
+import sys
 import time as _time
 import datetime
 import matplotlib as mpl
@@ -51,6 +52,19 @@ GRAD_PATHS = {
     "α = 0.25": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr",
     "α = 0.50": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr",
 }
+
+PCA_PATHS = {
+    "Baseline (50 lvl)": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr",
+    "PCA k=5":  "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca5_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "PCA k=10": "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca10_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "PCA k=15": "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca15_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "PCA k=20": "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+}
+
+# Subpolar gyre location: ~55°N, 35°W in North Atlantic
+PCA_PROFILE_LAT_IDX = 315   # ~54.9°N
+PCA_PROFILE_LON_IDX = 180   # ~35.1°W
+PCA_PROFILE_LABEL   = "55°N, 35°W (Subpolar Gyre)"
 
 MOL_TO_UMOL = 1e6
 RHO_0       = 1025.0
@@ -409,6 +423,140 @@ def draw_gradient_panel(ax_ts, ax_bias, grad_data):
     ax_bias.legend(fontsize=8, framealpha=0.7, loc="lower left", ncol=2)
 
 
+def load_pca_data():
+    """Load vertical profiles and per-depth RMSE for PCA comparison."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+    from ocean_emulators.constants import DEPTH_THICKNESS, DEPTH_CENTERS
+
+    t0 = _time.time()
+    print("  Loading PCA depth-representation data...")
+
+    # Depth levels 0–46 span 0–484 m (top 500 m)
+    max_level = 47  # exclusive
+    depth_centers = np.array(DEPTH_CENTERS[:max_level])
+    depth_thick   = np.array(DEPTH_THICKNESS[:max_level])
+
+    gt_ds = xr.open_zarr(GT_PATH, consolidated=True)
+    pred_times_ref = xr.open_zarr(list(PCA_PATHS.values())[0], consolidated=False).time.values
+    gt_sel = _isel_nearest_times(gt_ds, pred_times_ref)
+    mask2d = gt_ds["mask"].values
+
+    jla, jlo = PCA_PROFILE_LAT_IDX, PCA_PROFILE_LON_IDX
+    # Use 2013 annual mean for profile snapshot (middle of val period)
+    time_vals = pred_times_ref
+    yr_mask = np.array([t.year == 2013 for t in time_vals])
+
+    vars_cfg = [
+        ("temp", 1.0,   "Temperature (°C)"),
+        ("o2",   MOL_TO_UMOL, "O₂ (µmol kg⁻¹)"),
+        ("dic",  MOL_TO_UMOL, "DIC (µmol kg⁻¹)"),
+    ]
+
+    def _extract_profile(ds, var_prefix, scale, yr_mask):
+        """Extract annual-mean vertical profile at the subpolar gyre point."""
+        profile = np.zeros(max_level)
+        for i in range(max_level):
+            vals = ds[f"{var_prefix}_{i}"].values[yr_mask, jla, jlo].astype(np.float64)
+            profile[i] = np.nanmean(vals) * scale
+        return profile
+
+    # Use last 3 years (2012-2014) for RMSE to reduce memory
+    rmse_mask = np.array([t.year >= 2012 for t in time_vals])
+    wet = mask2d > 0.5
+    n_wet = wet.sum()
+
+    def _compute_rmse_vs_depth(ds, gt_ds_sel, var_prefix, scale):
+        """Compute RMSE at each depth level, one level at a time to save memory."""
+        rmse = np.zeros(max_level)
+        for i in range(max_level):
+            key = f"{var_prefix}_{i}"
+            # Load one level at a time, only RMSE time slice, only wet points
+            pred = ds[key].values[rmse_mask][:, wet].astype(np.float64) * scale
+            true = gt_ds_sel[key].values[rmse_mask][:, wet].astype(np.float64) * scale
+            rmse[i] = np.sqrt(np.nanmean((pred - true) ** 2))
+            del pred, true
+        return rmse
+
+    data = {"depth_centers": depth_centers, "vars": []}
+
+    for var_prefix, scale, var_label in vars_cfg:
+        var_data = {"label": var_label, "prefix": var_prefix, "profiles": {}, "rmse": {}}
+        var_data["profiles"]["MOM6-DG"] = _extract_profile(gt_sel, var_prefix, scale, yr_mask)
+
+        for exp_label, path in PCA_PATHS.items():
+            print(f"    {exp_label} / {var_prefix}...")
+            ds = xr.open_zarr(path, consolidated=False)
+            ds_sel = _isel_nearest_times(ds, pred_times_ref)
+            var_data["profiles"][exp_label] = _extract_profile(ds_sel, var_prefix, scale, yr_mask)
+            var_data["rmse"][exp_label] = _compute_rmse_vs_depth(ds_sel, gt_sel, var_prefix, scale)
+            ds.close()
+
+        data["vars"].append(var_data)
+
+    gt_ds.close()
+    print(f"    done in {_time.time()-t0:.1f}s")
+    return data
+
+
+def draw_pca_panel(axes_profiles, axes_rmse, pca_data):
+    """Draw panel (d): vertical profiles (top) + RMSE vs depth (bottom)."""
+    depth = pca_data["depth_centers"]
+
+    clrs = {
+        "MOM6-DG":          "#333333",
+        "Baseline (50 lvl)": "#E07B39",
+        "PCA k=5":          "#D65F5F",
+        "PCA k=10":         "#B07AA1",
+        "PCA k=15":         "#4878CF",
+        "PCA k=20":         "#6ACC65",
+    }
+    lws = {
+        "MOM6-DG": 2.0,
+        "Baseline (50 lvl)": 1.3,
+        "PCA k=5": 1.3, "PCA k=10": 1.3,
+        "PCA k=15": 2.0, "PCA k=20": 1.3,
+    }
+    lsts = {
+        "MOM6-DG": "-",
+        "Baseline (50 lvl)": "--",
+        "PCA k=5": ":", "PCA k=10": "-.",
+        "PCA k=15": "-", "PCA k=20": "-.",
+    }
+
+    # Top row: vertical profiles
+    for ax, vd in zip(axes_profiles, pca_data["vars"]):
+        for key in ["MOM6-DG"] + list(PCA_PATHS.keys()):
+            if key in vd["profiles"]:
+                ax.plot(vd["profiles"][key], depth,
+                        color=clrs[key], lw=lws[key], ls=lsts[key],
+                        label=key, alpha=0.9)
+        ax.set_ylim(500, 0)
+        ax.set_xlabel(vd["label"], fontsize=9)
+        ax.tick_params(labelsize=8)
+
+    axes_profiles[0].set_ylabel("Depth (m)", fontsize=10)
+    axes_profiles[0].set_title(
+        f"(d) Depth Representation — {PCA_PROFILE_LABEL}, 2013 mean",
+        fontsize=12, fontweight="bold", loc="left",
+    )
+    axes_profiles[0].legend(fontsize=7, framealpha=0.7, loc="lower left")
+
+    # Bottom row: RMSE vs depth
+    for ax, vd in zip(axes_rmse, pca_data["vars"]):
+        for key in PCA_PATHS.keys():
+            ax.plot(vd["rmse"][key], depth,
+                    color=clrs[key], lw=lws[key], ls=lsts[key],
+                    label=key, alpha=0.9)
+        ax.set_ylim(500, 0)
+        ax.set_xlabel(f"RMSE — {vd['label'].split('(')[0].strip()}", fontsize=9)
+        ax.tick_params(labelsize=8)
+
+    axes_rmse[0].set_ylabel("Depth (m)", fontsize=10)
+    axes_rmse[0].set_title("RMSE vs. depth (2012–2014, global)", fontsize=10,
+                           fontweight="bold", loc="left")
+    axes_rmse[0].legend(fontsize=7, framealpha=0.7, loc="lower left")
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN
 # ══════════════════════════════════════════════════════════════════════════════
@@ -418,14 +566,35 @@ def main():
     print("FIGURE 4: DESIGN CHOICE ILLUSTRATIONS")
     print("=" * 60)
 
-    bgc_data  = load_bgc_data()
-    helm_data = load_helmholtz_data()
-    grad_data = load_gradient_data(bgc_data["mask2d"])
+    pca_only = "--pca-only" in sys.argv
+    import gc
+
+    if not pca_only:
+        bgc_data  = load_bgc_data()
+        helm_data = load_helmholtz_data()
+        grad_data = load_gradient_data(bgc_data["mask2d"])
+        gc.collect()
+
+    pca_data = load_pca_data()
+    gc.collect()
+
+    if pca_only:
+        # Standalone PCA panel for quick iteration
+        print("  Plotting PCA panel only...")
+        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+        draw_pca_panel(list(axes[0]), list(axes[1]), pca_data)
+        fig.tight_layout()
+        out = OUTPUT_DIR / "fig04d_pca_depth.png"
+        fig.savefig(out, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        print(f"Saved: {out}")
+        return
 
     print("  Plotting...")
-    fig = plt.figure(figsize=(20, 10))
+    fig = plt.figure(figsize=(26, 10))
 
-    outer = mgridspec.GridSpec(1, 3, figure=fig, wspace=0.32)
+    outer = mgridspec.GridSpec(1, 4, figure=fig, wspace=0.32,
+                               width_ratios=[1.0, 0.8, 0.8, 1.0])
 
     # (a) Dynamics: 2×2 snapshots + spectrum below
     dyn_inner = mgridspec.GridSpecFromSubplotSpec(
@@ -451,6 +620,13 @@ def main():
     ax_ts   = fig.add_subplot(grad_inner[0])
     ax_bias = fig.add_subplot(grad_inner[1], sharex=ax_ts)
     draw_gradient_panel(ax_ts, ax_bias, grad_data)
+
+    # (d) PCA depth representation: profiles (top) + RMSE vs depth (bottom)
+    pca_inner = mgridspec.GridSpecFromSubplotSpec(
+        2, 3, subplot_spec=outer[3], hspace=0.35, wspace=0.12)
+    ax_prof = [fig.add_subplot(pca_inner[0, i]) for i in range(3)]
+    ax_rmse = [fig.add_subplot(pca_inner[1, i]) for i in range(3)]
+    draw_pca_panel(ax_prof, ax_rmse, pca_data)
 
     out = OUTPUT_DIR / "fig04_design_choices.png"
     fig.savefig(out, dpi=300, bbox_inches="tight")
