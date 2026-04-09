@@ -67,13 +67,20 @@ mpl.rcParams.update({
 # ── Paths ────────────────────────────────────────────────────────────────────
 GT_PATH = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
 ML_ENSEMBLE_DIR = Path("outputs/phase5_pca20_helmholtz_grad010_eval_ensemble100_2015")
+ML_HALFBGC_ENSEMBLE_DIR = Path("outputs/phase5_pca20_helmholtz_grad010_eval_ensemble50_halfbgc_2015")
 NUMERICAL_BASE_DIR = Path("/scratch/cimes/maximek/MOM6_Double_Gyre/DG-MOM6-COBALTv2/ice_ocean_SIS2")
 OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig05_panels"
 CACHE_DIR = Path(__file__).resolve().parent / "figures" / "fig05_cache"
 
 N_ML_MEMBERS = 100
+N_ML_HALFBGC_MEMBERS = 50
+N_ML_SUBSAMPLE = 50  # subsample full ML to match half-BGC count for fair comparison
 N_ML_SELECTED = 10   # for panel (a) spatial map
 RNG_SEED = 42
+
+# Fixed random subsample of full ML members (50 out of 100) for panels b/c/pct
+_rng_subsample = np.random.default_rng(RNG_SEED)
+ML_SUBSAMPLE_IDS = sorted(_rng_subsample.choice(N_ML_MEMBERS, size=N_ML_SUBSAMPLE, replace=False).tolist())
 
 NUMERICAL_MEMBERS = [f"ENS{i:02d}" for i in range(1, 11)]
 NUMERICAL_MEMBERS[-1] = "ENS010"  # ENS10 is ENS010 on disk
@@ -232,9 +239,13 @@ WONG = {
     "reddish_purple": "#CC79A7",
 }
 
-# ML ensemble → blue family  (Wong blue + sky-blue)
+# ML ensemble (full perturbation) → blue family  (Wong blue + sky-blue)
 ML_MEMBER_COLOR  = WONG["sky_blue"]    # thin member lines
 ML_MEAN_COLOR    = WONG["blue"]        # thick mean line
+
+# ML ensemble (half-BGC perturbation) → green family
+HALFBGC_MEMBER_COLOR = "#66c2a5"              # lighter green, thin member lines
+HALFBGC_MEAN_COLOR   = WONG["bluish_green"]   # thick mean line
 
 # Numerical ensemble → orange/vermilion family
 NUM_MEMBER_COLOR = WONG["orange"]      # thin member lines
@@ -488,6 +499,27 @@ def compute_panel_a_ml(info, rng_selected_members, wet):
     return snapshots
 
 
+def compute_panel_a_halfbgc(info, rng_selected_members, wet):
+    """Load last timestep snapshot from N_ML_SELECTED half-BGC members. Returns list of (lat, lon)."""
+    def _load_one(i):
+        member_id = rng_selected_members[i]
+        pred_path = ML_HALFBGC_ENSEMBLE_DIR / f"ensemble_{member_id:03d}" / "predictions_depth.zarr"
+        if not pred_path.exists():
+            print(f"    WARNING: {pred_path} not found")
+            return None
+        import zarr as _zarr
+        store = _zarr.open(str(pred_path), mode="r")
+        snap = load_ml_snapshot(store, info, -1, wet=wet)
+        return snap * info["ml_scale"]
+
+    with ThreadPoolExecutor(max_workers=min(N_ML_SELECTED, _n_workers)) as ex:
+        results = list(ex.map(_load_one, range(N_ML_SELECTED)))
+
+    snapshots = [r for r in results if r is not None]
+    print(f"  ML ½-BGC panel (a): loaded {len(snapshots)} members")
+    return snapshots
+
+
 def compute_panel_a_numerical(info):
     """Load Dec 2015 snapshot from each physical ensemble member. Returns list of (lat, lon)."""
     snapshots = []
@@ -505,46 +537,61 @@ def compute_panel_a_numerical(info):
     return snapshots
 
 
-def plot_panel_a(info, ml_snaps, phys_snaps, lat, lon, wet):
-    """Plot 1 row × 3 columns: ML spread | Physical spread | ML/Physical ratio.
+def plot_panel_a(info, ml_snaps, halfbgc_snaps, phys_snaps, lat, lon, wet):
+    """Plot 1 row × 5 columns:
+      ML spread | ML ½-BGC spread | Physical spread | ML/Physical ratio | ML ½-BGC / ML ratio.
 
-    The ratio panel (3rd column) uses a diverging colormap centred at 1.0:
-      ratio > 1  →  ML overestimates spread relative to the physical ensemble
-      ratio < 1  →  ML underestimates spread
+    Columns 0–2 share the same colormap scale (vmax = 98th percentile across all three).
+    Columns 3–4 each use an independent diverging colormap centred at 1.0.
     """
     from matplotlib.colors import TwoSlopeNorm
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5),
+    def _ratio_norm(num_spread, denom_spread, wet_mask):
+        raw = np.where(denom_spread > 0, num_spread / denom_spread, np.nan)
+        masked = np.where(wet_mask, raw, np.nan)
+        finite = masked[np.isfinite(masked)]
+        half = max(abs(np.nanpercentile(finite, 98) - 1.0),
+                   abs(1.0 - np.nanpercentile(finite, 2)),
+                   0.1)
+        norm = TwoSlopeNorm(vcenter=1.0,
+                            vmin=max(0.0, 1.0 - half),
+                            vmax=1.0 + half)
+        return masked, norm
+
+    fig, axes = plt.subplots(1, 5, figsize=(27, 5),
                              gridspec_kw={"wspace": 0.14})
 
-    ml_stack = np.stack(ml_snaps, axis=0)    # (n_ml, lat, lon)
-    ph_stack = np.stack(phys_snaps, axis=0)  # (n_ph, lat, lon)
-    ml_spread = np.nanstd(ml_stack, axis=0)
-    ph_spread = np.nanstd(ph_stack, axis=0)
+    ml_stack  = np.stack(ml_snaps,      axis=0)
+    hb_stack  = np.stack(halfbgc_snaps, axis=0)
+    ph_stack  = np.stack(phys_snaps,    axis=0)
+    ml_spread = np.nanstd(ml_stack,  axis=0)
+    hb_spread = np.nanstd(hb_stack,  axis=0)
+    ph_spread = np.nanstd(ph_stack,  axis=0)
 
-    ml_masked  = np.where(wet, ml_spread, np.nan)
-    ph_masked  = np.where(wet, ph_spread, np.nan)
-    ratio_raw  = np.where(ph_spread > 0, ml_spread / ph_spread, np.nan)
-    ratio_masked = np.where(wet, ratio_raw, np.nan)
+    ml_masked = np.where(wet, ml_spread, np.nan)
+    hb_masked = np.where(wet, hb_spread, np.nan)
+    ph_masked = np.where(wet, ph_spread, np.nan)
 
-    vmax = max(np.nanpercentile(ml_masked[np.isfinite(ml_masked)], 98),
-               np.nanpercentile(ph_masked[np.isfinite(ph_masked)], 98))
+    vmax = max(
+        np.nanpercentile(ml_masked[np.isfinite(ml_masked)], 98),
+        np.nanpercentile(hb_masked[np.isfinite(hb_masked)], 98),
+        np.nanpercentile(ph_masked[np.isfinite(ph_masked)], 98),
+    )
 
-    ratio_finite  = ratio_masked[np.isfinite(ratio_masked)]
-    ratio_half    = max(abs(np.nanpercentile(ratio_finite, 98) - 1.0),
-                        abs(1.0 - np.nanpercentile(ratio_finite, 2)),
-                        0.1)
-    ratio_norm    = TwoSlopeNorm(vcenter=1.0,
-                                 vmin=max(0.0, 1.0 - ratio_half),
-                                 vmax=1.0 + ratio_half)
+    ratio_ml_ph_masked,  norm_ml_ph  = _ratio_norm(ml_spread, ph_spread, wet)
+    ratio_hb_ph_masked,  norm_hb_ph  = _ratio_norm(hb_spread, ph_spread, wet)
 
     panels = [
-        (ml_masked,    f"ML Ensemble (n={len(ml_snaps)})",       "cividis", None,
+        (ml_masked,           f"ML Ensemble (n={len(ml_snaps)})",            "cividis", None,
          f"Spread σ ({info['units']})"),
-        (ph_masked,    f"Physical Ensemble (n={len(phys_snaps)})", "cividis", None,
+        (hb_masked,           f"ML ½-BGC Ensemble (n={len(halfbgc_snaps)})", "cividis", None,
          f"Spread σ ({info['units']})"),
-        (ratio_masked, "ML / Physical spread ratio",              "RdBu_r", ratio_norm,
-         "Ratio  (>1 → ML overestimates)"),
+        (ph_masked,           f"Physical Ensemble (n={len(phys_snaps)})",    "cividis", None,
+         f"Spread σ ({info['units']})"),
+        (ratio_ml_ph_masked,  "ML / Physical ratio",                         "RdBu_r",  norm_ml_ph,
+         "Ratio  (>1 → ML wider)"),
+        (ratio_hb_ph_masked,  "ML ½-BGC / Physical ratio",                   "RdBu_r",  norm_hb_ph,
+         "Ratio  (>1 → ½-BGC wider)"),
     ]
 
     for col, (data, title, cmap, norm, clabel) in enumerate(panels):
@@ -558,24 +605,23 @@ def plot_panel_a(info, ml_snaps, phys_snaps, lat, lon, wet):
         im = ax.pcolormesh(lon, lat, data, cmap=cmap, **kwargs)
         ax.set_aspect("equal")
         ax.set_facecolor("#cccccc")
-        ax.set_title(title, fontsize=12, fontweight="bold")
-        ax.set_xlabel("Longitude (°E)", fontsize=11)
+        ax.set_title(title, fontsize=11, fontweight="bold")
+        ax.set_xlabel("Longitude (°E)", fontsize=10)
         if col == 0:
-            ax.set_ylabel("Latitude (°N)", fontsize=11)
-        ax.tick_params(labelsize=10)
-        extend = "both" if col == 2 else "max"
+            ax.set_ylabel("Latitude (°N)", fontsize=10)
+        ax.tick_params(labelsize=9)
+        extend = "both" if col >= 3 else "max"
         cbar = fig.colorbar(im, ax=ax, shrink=0.85, pad=0.02,
                             extend=extend, aspect=25)
-        cbar.set_label(clabel, fontsize=10)
-        cbar.ax.tick_params(labelsize=9)
-        if col == 2:
-            # Mark the 1:1 line on the ratio colorbar
+        cbar.set_label(clabel, fontsize=9)
+        cbar.ax.tick_params(labelsize=8)
+        if col >= 3:
             cbar.ax.axhline(1.0, color="k", lw=0.8, ls="--")
 
     fig.suptitle(
         f"(a) {info['label']} ensemble spread after 1 year (Dec 2015)",
         fontsize=13, fontweight="bold", y=1.01)
-    return fig, ml_spread, ph_spread
+    return fig, ml_spread, hb_spread, ph_spread
 
 
 # =============================================================================
@@ -593,33 +639,20 @@ def ml_times_2015(member_id=0):
            np.array([t.month for t in times])
 
 
-def compute_panel_b_data(vkey, info, biome_weights, lat, wet, gt_store, gt_times, idx_2015):
-    """Compute biome-averaged time series for all ML members, all numerical members, and GT.
+def _load_ml_ensemble_biome_ts(ensemble_dir, n_members, vkey, info, biome_weights, wet,
+                               member_ids=None):
+    """Load biome-averaged time series for members of an ML ensemble.
 
-    Returns RAW (non-detrended) time series. With only 1 year of data, any monthly
-    climatology subtraction creates a step-function artifact; the raw seasonal cycle
-    is scientifically meaningful and small enough relative to spread to display directly.
-    The inter-dataset mean-state offset is handled at plot time by normalising each
-    dataset to its own annual mean.
-
-    Returns:
-        ml_ts:  dict {bkey: (n_ml, n_time)} raw in display units
-        num_ts: dict {bkey: (n_num, n_time)} raw in display units
-        gt_ts:  dict {bkey: (n_time,)} raw in display units
+    member_ids: optional list/array of integer member IDs to load (e.g. [0,3,7,...]).
+                If None, loads range(n_members).
+    Returns dict {bkey: (n_loaded, n_time)} in display units.
     """
-    # ── Ground truth ──
-    print(f"  [{vkey}] Loading GT...")
-    t0 = time.time()
-    gt_band = load_gt_depth_band(gt_store, info, idx_2015)  # (365, lat, lon)
-    gt_ts = biome_mean(gt_band, biome_weights)  # {bkey: (365,)}
-    print(f"    GT loaded ({time.time()-t0:.1f}s)")
-
-    # ── ML ensemble (100 members) ──
-    print(f"  [{vkey}] Loading {N_ML_MEMBERS} ML members...")
+    ids = member_ids if member_ids is not None else list(range(n_members))
+    print(f"  [{vkey}] Loading {len(ids)} ML members from {ensemble_dir.name}...")
     t0 = time.time()
 
-    def _load_ml_member(i):
-        pred_path = ML_ENSEMBLE_DIR / f"ensemble_{i:03d}" / "predictions_depth.zarr"
+    def _load_one(i):
+        pred_path = ensemble_dir / f"ensemble_{i:03d}" / "predictions_depth.zarr"
         if not pred_path.exists():
             return None
         import zarr as _zarr
@@ -628,14 +661,47 @@ def compute_panel_b_data(vkey, info, biome_weights, lat, wet, gt_store, gt_times
         arr = arr * info["ml_scale"]
         return biome_mean(arr, biome_weights)  # {bkey: (n_time,)}
 
-    with ThreadPoolExecutor(max_workers=min(N_ML_MEMBERS, _n_workers)) as ex:
-        ml_results = list(ex.map(_load_ml_member, range(N_ML_MEMBERS)))
+    with ThreadPoolExecutor(max_workers=min(len(ids), _n_workers)) as ex:
+        results = list(ex.map(_load_one, ids))
 
-    ml_results = [r for r in ml_results if r is not None]
-    print(f"    {len(ml_results)} ML members loaded ({time.time()-t0:.1f}s)")
+    results = [r for r in results if r is not None]
+    print(f"    {len(results)} members loaded ({time.time()-t0:.1f}s)")
 
-    ml_ts = {bkey: np.stack([mb[bkey] for mb in ml_results], axis=0)
-             for bkey in BIOMES}  # {bkey: (n_ml, n_time)}
+    if not results:
+        return {bkey: np.empty((0, 365)) for bkey in BIOMES}
+    return {bkey: np.stack([mb[bkey] for mb in results], axis=0) for bkey in BIOMES}
+
+
+def compute_panel_b_data(vkey, info, biome_weights, lat, wet, gt_store, gt_times, idx_2015):
+    """Compute biome-averaged time series for all ML members, half-BGC ML, numerical, and GT.
+
+    Returns RAW (non-detrended) time series. With only 1 year of data, any monthly
+    climatology subtraction creates a step-function artifact; the raw seasonal cycle
+    is scientifically meaningful and small enough relative to spread to display directly.
+    The inter-dataset mean-state offset is handled at plot time by normalising each
+    dataset to its own annual mean.
+
+    Returns:
+        ml_ts:      dict {bkey: (n_ml, n_time)} raw in display units
+        halfbgc_ts: dict {bkey: (n_halfbgc, n_time)} raw in display units
+        num_ts:     dict {bkey: (n_num, n_time)} raw in display units
+        gt_ts:      dict {bkey: (n_time,)} raw in display units
+    """
+    # ── Ground truth ──
+    print(f"  [{vkey}] Loading GT...")
+    t0 = time.time()
+    gt_band = load_gt_depth_band(gt_store, info, idx_2015)  # (365, lat, lon)
+    gt_ts = biome_mean(gt_band, biome_weights)  # {bkey: (365,)}
+    print(f"    GT loaded ({time.time()-t0:.1f}s)")
+
+    # ── ML ensemble (subsampled to 50 out of 100, full perturbation) ──
+    ml_ts = _load_ml_ensemble_biome_ts(
+        ML_ENSEMBLE_DIR, N_ML_MEMBERS, vkey, info, biome_weights, wet,
+        member_ids=ML_SUBSAMPLE_IDS)
+
+    # ── ML ensemble (50 members, half-BGC perturbation) ──
+    halfbgc_ts = _load_ml_ensemble_biome_ts(
+        ML_HALFBGC_ENSEMBLE_DIR, N_ML_HALFBGC_MEMBERS, vkey, info, biome_weights, wet)
 
     # ── Numerical ensemble ──
     print(f"  [{vkey}] Loading numerical ensemble...")
@@ -660,7 +726,7 @@ def compute_panel_b_data(vkey, info, biome_weights, lat, wet, gt_store, gt_times
     if not num_member_biomes:
         print(f"    WARNING: No numerical ensemble members loaded for {vkey}")
         num_ts = {bkey: np.empty((0, 365)) for bkey in BIOMES}
-        return ml_ts, num_ts, gt_ts
+        return ml_ts, halfbgc_ts, num_ts, gt_ts
 
     n_num_time = len(next(iter(num_member_biomes[0].values())))
     for bm in num_member_biomes:
@@ -670,7 +736,7 @@ def compute_panel_b_data(vkey, info, biome_weights, lat, wet, gt_store, gt_times
     num_ts = {bkey: np.stack([mb[bkey] for mb in num_member_biomes], axis=0)
               for bkey in BIOMES}
 
-    return ml_ts, num_ts, gt_ts
+    return ml_ts, halfbgc_ts, num_ts, gt_ts
 
 
 def _bias_correct(ts_2d, gt_mean):
@@ -690,13 +756,14 @@ def _bias_correct(ts_2d, gt_mean):
     return ts_2d - own_means + gt_mean
 
 
-def plot_panel_b(vkey, info, ml_ts, num_ts, gt_ts,
+def plot_panel_b(vkey, info, ml_ts, halfbgc_ts, num_ts, gt_ts,
                  ml_times_plot, num_times_plot, gt_times_plot):
     """Plot 1 row × 4 columns (biomes) for one variable. Returns figure.
 
     Each dataset is bias-corrected to the GT annual mean level so that
     inter-model mean-state offsets are removed while preserving the full
     seasonal cycle shape at physically meaningful absolute values.
+    All biome panels share the same y-axis scale for fair visual comparison.
     """
     n_biomes = len(BIOMES)
     fig, axes = plt.subplots(
@@ -716,10 +783,12 @@ def plot_panel_b(vkey, info, ml_ts, num_ts, gt_ts,
         # ML is shown at its raw absolute values (trained on the same GT data).
         gt_bc = gt_raw
         ml_bc = ml_ts[bkey] if (bkey in ml_ts and ml_ts[bkey].shape[0] > 0) else None
+        halfbgc_bc = halfbgc_ts[bkey] \
+                     if (bkey in halfbgc_ts and halfbgc_ts[bkey].shape[0] > 0) else None
         num_bc = _bias_correct(num_ts[bkey], gt_mean) \
                  if (bkey in num_ts and num_ts[bkey].shape[0] > 0) else None
 
-        # ML members (100, thin)
+        # ML members (100, full perturbation, thin)
         if ml_bc is not None:
             for i in range(ml_bc.shape[0]):
                 ax.plot(ml_times_plot[:ml_bc.shape[1]],
@@ -727,7 +796,17 @@ def plot_panel_b(vkey, info, ml_ts, num_ts, gt_ts,
                         color=ML_MEMBER_COLOR, lw=0.5, alpha=0.15)
             ml_mean = np.nanmean(ml_bc, axis=0)
             ax.plot(ml_times_plot[:len(ml_mean)], ml_mean,
-                    color=ML_MEAN_COLOR, lw=1.6, label="ML mean (n=100)", zorder=4)
+                    color=ML_MEAN_COLOR, lw=1.6, label="ML mean (n=50)", zorder=4)
+
+        # ML half-BGC members (50, thin)
+        if halfbgc_bc is not None:
+            for i in range(halfbgc_bc.shape[0]):
+                ax.plot(ml_times_plot[:halfbgc_bc.shape[1]],
+                        halfbgc_bc[i],
+                        color=HALFBGC_MEMBER_COLOR, lw=0.5, alpha=0.20)
+            hb_mean = np.nanmean(halfbgc_bc, axis=0)
+            ax.plot(ml_times_plot[:len(hb_mean)], hb_mean,
+                    color=HALFBGC_MEAN_COLOR, lw=1.6, label="ML ½-BGC mean (n=50)", zorder=4)
 
         # Numerical members (10, thin)
         if num_bc is not None:
@@ -758,8 +837,11 @@ def plot_panel_b(vkey, info, ml_ts, num_ts, gt_ts,
     axes[-1].legend(
         handles=[
             Line2D([0], [0], color=ML_MEMBER_COLOR,  lw=1.0, alpha=0.6,
-                   label="ML members (n=100)"),
+                   label="ML members (n=50)"),
             Line2D([0], [0], color=ML_MEAN_COLOR,    lw=1.6, label="ML mean"),
+            Line2D([0], [0], color=HALFBGC_MEMBER_COLOR, lw=1.0, alpha=0.6,
+                   label="ML ½-BGC members (n=50)"),
+            Line2D([0], [0], color=HALFBGC_MEAN_COLOR, lw=1.6, label="ML ½-BGC mean"),
             Line2D([0], [0], color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.6,
                    label="Numerical members (n=10)"),
             Line2D([0], [0], color=NUM_MEAN_COLOR,   lw=1.6, label="Numerical mean"),
@@ -773,7 +855,7 @@ def plot_panel_b(vkey, info, ml_ts, num_ts, gt_ts,
     return fig
 
 
-def plot_panel_b_pct(vkey, info, ml_ts, num_ts, gt_ts,
+def plot_panel_b_pct(vkey, info, ml_ts, halfbgc_ts, num_ts, gt_ts,
                      ml_times_plot, num_times_plot, gt_times_plot):
     """Percentage-deviation variant of panel (b).
 
@@ -781,6 +863,7 @@ def plot_panel_b_pct(vkey, info, ml_ts, num_ts, gt_ts,
     Numerical ensemble is bias-corrected before computing %.
     ML is shown raw (same reference point: GT mean).
     A dashed line at 0 % marks the GT annual mean.
+    All biome panels share the same y-axis scale.
     """
     def _to_pct(ts, gt_mean):
         denom = abs(gt_mean) if (np.isfinite(gt_mean) and gt_mean != 0) else np.nan
@@ -801,6 +884,8 @@ def plot_panel_b_pct(vkey, info, ml_ts, num_ts, gt_ts,
         gt_mean = np.nanmean(gt_raw) if gt_raw is not None else 0.0
 
         ml_bc  = ml_ts[bkey] if (bkey in ml_ts and ml_ts[bkey].shape[0] > 0) else None
+        halfbgc_bc = halfbgc_ts[bkey] \
+                     if (bkey in halfbgc_ts and halfbgc_ts[bkey].shape[0] > 0) else None
         num_bc = _bias_correct(num_ts[bkey], gt_mean) \
                  if (bkey in num_ts and num_ts[bkey].shape[0] > 0) else None
 
@@ -810,7 +895,15 @@ def plot_panel_b_pct(vkey, info, ml_ts, num_ts, gt_ts,
                 ax.plot(ml_times_plot[:ml_pct.shape[1]], ml_pct[i],
                         color=ML_MEMBER_COLOR, lw=0.5, alpha=0.15)
             ax.plot(ml_times_plot[:ml_pct.shape[1]], np.nanmean(ml_pct, axis=0),
-                    color=ML_MEAN_COLOR, lw=1.6, label="ML mean (n=100)", zorder=4)
+                    color=ML_MEAN_COLOR, lw=1.6, label="ML mean (n=50)", zorder=4)
+
+        if halfbgc_bc is not None:
+            hb_pct = _to_pct(halfbgc_bc, gt_mean)
+            for i in range(hb_pct.shape[0]):
+                ax.plot(ml_times_plot[:hb_pct.shape[1]], hb_pct[i],
+                        color=HALFBGC_MEMBER_COLOR, lw=0.5, alpha=0.20)
+            ax.plot(ml_times_plot[:hb_pct.shape[1]], np.nanmean(hb_pct, axis=0),
+                    color=HALFBGC_MEAN_COLOR, lw=1.6, label="ML ½-BGC mean (n=50)", zorder=4)
 
         if num_bc is not None:
             num_pct = _to_pct(num_bc, gt_mean)
@@ -839,8 +932,11 @@ def plot_panel_b_pct(vkey, info, ml_ts, num_ts, gt_ts,
     axes[-1].legend(
         handles=[
             Line2D([0], [0], color=ML_MEMBER_COLOR,  lw=1.0, alpha=0.6,
-                   label="ML members (n=100)"),
+                   label="ML members (n=50)"),
             Line2D([0], [0], color=ML_MEAN_COLOR,    lw=1.6, label="ML mean"),
+            Line2D([0], [0], color=HALFBGC_MEMBER_COLOR, lw=1.0, alpha=0.6,
+                   label="ML ½-BGC members (n=50)"),
+            Line2D([0], [0], color=HALFBGC_MEAN_COLOR, lw=1.6, label="ML ½-BGC mean"),
             Line2D([0], [0], color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.6,
                    label="Numerical members (n=10)"),
             Line2D([0], [0], color=NUM_MEAN_COLOR,   lw=1.6, label="Numerical mean"),
@@ -854,7 +950,7 @@ def plot_panel_b_pct(vkey, info, ml_ts, num_ts, gt_ts,
     return fig
 
 
-def plot_panel_c(vkey, info, ml_ts, num_ts, gt_ts,
+def plot_panel_c(vkey, info, ml_ts, halfbgc_ts, num_ts, gt_ts,
                  ml_times_plot, num_times_plot, gt_times_plot):
     """Fan chart (ensemble spread growth) for one variable. Returns figure.
 
@@ -865,7 +961,8 @@ def plot_panel_c(vkey, info, ml_ts, num_ts, gt_ts,
       - GT single line (black)
 
     All datasets are bias-corrected to GT mean level.
-    Uses Wong colorblind-safe palette: blue family for ML, orange/vermilion for numerical.
+    Uses Wong colorblind-safe palette: blue for ML, green for half-BGC, orange for numerical.
+    All biome panels share the same y-axis scale.
     """
     from matplotlib.patches import Patch
 
@@ -886,6 +983,8 @@ def plot_panel_c(vkey, info, ml_ts, num_ts, gt_ts,
         # Only bias-correct the numerical ensemble; ML shown at raw absolute values.
         gt_bc = gt_raw
         ml_bc = ml_ts[bkey] if (bkey in ml_ts and ml_ts[bkey].shape[0] > 0) else None
+        halfbgc_bc = halfbgc_ts[bkey] \
+                     if (bkey in halfbgc_ts and halfbgc_ts[bkey].shape[0] > 0) else None
         num_bc = _bias_correct(num_ts[bkey], gt_mean) \
                  if (bkey in num_ts and num_ts[bkey].shape[0] > 0) else None
 
@@ -901,7 +1000,21 @@ def plot_panel_c(vkey, info, ml_ts, num_ts, gt_ts,
             ax.fill_between(t_ml, ml_mean - ml_std, ml_mean + ml_std,
                             color=ML_MEAN_COLOR, alpha=0.30, lw=0, zorder=2)
             ax.plot(t_ml, ml_mean, color=ML_MEAN_COLOR, lw=1.8, zorder=4,
-                    label="ML ensemble mean (n=100)")
+                    label="ML ensemble mean (n=50)")
+
+        # Half-BGC fan (green family)
+        if halfbgc_bc is not None:
+            t_hb = ml_times_plot[:halfbgc_bc.shape[1]]
+            hb_mean = np.nanmean(halfbgc_bc, axis=0)
+            hb_std  = np.nanstd(halfbgc_bc, axis=0)
+            hb_min  = np.nanmin(halfbgc_bc, axis=0)
+            hb_max  = np.nanmax(halfbgc_bc, axis=0)
+            ax.fill_between(t_hb, hb_min, hb_max,
+                            color=HALFBGC_MEMBER_COLOR, alpha=0.18, lw=0, zorder=1)
+            ax.fill_between(t_hb, hb_mean - hb_std, hb_mean + hb_std,
+                            color=HALFBGC_MEAN_COLOR, alpha=0.30, lw=0, zorder=2)
+            ax.plot(t_hb, hb_mean, color=HALFBGC_MEAN_COLOR, lw=1.8, zorder=4,
+                    label="ML ½-BGC mean (n=50)")
 
         # Numerical fan (orange/vermilion family)
         if num_bc is not None:
@@ -936,7 +1049,10 @@ def plot_panel_c(vkey, info, ml_ts, num_ts, gt_ts,
     legend_handles = [
         Patch(facecolor=ML_MEMBER_COLOR, alpha=0.35, label="ML min–max"),
         Patch(facecolor=ML_MEAN_COLOR,   alpha=0.55, label="ML ±1σ"),
-        Line2D([0], [0], color=ML_MEAN_COLOR,    lw=1.8, label="ML mean (n=100)"),
+        Line2D([0], [0], color=ML_MEAN_COLOR,    lw=1.8, label="ML mean (n=50)"),
+        Patch(facecolor=HALFBGC_MEMBER_COLOR, alpha=0.35, label="ML ½-BGC min–max"),
+        Patch(facecolor=HALFBGC_MEAN_COLOR,   alpha=0.55, label="ML ½-BGC ±1σ"),
+        Line2D([0], [0], color=HALFBGC_MEAN_COLOR, lw=1.8, label="ML ½-BGC mean (n=50)"),
         Patch(facecolor=NUM_MEMBER_COLOR, alpha=0.40, label="Numerical min–max"),
         Patch(facecolor=NUM_MEAN_COLOR,   alpha=0.60, label="Numerical ±1σ"),
         Line2D([0], [0], color=NUM_MEAN_COLOR,   lw=1.8, label="Numerical mean (n=10)"),
@@ -996,23 +1112,28 @@ def main():
     # PANEL (a) — one spread map per variable
     # ──────────────────────────────────────────────────────────────────────────
     rng = np.random.default_rng(RNG_SEED)
-    selected = sorted(rng.choice(N_ML_MEMBERS, size=N_ML_SELECTED, replace=False).tolist())
+    selected          = sorted(rng.choice(N_ML_MEMBERS,        size=N_ML_SELECTED, replace=False).tolist())
+    selected_halfbgc  = sorted(rng.choice(N_ML_HALFBGC_MEMBERS, size=N_ML_SELECTED, replace=False).tolist())
     print(f"\n── Panel (a): spread maps ──")
     print(f"  Selected ML members for panel (a): {selected}")
+    print(f"  Selected ML ½-BGC members for panel (a): {selected_halfbgc}")
 
     # Keep NO3 snaps in memory for the combined figure
     ml_snaps_no3 = None
+    halfbgc_snaps_no3 = None
     phys_snaps_no3 = None
 
     for avkey, ainfo in PANEL_A_VARS.items():
         print(f"\n── Panel (a): {ainfo['label']} ──")
         print("  Computing ML spread...")
         ml_snaps = compute_panel_a_ml(ainfo, selected, wet)
+        print("  Computing ML ½-BGC spread...")
+        halfbgc_snaps = compute_panel_a_halfbgc(ainfo, selected_halfbgc, wet)
         print("  Computing numerical spread...")
         phys_snaps = compute_panel_a_numerical(ainfo)
 
         print("  Plotting panel (a)...")
-        fig_a, _, _ = plot_panel_a(ainfo, ml_snaps, phys_snaps, lat, lon, wet)
+        fig_a, _, _, _ = plot_panel_a(ainfo, ml_snaps, halfbgc_snaps, phys_snaps, lat, lon, wet)
         out_a = OUTPUT_DIR / f"fig05_panel_a_{ainfo['file_tag']}.png"
         fig_a.savefig(out_a, dpi=300, bbox_inches="tight")
         plt.close(fig_a)
@@ -1020,6 +1141,7 @@ def main():
 
         if avkey == "no3_surface":
             ml_snaps_no3 = ml_snaps
+            halfbgc_snaps_no3 = halfbgc_snaps
             phys_snaps_no3 = phys_snaps
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -1030,25 +1152,36 @@ def main():
     for vkey, info in PANEL_B_VARS.items():
         print(f"\n── Panel (b): {info['label']} ──")
 
-        cache_ml  = CACHE_DIR / f"{vkey}_ml_ts.npy"
-        cache_num = CACHE_DIR / f"{vkey}_num_ts.npy"
-        cache_gt  = CACHE_DIR / f"{vkey}_gt_ts.npy"
+        cache_ml      = CACHE_DIR / f"{vkey}_ml_ts_sub50.npy"
+        cache_halfbgc = CACHE_DIR / f"{vkey}_halfbgc_ts.npy"
+        cache_num     = CACHE_DIR / f"{vkey}_num_ts.npy"
+        cache_gt      = CACHE_DIR / f"{vkey}_gt_ts.npy"
 
+        # Load from cache where available; recompute only what's missing
         if cache_ml.exists() and cache_num.exists() and cache_gt.exists():
-            print(f"  Loading from cache...")
+            print(f"  Loading ml/num/gt from cache...")
             ml_ts_all  = np.load(cache_ml,  allow_pickle=True).item()
             num_ts_all = np.load(cache_num, allow_pickle=True).item()
             gt_ts_all  = np.load(cache_gt,  allow_pickle=True).item()
+            if cache_halfbgc.exists():
+                halfbgc_ts_all = np.load(cache_halfbgc, allow_pickle=True).item()
+            else:
+                print(f"  Computing half-BGC ensemble...")
+                halfbgc_ts_all = _load_ml_ensemble_biome_ts(
+                    ML_HALFBGC_ENSEMBLE_DIR, N_ML_HALFBGC_MEMBERS,
+                    vkey, info, biome_weights, wet)
+                np.save(cache_halfbgc, halfbgc_ts_all)
         else:
-            ml_ts_all, num_ts_all, gt_ts_all = compute_panel_b_data(
+            ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all = compute_panel_b_data(
                 vkey, info, biome_weights, lat, wet,
                 gt_store_loaded, gt_times, idx_2015)
-            np.save(cache_ml,  ml_ts_all)
-            np.save(cache_num, num_ts_all)
-            np.save(cache_gt,  gt_ts_all)
+            np.save(cache_ml,      ml_ts_all)
+            np.save(cache_halfbgc, halfbgc_ts_all)
+            np.save(cache_num,     num_ts_all)
+            np.save(cache_gt,      gt_ts_all)
             print(f"  Cached to {CACHE_DIR}")
 
-        fig_b = plot_panel_b(vkey, info, ml_ts_all, num_ts_all, gt_ts_all,
+        fig_b = plot_panel_b(vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
                              ml_times_plot, num_times_plot, gt_times_plot)
         var_short = vkey.split("_")[0]
         out_b = OUTPUT_DIR / f"fig05_panel_b_{var_short}.png"
@@ -1057,14 +1190,14 @@ def main():
         print(f"  Saved {out_b}")
         panel_b_figs[vkey] = out_b
 
-        fig_c = plot_panel_c(vkey, info, ml_ts_all, num_ts_all, gt_ts_all,
+        fig_c = plot_panel_c(vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
                              ml_times_plot, num_times_plot, gt_times_plot)
         out_c = OUTPUT_DIR / f"fig05_panel_c_{var_short}.png"
         fig_c.savefig(out_c, dpi=300, bbox_inches="tight")
         plt.close(fig_c)
         print(f"  Saved {out_c}")
 
-        fig_pct = plot_panel_b_pct(vkey, info, ml_ts_all, num_ts_all, gt_ts_all,
+        fig_pct = plot_panel_b_pct(vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
                                    ml_times_plot, num_times_plot, gt_times_plot)
         out_pct = OUTPUT_DIR / f"fig05_panel_b_pct_{var_short}.png"
         fig_pct.savefig(out_pct, dpi=300, bbox_inches="tight")
@@ -1083,39 +1216,49 @@ def main():
         short   = info["short"]
         band    = info["band_key"]
 
-        cache_ml  = CACHE_DIR / f"{vkey}_ml_ts.npy"
-        cache_num = CACHE_DIR / f"{vkey}_num_ts.npy"
-        cache_gt  = CACHE_DIR / f"{vkey}_gt_ts.npy"
+        cache_ml      = CACHE_DIR / f"{vkey}_ml_ts_sub50.npy"
+        cache_halfbgc = CACHE_DIR / f"{vkey}_halfbgc_ts.npy"
+        cache_num     = CACHE_DIR / f"{vkey}_num_ts.npy"
+        cache_gt      = CACHE_DIR / f"{vkey}_gt_ts.npy"
 
         if cache_ml.exists() and cache_num.exists() and cache_gt.exists():
-            print(f"  Loading from cache...")
+            print(f"  Loading ml/num/gt from cache...")
             ml_ts_all  = np.load(cache_ml,  allow_pickle=True).item()
             num_ts_all = np.load(cache_num, allow_pickle=True).item()
             gt_ts_all  = np.load(cache_gt,  allow_pickle=True).item()
+            if cache_halfbgc.exists():
+                halfbgc_ts_all = np.load(cache_halfbgc, allow_pickle=True).item()
+            else:
+                print(f"  Computing half-BGC ensemble...")
+                halfbgc_ts_all = _load_ml_ensemble_biome_ts(
+                    ML_HALFBGC_ENSEMBLE_DIR, N_ML_HALFBGC_MEMBERS,
+                    vkey, info, biome_weights, wet)
+                np.save(cache_halfbgc, halfbgc_ts_all)
         else:
-            ml_ts_all, num_ts_all, gt_ts_all = compute_panel_b_data(
+            ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all = compute_panel_b_data(
                 vkey, info, biome_weights, lat, wet,
                 gt_store_loaded, gt_times, idx_2015)
-            np.save(cache_ml,  ml_ts_all)
-            np.save(cache_num, num_ts_all)
-            np.save(cache_gt,  gt_ts_all)
+            np.save(cache_ml,      ml_ts_all)
+            np.save(cache_halfbgc, halfbgc_ts_all)
+            np.save(cache_num,     num_ts_all)
+            np.save(cache_gt,      gt_ts_all)
             print(f"  Cached to {CACHE_DIR}")
 
-        fig_b = plot_panel_b(vkey, info, ml_ts_all, num_ts_all, gt_ts_all,
+        fig_b = plot_panel_b(vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
                              ml_times_plot, num_times_plot, gt_times_plot)
         out_b = OUTPUT_DIR / f"fig05_panel_b_{short}_{band}.png"
         fig_b.savefig(out_b, dpi=300, bbox_inches="tight")
         plt.close(fig_b)
         print(f"  Saved {out_b}")
 
-        fig_c = plot_panel_c(vkey, info, ml_ts_all, num_ts_all, gt_ts_all,
+        fig_c = plot_panel_c(vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
                              ml_times_plot, num_times_plot, gt_times_plot)
         out_c = OUTPUT_DIR / f"fig05_panel_c_{short}_{band}.png"
         fig_c.savefig(out_c, dpi=300, bbox_inches="tight")
         plt.close(fig_c)
         print(f"  Saved {out_c}")
 
-        fig_pct = plot_panel_b_pct(vkey, info, ml_ts_all, num_ts_all, gt_ts_all,
+        fig_pct = plot_panel_b_pct(vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
                                    ml_times_plot, num_times_plot, gt_times_plot)
         out_pct = OUTPUT_DIR / f"fig05_panel_b_pct_{short}_{band}.png"
         fig_pct.savefig(out_pct, dpi=300, bbox_inches="tight")
@@ -1129,33 +1272,40 @@ def main():
     combo_vkey = "o2_100_500m"
     combo_info = PANEL_B_VARS[combo_vkey]
 
-    cache_ml  = CACHE_DIR / f"{combo_vkey}_ml_ts.npy"
-    cache_num = CACHE_DIR / f"{combo_vkey}_num_ts.npy"
-    cache_gt  = CACHE_DIR / f"{combo_vkey}_gt_ts.npy"
-    ml_ts_combo  = np.load(cache_ml,  allow_pickle=True).item()
-    num_ts_combo = np.load(cache_num, allow_pickle=True).item()
-    gt_ts_combo  = np.load(cache_gt,  allow_pickle=True).item()
+    cache_ml      = CACHE_DIR / f"{combo_vkey}_ml_ts_sub50.npy"
+    cache_halfbgc = CACHE_DIR / f"{combo_vkey}_halfbgc_ts.npy"
+    cache_num     = CACHE_DIR / f"{combo_vkey}_num_ts.npy"
+    cache_gt      = CACHE_DIR / f"{combo_vkey}_gt_ts.npy"
+    ml_ts_combo      = np.load(cache_ml,      allow_pickle=True).item()
+    halfbgc_ts_combo = np.load(cache_halfbgc, allow_pickle=True).item()
+    num_ts_combo     = np.load(cache_num,     allow_pickle=True).item()
+    gt_ts_combo      = np.load(cache_gt,      allow_pickle=True).item()
 
     n_biomes = len(BIOMES)
     fig = plt.figure(figsize=(20, 14))
     gs = GridSpec(2, 1, figure=fig, height_ratios=[1, 1.2],
                   hspace=0.32, left=0.06, right=0.95, top=0.95, bottom=0.05)
 
-    # ── Sub-panel (a): 1 row × 2 cols ──
-    gs_a = GridSpecFromSubplotSpec(1, 2, subplot_spec=gs[0], wspace=0.12)
+    # ── Sub-panel (a): 1 row × 3 cols ──
+    gs_a = GridSpecFromSubplotSpec(1, 3, subplot_spec=gs[0], wspace=0.12)
 
     no3_ainfo = PANEL_A_VARS["no3_surface"]
     ml_stack = np.stack(ml_snaps_no3, axis=0)
+    hb_stack = np.stack(halfbgc_snaps_no3, axis=0)
     ph_stack = np.stack(phys_snaps_no3, axis=0)
     ml_spread_plt = np.nanstd(ml_stack, axis=0)
+    hb_spread_plt = np.nanstd(hb_stack, axis=0)
     ph_spread_plt = np.nanstd(ph_stack, axis=0)
     ml_masked = np.where(wet, ml_spread_plt, np.nan)
+    hb_masked = np.where(wet, hb_spread_plt, np.nan)
     ph_masked = np.where(wet, ph_spread_plt, np.nan)
     vmax = max(np.nanpercentile(ml_masked[np.isfinite(ml_masked)], 98),
+               np.nanpercentile(hb_masked[np.isfinite(hb_masked)], 98),
                np.nanpercentile(ph_masked[np.isfinite(ph_masked)], 98))
 
     for col, (data, title) in enumerate([
         (ml_masked, f"ML Ensemble (n={len(ml_snaps_no3)})"),
+        (hb_masked, f"ML ½-BGC Ensemble (n={len(halfbgc_snaps_no3)})"),
         (ph_masked, f"Physical Ensemble (n={len(phys_snaps_no3)})"),
     ]):
         ax = fig.add_subplot(gs_a[0, col])
@@ -1190,6 +1340,8 @@ def main():
         gt_bc_c  = gt_raw_c
         ml_bc_c  = ml_ts_combo[bkey] \
                    if (bkey in ml_ts_combo and ml_ts_combo[bkey].shape[0] > 0) else None
+        halfbgc_bc_c = halfbgc_ts_combo[bkey] \
+                       if (bkey in halfbgc_ts_combo and halfbgc_ts_combo[bkey].shape[0] > 0) else None
         num_bc_c = _bias_correct(num_ts_combo[bkey], gt_mean_c) \
                    if (bkey in num_ts_combo and num_ts_combo[bkey].shape[0] > 0) else None
 
@@ -1200,6 +1352,14 @@ def main():
                         color=ML_MEMBER_COLOR, lw=0.5, alpha=0.15)
             ml_mean = np.nanmean(ml_bc_c, axis=0)
             ax.plot(ml_times_plot[:len(ml_mean)], ml_mean, color=ML_MEAN_COLOR, lw=1.6)
+
+        if halfbgc_bc_c is not None:
+            for i in range(halfbgc_bc_c.shape[0]):
+                ax.plot(ml_times_plot[:halfbgc_bc_c.shape[1]],
+                        halfbgc_bc_c[i],
+                        color=HALFBGC_MEMBER_COLOR, lw=0.5, alpha=0.20)
+            hb_mean = np.nanmean(halfbgc_bc_c, axis=0)
+            ax.plot(ml_times_plot[:len(hb_mean)], hb_mean, color=HALFBGC_MEAN_COLOR, lw=1.6)
 
         if num_bc_c is not None:
             for i in range(num_bc_c.shape[0]):
@@ -1229,8 +1389,10 @@ def main():
 
     fig.legend(
         handles=[
-            Line2D([0], [0], color=ML_MEMBER_COLOR,  lw=1.0, alpha=0.6, label="ML members (n=100)"),
+            Line2D([0], [0], color=ML_MEMBER_COLOR,  lw=1.0, alpha=0.6, label="ML members (n=50)"),
             Line2D([0], [0], color=ML_MEAN_COLOR,    lw=1.6, label="ML ensemble mean"),
+            Line2D([0], [0], color=HALFBGC_MEMBER_COLOR, lw=1.0, alpha=0.6, label="ML ½-BGC members (n=50)"),
+            Line2D([0], [0], color=HALFBGC_MEAN_COLOR, lw=1.6, label="ML ½-BGC mean"),
             Line2D([0], [0], color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.6, label="Numerical members (n=10)"),
             Line2D([0], [0], color=NUM_MEAN_COLOR,   lw=1.6, label="Numerical ensemble mean"),
             Line2D([0], [0], color=GT_COLOR,         lw=1.6, label="DG-MOM6-COBALTv2 (GT)"),
@@ -1255,28 +1417,38 @@ def main():
 
     def _run_nowalls_for_var(vkey, info, file_stem):
         """Compute (or load from cache) no-walls time series and save b/c/pct figures."""
-        c_ml  = CACHE_DIR / f"{vkey}_ml_ts_nowalls.npy"
-        c_num = CACHE_DIR / f"{vkey}_num_ts_nowalls.npy"
-        c_gt  = CACHE_DIR / f"{vkey}_gt_ts_nowalls.npy"
+        c_ml      = CACHE_DIR / f"{vkey}_ml_ts_sub50_nowalls.npy"
+        c_halfbgc = CACHE_DIR / f"{vkey}_halfbgc_ts_nowalls.npy"
+        c_num     = CACHE_DIR / f"{vkey}_num_ts_nowalls.npy"
+        c_gt      = CACHE_DIR / f"{vkey}_gt_ts_nowalls.npy"
         if c_ml.exists() and c_num.exists() and c_gt.exists():
-            print("  Loading from nowalls cache...")
+            print("  Loading ml/num/gt from nowalls cache...")
             ml_t  = np.load(c_ml,  allow_pickle=True).item()
             num_t = np.load(c_num, allow_pickle=True).item()
             gt_t  = np.load(c_gt,  allow_pickle=True).item()
+            if c_halfbgc.exists():
+                halfbgc_t = np.load(c_halfbgc, allow_pickle=True).item()
+            else:
+                print("  Computing half-BGC ensemble (nowalls)...")
+                halfbgc_t = _load_ml_ensemble_biome_ts(
+                    ML_HALFBGC_ENSEMBLE_DIR, N_ML_HALFBGC_MEMBERS,
+                    vkey, info, nowalls_biome_weights, nowalls_wet)
+                np.save(c_halfbgc, halfbgc_t)
         else:
-            ml_t, num_t, gt_t = compute_panel_b_data(
+            ml_t, halfbgc_t, num_t, gt_t = compute_panel_b_data(
                 vkey, info, nowalls_biome_weights, lat, nowalls_wet,
                 gt_store_loaded, gt_times, idx_2015)
-            np.save(c_ml, ml_t)
-            np.save(c_num, num_t)
-            np.save(c_gt, gt_t)
+            np.save(c_ml,      ml_t)
+            np.save(c_halfbgc, halfbgc_t)
+            np.save(c_num,     num_t)
+            np.save(c_gt,      gt_t)
             print(f"  Cached to {CACHE_DIR}")
         for plot_fn, panel_tag in [
             (plot_panel_b,     "b"),
             (plot_panel_c,     "c"),
             (plot_panel_b_pct, "b_pct"),
         ]:
-            fig = plot_fn(vkey, info, ml_t, num_t, gt_t,
+            fig = plot_fn(vkey, info, ml_t, halfbgc_t, num_t, gt_t,
                           ml_times_plot, num_times_plot, gt_times_plot)
             out = OUTPUT_DIR / f"fig05_panel_{panel_tag}_{file_stem}_nowalls.png"
             fig.savefig(out, dpi=300, bbox_inches="tight")

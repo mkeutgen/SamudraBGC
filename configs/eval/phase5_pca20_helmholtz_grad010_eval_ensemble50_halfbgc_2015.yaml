@@ -2,7 +2,7 @@
 # 50-member ensemble evaluation for phase5_pca20_helmholtz_grad010
 # Test holdout period 2015
 # Perturbations mimic numerical MOM6-COBALT ensemble generation:
-#   - Density-compensated T/S (0.05°C, 90km correlation)
+#   - Density-compensated T/S (0.025°C, 90km correlation — halved from 0.05°C)
 #   - Lognormal BGC (DIC, O2, NO3 at 1% relative std — halved from 2%)
 #   - Cosine taper to zero at 100m depth
 
@@ -23,7 +23,7 @@ ensemble:
   depth_max_m: 100.0
   dx_km: 9.0
   corr_sigma_km: 90.0
-  pert_std_temp: 0.05
+  pert_std_temp: 0.025
   pert_rel_dic: 0.01
   pert_rel_o2: 0.01
   pert_rel_no3: 0.01

@@ -332,7 +332,7 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times):
 
     # ── Fine depth band biome time series + PDFs for main-figure vars ──────
     # BGC_TRIO vars that come from fine depth ranges need PDFs for the main figure
-    main_fig_fine_vars = {v for v, _, _, _ in BGC_TRIO if v not in ts_gt}
+    main_fig_fine_vars = {v for v, _, _, _ in BGC_TRIO}
     print("\nComputing fine depth band biome time series...")
     for drng_key in FINE_DEPTH_RANGES:
         si_vars = si_vars_for_fine(drng_key)
@@ -343,9 +343,10 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times):
                 ts_gt_biome[(v, bkey)]   = np.nansum(gt_disp_eval   * bw[None], axis=(1, 2))
                 ts_pred_biome[(v, bkey)] = np.nansum(pred_disp_eval * bw[None], axis=(1, 2))
             if v in main_fig_fine_vars:
-                # Also compute domain-avg time series + PDFs for main figure
-                ts_gt[v]   = np.nansum(gt_disp_eval   * w2d_norm[None], axis=(1, 2))
-                ts_pred[v] = np.nansum(pred_disp_eval * w2d_norm[None], axis=(1, 2))
+                # Compute domain-avg time series (if not already done) + PDFs for main figure
+                if v not in ts_gt:
+                    ts_gt[v]   = np.nansum(gt_disp_eval   * w2d_norm[None], axis=(1, 2))
+                    ts_pred[v] = np.nansum(pred_disp_eval * w2d_norm[None], axis=(1, 2))
                 gt_sub   = gt_disp_eval[::PDF_STEP]
                 pred_sub = pred_disp_eval[::PDF_STEP]
                 use_log  = v.startswith("chl")

@@ -74,6 +74,7 @@ notebooks/
 # Project-specific: data & outputs
 # ============================================
 outputs/
+outputs/Maxime_Manuscript_BGC_Emulator/
 output/
 *.zarr/
 *.zarr
@@ -126,14 +127,17 @@ job_*
 # ============================================
 # Figure caches (generated)
 # ============================================
-code_paper/fig05_cache/
+code_paper/figures/*
+code_paper/fig05_cache/*
 
 # ============================================
 # PDF figures (generated)
 # ============================================
 code_paper/figures/fig02_panels/panel_a_chl_snapshot.pdf
 code_paper/figures/fig02_panels/panel_b_timeseries.pdf
-code_paper/figures/fig02_panels/panel_c_pdfs.pdf
+
+code_paper/figures/fig02_panels/*
+code_paper/figures/fig05_cache/chl_0_100m_gt_ts.npy
 code_paper/figures/fig05_cache/chl_0_100m_gt_ts.npy
 code_paper/figures/fig05_cache/chl_0_100m_ml_ts.npy
 code_paper/figures/fig05_cache/chl_0_100m_num_ts.npy
@@ -482,3 +486,4 @@ code_paper/figures/archive_pca20/fig05_cache/temp_400_500m_ml_ts_nowalls.npy
 code_paper/figures/archive_pca20/fig05_cache/temp_400_500m_ml_ts.npy
 code_paper/figures/archive_pca20/fig05_cache/temp_400_500m_num_ts_nowalls.npy
 code_paper/figures/archive_pca20/fig05_cache/temp_400_500m_num_ts.npy
+code_paper/figures/fig05_cache/chl_0_100m_halfbgc_ts_nowalls.npy

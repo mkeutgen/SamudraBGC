@@ -4,9 +4,9 @@
 #SBATCH --account=cimes3
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=128G
-#SBATCH --time=02:00:00
+#SBATCH --cpus-per-task=56
+#SBATCH --mem=500G
+#SBATCH --time=04:00:00
 #SBATCH --output=logs/fig04_%j.out
 #SBATCH --error=logs/fig04_%j.err
 

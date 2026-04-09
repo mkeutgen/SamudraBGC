@@ -426,14 +426,14 @@ def draw_gradient_panel(ax_ts, ax_bias, grad_data):
 def load_pca_data():
     """Load vertical profiles and per-depth RMSE for PCA comparison."""
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from ocean_emulators.constants import DEPTH_THICKNESS, DEPTH_CENTERS
+    from ocean_emulators.constants import DEPTH_THICKNESS, DEPTH_LEVELS
 
     t0 = _time.time()
     print("  Loading PCA depth-representation data...")
 
     # Depth levels 0–46 span 0–484 m (top 500 m)
     max_level = 47  # exclusive
-    depth_centers = np.array(DEPTH_CENTERS[:max_level])
+    depth_centers = np.array(DEPTH_LEVELS[:max_level])
     depth_thick   = np.array(DEPTH_THICKNESS[:max_level])
 
     gt_ds = xr.open_zarr(GT_PATH, consolidated=True)
