@@ -3,7 +3,7 @@
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
-#SBATCH --nodes=16
+#SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=400G
@@ -40,7 +40,7 @@ echo "Config: configs/train/phase15_helmholtz_log_all.yaml"
 echo "Baseline: phase1_helmholtz_nograd (linear space)"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes ($SLURM_CPUS_PER_TASK CPUs per task)"
 
-srun --ntasks=16 \
+srun --ntasks=8 \
      --ntasks-per-node=1 \
      --cpus-per-task=12 \
      --gpus-per-node=1 \
