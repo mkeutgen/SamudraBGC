@@ -9,7 +9,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=300G
-#SBATCH --time=3-00:00:00
+#SBATCH --time=4-00:00:00
 #SBATCH --output=logs/phase7_pca20_arch_wider_deeper_v2_train_%j.out
 #SBATCH --error=logs/phase7_pca20_arch_wider_deeper_v2_train_%j.err
 

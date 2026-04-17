@@ -1,15 +1,15 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
 # ============================================================================
-# Phase 5: PCA Vertical Representation
+# Phase 5: PCA Vertical Representation - FULL (train+val period)
 # Configuration: Helmholtz + Log BGC, PCA k=20, gradient_weight = 0.10
-# Hypothesis: PCA-based vertical representation improves deep ocean performance
+# Champion model retrained on full train+val period (1960-2014) for 70 epochs
 # ============================================================================
 
 debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 50
+epochs: 70
 batch_size: 1
 learning_rate: 0.0002
 scheduler:
@@ -22,13 +22,13 @@ resume_ckpt_path: null
 inference_epochs: []
 data_percent: 1.0
 
-# Time configuration (same as phase2 ablations)
+# Full training: train+val period merged, test period used for monitoring
 train_time:
   start: '1960-01-01'
-  end: '2009-12-31'    # 50 years training
+  end: '2014-12-31'    # 55 years training (train + val)
 val_time:
-  start: '2010-01-01'
-  end: '2014-12-31'    # 5 years validation
+  start: '2015-01-01'
+  end: '2019-12-31'    # 5 years test period (monitoring only)
 inference_times:
 - start: '2015-01-01'
   end: '2019-12-31'    # 5 years paper holdout
@@ -41,7 +41,7 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: phase5_pca20_helmholtz_grad010
+  name: champion_model
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:

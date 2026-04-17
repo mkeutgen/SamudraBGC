@@ -76,6 +76,9 @@ STATE_VARS = [
     ("dic",  cmocean.cm.matter,  "linear",  1900, 2400),
     ("o2",   cmocean.cm.oxy,     "linear",    10,  350),
     ("no3",  cmocean.cm.deep,    "linear",     0,   40),
+    ("chl",  cmocean.cm.algae,   "log",      None, None),
+    ("uo",   cmocean.cm.balance, "twoslope", None, None),
+    ("vo",   cmocean.cm.balance, "twoslope", None, None),
     # SSH is 2D (no depth levels) → rendered as a flat forcing plane below
 ]
 
@@ -92,7 +95,8 @@ DISPLAY_UNITS = {
     "temp": "°C",            "salt": "g kg⁻¹",
     "psi":  "m² s⁻¹",       "phi":  "m² s⁻¹",
     "dic":  "µmol kg⁻¹",    "o2":   "µmol kg⁻¹",
-    "no3":  "µmol kg⁻¹",
+    "no3":  "µmol kg⁻¹",    "chl":  "mg m⁻³",
+    "uo":   "m s⁻¹",        "vo":   "m s⁻¹",
     "Qnet": "W m⁻²",        "tauuo": "N m⁻²",
     "tauvo": "N m⁻²",       "SSH":   "m",
     "PRCmE": "kg m⁻² s⁻¹",
@@ -102,7 +106,8 @@ DISPLAY_NAMES = {
     "temp": "Temperature",             "salt": "Salinity",
     "psi":  "Streamfunction (ψ)",      "phi":  "Velocity Potential (φ)",
     "dic":  "Dissolved Inorganic Carbon", "o2": "Dissolved Oxygen",
-    "no3":  "Nitrate",
+    "no3":  "Nitrate",                   "chl": "Chlorophyll",
+    "uo":   "Zonal Velocity",            "vo":  "Meridional Velocity",
     "Qnet": "Net Heat Flux",           "tauuo": "Zonal Wind Stress",
     "tauvo": "Meridional Wind Stress", "SSH":   "Sea Surface Height",
     "PRCmE": "Precipitation − Evaporation",
