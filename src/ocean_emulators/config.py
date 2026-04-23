@@ -44,30 +44,31 @@ class WandBConfig(BaseConfig):
     notes: str | None = None
 
 
-# class JulianDate:
-#    """Represents a Julian date as a cftime.datetime at noon on the relevant day.
-#
-#    This is the format the OM4 data uses, so we match that here.
-#    TODO(jder): probably worth asserting the date format when opening the data.
-#    """
-#
-#    datetime: cftime.datetime
-#
-#    def __init__(self, s: str):
-#        datetime = cftime.datetime.strptime(s, "%Y-%m-%d", calendar="julian")
-#        datetime = datetime.replace(hour=12)
-#        self.datetime = datetime
-#
-#    def __str__(self) -> str:
-#        return self.datetime.strftime("%Y-%m-%d")
-#
-#
-# def _julian_date_validator(value: str | JulianDate) -> JulianDate:
-#    """Pydantic validator which must handle strings or JulianDate objects."""
-#    if isinstance(value, str):
-#        return JulianDate(value)
-#    else:
-#        return value
+class JulianDate:
+    """Represents a Julian-calendar date as a cftime.datetime at noon on the relevant day.
+
+    Retained for OM4-era data and tests that encode dates on the julian calendar.
+    Runtime training/eval for MOM6-Cobalt uses NoLeapDate (below); DateConfig is
+    wired to NoLeapDate.
+    """
+
+    datetime: cftime.datetime
+
+    def __init__(self, s: str):
+        datetime = cftime.datetime.strptime(s, "%Y-%m-%d", calendar="julian")
+        datetime = datetime.replace(hour=12)
+        self.datetime = datetime
+
+    def __str__(self) -> str:
+        return self.datetime.strftime("%Y-%m-%d")
+
+
+def _julian_date_validator(value: str | JulianDate) -> JulianDate:
+    """Pydantic validator which must handle strings or JulianDate objects."""
+    if isinstance(value, str):
+        return JulianDate(value)
+    else:
+        return value
 
 
 # """Represents a Julian date as a string."""

@@ -82,8 +82,7 @@ RNG_SEED = 42
 _rng_subsample = np.random.default_rng(RNG_SEED)
 ML_SUBSAMPLE_IDS = sorted(_rng_subsample.choice(N_ML_MEMBERS, size=N_ML_SUBSAMPLE, replace=False).tolist())
 
-NUMERICAL_MEMBERS = [f"ENS{i:02d}" for i in range(1, 11)]
-NUMERICAL_MEMBERS[-1] = "ENS010"  # ENS10 is ENS010 on disk
+NUMERICAL_MEMBERS = [f"ENS_1YR_{i:02d}" for i in range(1, 51)]
 YEAR = 2015
 
 MOL_TO_UMOL = 1e6
@@ -106,29 +105,28 @@ LEVELS_400_500m  = list(range(47, 50))  # centers 401–484m
 # var: name prefix in predictions_depth.zarr
 # is_log: whether raw zarr stores the log-transformed values (needs exp back-transform)
 # units: display units
-# num_var: variable name in numerical NetCDF files
-# num_file: "cobalt3d" or "dynamics3d"
+# num_var: variable name in numerical NetCDF files (single unified 3d file)
 # levels: depth levels to use (None = surface level 0)
 PANEL_B_VARS = OrderedDict([
     ("o2_100_500m",  {"var": "o2",   "is_log": False, "levels": SUBSURFACE_LEVELS,
                       "label": "O₂ (100–500 m)",   "units": "µmol kg⁻¹",
-                      "num_var": "o2",   "num_file": "cobalt3d",
+                      "num_var": "o2",
                       "gt_scale": MOL_TO_UMOL, "ml_scale": MOL_TO_UMOL}),
     ("no3_100_500m", {"var": "no3",  "is_log": False, "levels": SUBSURFACE_LEVELS,
                       "label": "NO₃ (100–500 m)",  "units": "µmol kg⁻¹",
-                      "num_var": "no3",  "num_file": "cobalt3d",
+                      "num_var": "no3",
                       "gt_scale": MOL_TO_UMOL, "ml_scale": MOL_TO_UMOL}),
     ("dic_100_500m", {"var": "dic",  "is_log": False, "levels": SUBSURFACE_LEVELS,
                       "label": "DIC (100–500 m)",  "units": "µmol kg⁻¹",
-                      "num_var": "dic",  "num_file": "cobalt3d",
+                      "num_var": "dic",
                       "gt_scale": MOL_TO_UMOL, "ml_scale": MOL_TO_UMOL}),
     ("temp_0_100m",  {"var": "temp", "is_log": False, "levels": SURFACE_LEVELS,
                       "label": "Temp (0–100 m)",   "units": "°C",
-                      "num_var": "temp", "num_file": "dynamics3d",
+                      "num_var": "temp",
                       "gt_scale": 1.0, "ml_scale": 1.0}),
     ("salt_0_100m",  {"var": "salt", "is_log": False, "levels": SURFACE_LEVELS,
                       "label": "Salt (0–100 m)",   "units": "g kg⁻¹",
-                      "num_var": "salt", "num_file": "dynamics3d",
+                      "num_var": "salt",
                       "gt_scale": 1.0, "ml_scale": 1.0}),
 ])
 
@@ -136,22 +134,22 @@ PANEL_B_VARS = OrderedDict([
 PANEL_A_VARS = OrderedDict([
     ("no3_surface",  {"var": "no3",  "is_log": False, "levels": [0],
                       "label": "Surface NO₃",       "units": "µmol kg⁻¹",
-                      "num_var": "no3",  "num_file": "cobalt3d",
+                      "num_var": "no3",
                       "gt_scale": MOL_TO_UMOL, "ml_scale": MOL_TO_UMOL,
                       "file_tag": "no3"}),
     ("temp_surface", {"var": "temp", "is_log": False, "levels": [0],
                       "label": "Surface Temp",       "units": "°C",
-                      "num_var": "temp", "num_file": "dynamics3d",
+                      "num_var": "temp",
                       "gt_scale": 1.0, "ml_scale": 1.0,
                       "file_tag": "temp"}),
     ("o2_100_500m",  {"var": "o2",   "is_log": False, "levels": SUBSURFACE_LEVELS,
                       "label": "O₂ (100–500 m)",    "units": "µmol kg⁻¹",
-                      "num_var": "o2",   "num_file": "cobalt3d",
+                      "num_var": "o2",
                       "gt_scale": MOL_TO_UMOL, "ml_scale": MOL_TO_UMOL,
                       "file_tag": "o2"}),
     ("dic_100_500m", {"var": "dic",  "is_log": False, "levels": SUBSURFACE_LEVELS,
                       "label": "DIC (100–500 m)",   "units": "µmol kg⁻¹",
-                      "num_var": "dic",  "num_file": "cobalt3d",
+                      "num_var": "dic",
                       "gt_scale": MOL_TO_UMOL, "ml_scale": MOL_TO_UMOL,
                       "file_tag": "dic"}),
 ])
@@ -173,24 +171,24 @@ _FINE_VAR_LABEL = {
 }
 
 _FINE_VARS_PROTO = [
-    # (short, base_var, num_file, num_var, gt_scale, ml_scale, units, bands)
-    ("o2",   "o2",   "cobalt3d",   "o2",   MOL_TO_UMOL, MOL_TO_UMOL, "µmol kg⁻¹",
+    # (short, base_var, num_var, gt_scale, ml_scale, units, bands)
+    ("o2",   "o2",   "o2",   MOL_TO_UMOL, MOL_TO_UMOL, "µmol kg⁻¹",
      ["0_100m", "100_200m", "200_300m", "300_400m", "400_500m"]),
-    ("dic",  "dic",  "cobalt3d",   "dic",  MOL_TO_UMOL, MOL_TO_UMOL, "µmol kg⁻¹",
+    ("dic",  "dic",  "dic",  MOL_TO_UMOL, MOL_TO_UMOL, "µmol kg⁻¹",
      ["0_100m", "100_200m", "200_300m", "300_400m", "400_500m"]),
-    ("no3",  "no3",  "cobalt3d",   "no3",  MOL_TO_UMOL, MOL_TO_UMOL, "µmol kg⁻¹",
+    ("no3",  "no3",  "no3",  MOL_TO_UMOL, MOL_TO_UMOL, "µmol kg⁻¹",
      ["0_100m", "100_200m", "200_300m", "300_400m", "400_500m"]),
-    ("temp", "temp", "dynamics3d", "temp", 1.0, 1.0, "°C",
+    ("temp", "temp", "temp", 1.0, 1.0, "°C",
      ["0_100m", "100_200m", "200_300m", "300_400m", "400_500m"]),
-    ("salt", "salt", "dynamics3d", "salt", 1.0, 1.0, "g kg⁻¹",
+    ("salt", "salt", "salt", 1.0, 1.0, "g kg⁻¹",
      ["0_100m", "100_200m", "200_300m", "300_400m", "400_500m"]),
     # Chl: deep Chl is biologically meaningless; 0–100m only
-    ("chl",  "chl",  "cobalt3d",   "chl",  1.0, 1.0, "mg m⁻³",
+    ("chl",  "chl",  "chl",  1.0, 1.0, "mg m⁻³",
      ["0_100m"]),
 ]
 
 PANEL_FINER_VARS = OrderedDict()
-for (_short, _base_var, _num_file, _num_var,
+for (_short, _base_var, _num_var,
         _gt_sc, _ml_sc, _units, _bands) in _FINE_VARS_PROTO:
     for _band_key in _bands:
         _bd = _FINE_DEPTH_BANDS[_band_key]
@@ -202,17 +200,13 @@ for (_short, _base_var, _num_file, _num_var,
             "label":    f"{_FINE_VAR_LABEL[_short]} ({_bd['label_suffix']})",
             "units":    _units,
             "num_var":  _num_var,
-            "num_file": _num_file,
             "gt_scale": _gt_sc,
             "ml_scale": _ml_sc,
             "short":    _short,
             "band_key": _band_key,
         }
 
-NUMERICAL_FILE_PATTERNS = {
-    "dynamics3d": "hist_control_dynamics3d_yearly__{year}_{month:02d}.nc",
-    "cobalt3d":   "hist_control_cobalt_3d_yearly__{year}_{month:02d}.nc",
-}
+NUMERICAL_FILE_PATTERN = "hist_control_3d__{year}_{month:02d}.nc"
 
 DEPTH_CENTERS = [
     1.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.005, 17.015, 19.03,
@@ -260,6 +254,16 @@ BIOMES = OrderedDict([
     ("jet",         {"lat_min": 37,  "lat_max": 43,  "label": "Jet",              "color": _bcolors[1]}),
     ("subpolar",    {"lat_min": 43,  "lat_max": 60,  "label": "Subpolar Gyre",    "color": _bcolors[2]}),
     ("full",        {"lat_min": -90, "lat_max": 90,  "label": "Full Domain",      "color": _bcolors[3]}),
+])
+
+# Single-point probes at biome centre latitudes (longitude snapped to nearest
+# wet cell near the domain's longitudinal midpoint). Point time series expose
+# ensemble spread that basin/biome averages smooth away.
+_pcolors = plt.cm.viridis(np.linspace(0.15, 0.85, 3))
+PROBES = OrderedDict([
+    ("subtropical", {"lat": 28.0, "label": "Subtropical (28°N)", "color": _pcolors[0]}),
+    ("jet",         {"lat": 40.0, "label": "Jet (40°N)",         "color": _pcolors[1]}),
+    ("subpolar",    {"lat": 50.0, "label": "Subpolar (50°N)",    "color": _pcolors[2]}),
 ])
 
 
@@ -334,6 +338,43 @@ def biome_mean(arr, biome_weights):
             for bkey, bw in biome_weights.items()}
 
 
+def build_probe_indices(lat, lon, wet):
+    """Return dict {probe_key: (lat_idx, lon_idx)} snapped to nearest wet cell.
+
+    Longitude is chosen as the wet-cell nearest the domain's longitudinal mid-point
+    at the probe latitude row. If that latitude has no wet cells, search nearby rows.
+    """
+    lon_center = 0.5 * (float(lon.min()) + float(lon.max()))
+    lon_idx_ideal = int(np.argmin(np.abs(lon - lon_center)))
+    indices = {}
+    for pkey, pinfo in PROBES.items():
+        lat_idx = int(np.argmin(np.abs(lat - pinfo["lat"])))
+        for dlat in range(0, max(wet.shape[0], 1)):
+            for try_lat in {lat_idx - dlat, lat_idx + dlat}:
+                if not (0 <= try_lat < wet.shape[0]):
+                    continue
+                row = wet[try_lat]
+                if row.any():
+                    wet_cols = np.where(row)[0]
+                    lon_idx = int(wet_cols[np.argmin(np.abs(wet_cols - lon_idx_ideal))])
+                    indices[pkey] = (int(try_lat), lon_idx)
+                    break
+            if pkey in indices:
+                break
+        else:
+            raise RuntimeError(f"No wet cell found for probe {pkey}")
+    return indices
+
+
+def probe_extract(arr, probe_indices):
+    """Extract point time series at each probe from (time, lat, lon) array.
+
+    Returns dict {probe_key: (n_time,)}.
+    """
+    return {pkey: arr[:, ilat, ilon].copy()
+            for pkey, (ilat, ilon) in probe_indices.items()}
+
+
 def load_ml_snapshot(zarr_store, info, time_idx, wet=None):
     """Load a (lat, lon) snapshot at time_idx with depth-weighted averaging."""
     levels = info["levels"]
@@ -360,8 +401,7 @@ def load_ml_snapshot(zarr_store, info, time_idx, wet=None):
 
 def _load_numerical_month(member_dir, info, year, month):
     """Load one monthly file, return depth-weighted (time, lat, lon) snapshot in display units."""
-    file_pattern = NUMERICAL_FILE_PATTERNS[info["num_file"]]
-    fp = member_dir / file_pattern.format(year=year, month=month)
+    fp = member_dir / NUMERICAL_FILE_PATTERN.format(year=year, month=month)
     if not fp.exists():
         return None
 
@@ -640,12 +680,16 @@ def ml_times_2015(member_id=0):
 
 
 def _load_ml_ensemble_biome_ts(ensemble_dir, n_members, vkey, info, biome_weights, wet,
-                               member_ids=None):
-    """Load biome-averaged time series for members of an ML ensemble.
+                               probe_indices=None, member_ids=None):
+    """Load biome-averaged (and optionally probe) time series for ML ensemble members.
 
     member_ids: optional list/array of integer member IDs to load (e.g. [0,3,7,...]).
                 If None, loads range(n_members).
-    Returns dict {bkey: (n_loaded, n_time)} in display units.
+    probe_indices: optional {probe_key: (ilat, ilon)} to also extract point time series.
+
+    Returns:
+        if probe_indices is None: dict {bkey: (n_loaded, n_time)} in display units.
+        else: (biome_ts, probe_ts) tuple, each a dict of stacked per-member time series.
     """
     ids = member_ids if member_ids is not None else list(range(n_members))
     print(f"  [{vkey}] Loading {len(ids)} ML members from {ensemble_dir.name}...")
@@ -659,7 +703,9 @@ def _load_ml_ensemble_biome_ts(ensemble_dir, n_members, vkey, info, biome_weight
         store = _zarr.open(str(pred_path), mode="r")
         arr = load_ml_depth_band(store, info, wet=wet)  # (n_time, lat, lon)
         arr = arr * info["ml_scale"]
-        return biome_mean(arr, biome_weights)  # {bkey: (n_time,)}
+        bm = biome_mean(arr, biome_weights)
+        pm = probe_extract(arr, probe_indices) if probe_indices is not None else None
+        return bm, pm
 
     with ThreadPoolExecutor(max_workers=min(len(ids), _n_workers)) as ex:
         results = list(ex.map(_load_one, ids))
@@ -668,45 +714,56 @@ def _load_ml_ensemble_biome_ts(ensemble_dir, n_members, vkey, info, biome_weight
     print(f"    {len(results)} members loaded ({time.time()-t0:.1f}s)")
 
     if not results:
-        return {bkey: np.empty((0, 365)) for bkey in BIOMES}
-    return {bkey: np.stack([mb[bkey] for mb in results], axis=0) for bkey in BIOMES}
+        empty_b = {bkey: np.empty((0, 365)) for bkey in BIOMES}
+        if probe_indices is None:
+            return empty_b
+        empty_p = {pkey: np.empty((0, 365)) for pkey in PROBES}
+        return empty_b, empty_p
+
+    biome_ts = {bkey: np.stack([mb[0][bkey] for mb in results], axis=0) for bkey in BIOMES}
+    if probe_indices is None:
+        return biome_ts
+    probe_ts = {pkey: np.stack([mb[1][pkey] for mb in results], axis=0) for pkey in PROBES}
+    return biome_ts, probe_ts
 
 
-def compute_panel_b_data(vkey, info, biome_weights, lat, wet, gt_store, gt_times, idx_2015):
-    """Compute biome-averaged time series for all ML members, half-BGC ML, numerical, and GT.
+def compute_panel_b_data(vkey, info, biome_weights, lat, wet, gt_store, gt_times, idx_2015,
+                          probe_indices=None):
+    """Compute biome-averaged (and optionally probe) time series for ML, half-BGC ML,
+    numerical and GT ensembles.
 
-    Returns RAW (non-detrended) time series. With only 1 year of data, any monthly
-    climatology subtraction creates a step-function artifact; the raw seasonal cycle
-    is scientifically meaningful and small enough relative to spread to display directly.
-    The inter-dataset mean-state offset is handled at plot time by normalising each
-    dataset to its own annual mean.
+    Returns RAW (non-detrended) time series. The inter-dataset mean-state offset is
+    handled at plot time by normalising each dataset to its own annual mean.
 
-    Returns:
-        ml_ts:      dict {bkey: (n_ml, n_time)} raw in display units
-        halfbgc_ts: dict {bkey: (n_halfbgc, n_time)} raw in display units
-        num_ts:     dict {bkey: (n_num, n_time)} raw in display units
-        gt_ts:      dict {bkey: (n_time,)} raw in display units
+    If probe_indices is provided, returns a tuple of (biome_bundle, probe_bundle),
+    each a 4-tuple (ml_ts, halfbgc_ts, num_ts, gt_ts). Otherwise returns only the
+    biome 4-tuple.
     """
     # ── Ground truth ──
     print(f"  [{vkey}] Loading GT...")
     t0 = time.time()
     gt_band = load_gt_depth_band(gt_store, info, idx_2015)  # (365, lat, lon)
-    gt_ts = biome_mean(gt_band, biome_weights)  # {bkey: (365,)}
+    gt_biome = biome_mean(gt_band, biome_weights)
+    gt_probe = probe_extract(gt_band, probe_indices) if probe_indices is not None else None
     print(f"    GT loaded ({time.time()-t0:.1f}s)")
 
     # ── ML ensemble (subsampled to 50 out of 100, full perturbation) ──
-    ml_ts = _load_ml_ensemble_biome_ts(
+    ml_out = _load_ml_ensemble_biome_ts(
         ML_ENSEMBLE_DIR, N_ML_MEMBERS, vkey, info, biome_weights, wet,
-        member_ids=ML_SUBSAMPLE_IDS)
+        probe_indices=probe_indices, member_ids=ML_SUBSAMPLE_IDS)
+    ml_biome, ml_probe = ml_out if probe_indices is not None else (ml_out, None)
 
     # ── ML ensemble (50 members, half-BGC perturbation) ──
-    halfbgc_ts = _load_ml_ensemble_biome_ts(
-        ML_HALFBGC_ENSEMBLE_DIR, N_ML_HALFBGC_MEMBERS, vkey, info, biome_weights, wet)
+    hb_out = _load_ml_ensemble_biome_ts(
+        ML_HALFBGC_ENSEMBLE_DIR, N_ML_HALFBGC_MEMBERS, vkey, info,
+        biome_weights, wet, probe_indices=probe_indices)
+    halfbgc_biome, halfbgc_probe = hb_out if probe_indices is not None else (hb_out, None)
 
     # ── Numerical ensemble ──
     print(f"  [{vkey}] Loading numerical ensemble...")
     t0 = time.time()
     num_member_biomes = []
+    num_member_probes = []
 
     for ens_name in NUMERICAL_MEMBERS:
         member_dir = NUMERICAL_BASE_DIR / ens_name
@@ -719,24 +776,75 @@ def compute_panel_b_data(vkey, info, biome_weights, lat, wet, gt_store, gt_times
             continue
         arr = arr * info["gt_scale"]
         arr[:, ~wet] = np.nan
-        bm = biome_mean(arr, biome_weights)
-        num_member_biomes.append(bm)
-        print(f"    {ens_name}: loaded ({time.time()-t0:.1f}s)")
+        num_member_biomes.append(biome_mean(arr, biome_weights))
+        if probe_indices is not None:
+            num_member_probes.append(probe_extract(arr, probe_indices))
+
+    print(f"    Numerical members: {len(num_member_biomes)} loaded ({time.time()-t0:.1f}s)")
 
     if not num_member_biomes:
         print(f"    WARNING: No numerical ensemble members loaded for {vkey}")
-        num_ts = {bkey: np.empty((0, 365)) for bkey in BIOMES}
-        return ml_ts, halfbgc_ts, num_ts, gt_ts
+        num_biome = {bkey: np.empty((0, 365)) for bkey in BIOMES}
+        num_probe = ({pkey: np.empty((0, 365)) for pkey in PROBES}
+                     if probe_indices is not None else None)
+    else:
+        n_num_time = len(next(iter(num_member_biomes[0].values())))
+        for bm in num_member_biomes:
+            for bkey in bm:
+                bm[bkey] = bm[bkey][:n_num_time]
+        num_biome = {bkey: np.stack([mb[bkey] for mb in num_member_biomes], axis=0)
+                     for bkey in BIOMES}
+        if probe_indices is not None:
+            for pm in num_member_probes:
+                for pkey in pm:
+                    pm[pkey] = pm[pkey][:n_num_time]
+            num_probe = {pkey: np.stack([mp[pkey] for mp in num_member_probes], axis=0)
+                         for pkey in PROBES}
+        else:
+            num_probe = None
 
-    n_num_time = len(next(iter(num_member_biomes[0].values())))
-    for bm in num_member_biomes:
-        for bkey in bm:
-            bm[bkey] = bm[bkey][:n_num_time]
+    biome_bundle = (ml_biome, halfbgc_biome, num_biome, gt_biome)
+    if probe_indices is None:
+        return biome_bundle
+    probe_bundle = (ml_probe, halfbgc_probe, num_probe, gt_probe)
+    return biome_bundle, probe_bundle
 
-    num_ts = {bkey: np.stack([mb[bkey] for mb in num_member_biomes], axis=0)
-              for bkey in BIOMES}
 
-    return ml_ts, halfbgc_ts, num_ts, gt_ts
+def _compute_or_load_panel_b(vkey, info, biome_weights, probe_indices, lat, wet,
+                              gt_store, gt_times, idx_2015):
+    """Cache-aware wrapper around compute_panel_b_data that returns both biome-mean
+    and pointwise bundles. Recomputes both if any cache file is missing.
+
+    Returns (biome_bundle, probe_bundle), each a 4-tuple (ml, halfbgc, num, gt).
+    """
+    cb_ml      = CACHE_DIR / f"{vkey}_ml_ts_sub50.npy"
+    cb_hb      = CACHE_DIR / f"{vkey}_halfbgc_ts.npy"
+    cb_num     = CACHE_DIR / f"{vkey}_num_ts.npy"
+    cb_gt      = CACHE_DIR / f"{vkey}_gt_ts.npy"
+    cp_ml      = CACHE_DIR / f"{vkey}_ml_probe_sub50.npy"
+    cp_hb      = CACHE_DIR / f"{vkey}_halfbgc_probe.npy"
+    cp_num     = CACHE_DIR / f"{vkey}_num_probe.npy"
+    cp_gt      = CACHE_DIR / f"{vkey}_gt_probe.npy"
+
+    all_caches = [cb_ml, cb_hb, cb_num, cb_gt, cp_ml, cp_hb, cp_num, cp_gt]
+
+    if all(c.exists() for c in all_caches):
+        print(f"  Loading all (biome+probe) from cache...")
+        biome_bundle = tuple(np.load(c, allow_pickle=True).item() for c in (cb_ml, cb_hb, cb_num, cb_gt))
+        probe_bundle = tuple(np.load(c, allow_pickle=True).item() for c in (cp_ml, cp_hb, cp_num, cp_gt))
+        return biome_bundle, probe_bundle
+
+    biome_bundle, probe_bundle = compute_panel_b_data(
+        vkey, info, biome_weights, lat, wet,
+        gt_store, gt_times, idx_2015,
+        probe_indices=probe_indices)
+
+    for c, d in zip([cb_ml, cb_hb, cb_num, cb_gt], biome_bundle):
+        np.save(c, d)
+    for c, d in zip([cp_ml, cp_hb, cp_num, cp_gt], probe_bundle):
+        np.save(c, d)
+    print(f"  Cached biome+probe to {CACHE_DIR}")
+    return biome_bundle, probe_bundle
 
 
 def _bias_correct(ts_2d, gt_mean):
@@ -816,7 +924,7 @@ def plot_panel_b(vkey, info, ml_ts, halfbgc_ts, num_ts, gt_ts,
                         color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.55)
             num_mean = np.nanmean(num_bc, axis=0)
             ax.plot(num_times_plot[:len(num_mean)], num_mean,
-                    color=NUM_MEAN_COLOR, lw=1.6, label="Numerical mean (n=10)", zorder=4)
+                    color=NUM_MEAN_COLOR, lw=1.6, label=f"Numerical mean (n={len(NUMERICAL_MEMBERS)})", zorder=4)
 
         # Ground truth (black)
         if gt_bc is not None:
@@ -843,14 +951,105 @@ def plot_panel_b(vkey, info, ml_ts, halfbgc_ts, num_ts, gt_ts,
                    label="ML ½-BGC members (n=50)"),
             Line2D([0], [0], color=HALFBGC_MEAN_COLOR, lw=1.6, label="ML ½-BGC mean"),
             Line2D([0], [0], color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.6,
-                   label="Numerical members (n=10)"),
+                   label=f"Numerical members (n={len(NUMERICAL_MEMBERS)})"),
             Line2D([0], [0], color=NUM_MEAN_COLOR,   lw=1.6, label="Numerical mean"),
             Line2D([0], [0], color=GT_COLOR,         lw=1.6, label="DG-MOM6-COBALTv2"),
         ],
         loc="best", fontsize=9, framealpha=0.85)
 
     fig.suptitle(
-        f"(b) Biome-mean raw trajectories — {info['label']} (2015)",
+        f"(b-mean) Biome-mean raw trajectories — {info['label']} (2015)",
+        fontsize=13, fontweight="bold")
+    return fig
+
+
+def plot_panel_b_points(vkey, info, ml_ts, halfbgc_ts, num_ts, gt_ts,
+                        ml_times_plot, num_times_plot, gt_times_plot,
+                        probe_indices, lat, lon):
+    """Pointwise version of panel (b). One column per PROBES entry.
+
+    Shows the raw time series at a single (lat, lon) probe for every ensemble member.
+    Area averages collapse ensemble spread; point time series preserve it.
+    """
+    n_probes = len(PROBES)
+    fig, axes = plt.subplots(
+        1, n_probes,
+        figsize=(5.5 * n_probes, 4.5),
+        sharey=False,
+        gridspec_kw={"wspace": 0.30},
+    )
+    if n_probes == 1:
+        axes = [axes]
+
+    n_ml = n_hb = n_num = 0
+
+    for col, (pkey, pinfo) in enumerate(PROBES.items()):
+        ax = axes[col]
+
+        gt_raw  = gt_ts[pkey] if pkey in gt_ts else None
+        gt_mean = np.nanmean(gt_raw) if gt_raw is not None else 0.0
+
+        ml_bc      = ml_ts[pkey]      if (pkey in ml_ts      and ml_ts[pkey].shape[0]      > 0) else None
+        halfbgc_bc = halfbgc_ts[pkey] if (pkey in halfbgc_ts and halfbgc_ts[pkey].shape[0] > 0) else None
+        num_bc = _bias_correct(num_ts[pkey], gt_mean) \
+                 if (pkey in num_ts and num_ts[pkey].shape[0] > 0) else None
+
+        if ml_bc is not None:
+            n_ml = ml_bc.shape[0]
+            for i in range(ml_bc.shape[0]):
+                ax.plot(ml_times_plot[:ml_bc.shape[1]], ml_bc[i],
+                        color=ML_MEMBER_COLOR, lw=0.5, alpha=0.18)
+            ax.plot(ml_times_plot[:ml_bc.shape[1]], np.nanmean(ml_bc, axis=0),
+                    color=ML_MEAN_COLOR, lw=1.6, zorder=4)
+
+        if halfbgc_bc is not None:
+            n_hb = halfbgc_bc.shape[0]
+            for i in range(halfbgc_bc.shape[0]):
+                ax.plot(ml_times_plot[:halfbgc_bc.shape[1]], halfbgc_bc[i],
+                        color=HALFBGC_MEMBER_COLOR, lw=0.5, alpha=0.22)
+            ax.plot(ml_times_plot[:halfbgc_bc.shape[1]], np.nanmean(halfbgc_bc, axis=0),
+                    color=HALFBGC_MEAN_COLOR, lw=1.6, zorder=4)
+
+        if num_bc is not None:
+            n_num = num_bc.shape[0]
+            for i in range(num_bc.shape[0]):
+                ax.plot(num_times_plot[:num_bc.shape[1]], num_bc[i],
+                        color=NUM_MEMBER_COLOR, lw=0.6, alpha=0.45)
+            ax.plot(num_times_plot[:num_bc.shape[1]], np.nanmean(num_bc, axis=0),
+                    color=NUM_MEAN_COLOR, lw=1.6, zorder=4)
+
+        if gt_raw is not None:
+            ax.plot(gt_times_plot[:len(gt_raw)], gt_raw,
+                    color=GT_COLOR, lw=1.6, zorder=5)
+
+        ilat, ilon = probe_indices[pkey]
+        ax.set_title(f"{pinfo['label']}\n({lat[ilat]:.1f}°N, {lon[ilon]:.1f}°E)",
+                     fontsize=11, fontweight="bold", color=pinfo["color"])
+        if col == 0:
+            ax.set_ylabel(f"{info['label']}\n({info['units']})", fontsize=11)
+        ax.xaxis.set_major_locator(mdates.MonthLocator(bymonth=[1, 4, 7, 10]))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
+        ax.tick_params(axis="x", rotation=0, labelsize=10)
+        ax.grid(True, alpha=0.15, lw=0.7)
+        ax.tick_params(labelsize=10)
+
+    axes[-1].legend(
+        handles=[
+            Line2D([0], [0], color=ML_MEMBER_COLOR, lw=1.0, alpha=0.6,
+                   label=f"ML members (n={n_ml})"),
+            Line2D([0], [0], color=ML_MEAN_COLOR, lw=1.6, label="ML mean"),
+            Line2D([0], [0], color=HALFBGC_MEMBER_COLOR, lw=1.0, alpha=0.6,
+                   label=f"ML ½-BGC members (n={n_hb})"),
+            Line2D([0], [0], color=HALFBGC_MEAN_COLOR, lw=1.6, label="ML ½-BGC mean"),
+            Line2D([0], [0], color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.6,
+                   label=f"Numerical members (n={n_num})"),
+            Line2D([0], [0], color=NUM_MEAN_COLOR, lw=1.6, label="Numerical mean"),
+            Line2D([0], [0], color=GT_COLOR, lw=1.6, label="DG-MOM6-COBALTv2"),
+        ],
+        loc="best", fontsize=9, framealpha=0.85)
+
+    fig.suptitle(
+        f"(b) Pointwise trajectories — {info['label']} (2015)",
         fontsize=13, fontweight="bold")
     return fig
 
@@ -911,7 +1110,7 @@ def plot_panel_b_pct(vkey, info, ml_ts, halfbgc_ts, num_ts, gt_ts,
                 ax.plot(num_times_plot[:num_pct.shape[1]], num_pct[i],
                         color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.55)
             ax.plot(num_times_plot[:num_pct.shape[1]], np.nanmean(num_pct, axis=0),
-                    color=NUM_MEAN_COLOR, lw=1.6, label="Numerical mean (n=10)", zorder=4)
+                    color=NUM_MEAN_COLOR, lw=1.6, label=f"Numerical mean (n={len(NUMERICAL_MEMBERS)})", zorder=4)
 
         if gt_raw is not None:
             gt_pct = _to_pct(gt_raw, gt_mean)
@@ -938,7 +1137,7 @@ def plot_panel_b_pct(vkey, info, ml_ts, halfbgc_ts, num_ts, gt_ts,
                    label="ML ½-BGC members (n=50)"),
             Line2D([0], [0], color=HALFBGC_MEAN_COLOR, lw=1.6, label="ML ½-BGC mean"),
             Line2D([0], [0], color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.6,
-                   label="Numerical members (n=10)"),
+                   label=f"Numerical members (n={len(NUMERICAL_MEMBERS)})"),
             Line2D([0], [0], color=NUM_MEAN_COLOR,   lw=1.6, label="Numerical mean"),
             Line2D([0], [0], color=GT_COLOR,         lw=1.6, label="DG-MOM6-COBALTv2"),
         ],
@@ -1055,7 +1254,7 @@ def plot_panel_c(vkey, info, ml_ts, halfbgc_ts, num_ts, gt_ts,
         Line2D([0], [0], color=HALFBGC_MEAN_COLOR, lw=1.8, label="ML ½-BGC mean (n=50)"),
         Patch(facecolor=NUM_MEMBER_COLOR, alpha=0.40, label="Numerical min–max"),
         Patch(facecolor=NUM_MEAN_COLOR,   alpha=0.60, label="Numerical ±1σ"),
-        Line2D([0], [0], color=NUM_MEAN_COLOR,   lw=1.8, label="Numerical mean (n=10)"),
+        Line2D([0], [0], color=NUM_MEAN_COLOR,   lw=1.8, label=f"Numerical mean (n={len(NUMERICAL_MEMBERS)})"),
         Line2D([0], [0], color=GT_COLOR,         lw=1.8, label="DG-MOM6-COBALTv2"),
     ]
     axes[-1].legend(handles=legend_handles, loc="best", fontsize=8.5, framealpha=0.88)
@@ -1088,6 +1287,13 @@ def main():
     print(f"  wet cells: {wet.sum():,}")
     for bkey, bw in biome_weights.items():
         print(f"  biome '{bkey}': {(bw > 0).sum():,} cells")
+
+    # ── Build probe indices (panel b pointwise) ──
+    probe_indices = build_probe_indices(lat, lon, wet)
+    print("\n  probe points:")
+    for pkey, (ilat, ilon) in probe_indices.items():
+        print(f"    {pkey:<12s}: ({lat[ilat]:+.2f}°, {lon[ilon]:+.2f}°) "
+              f"[idx=({ilat}, {ilon})]")
 
     # Interior-only mask: exclude WALL_BUFFER_DEG near domain boundaries
     nowalls_wet = make_nowalls_wet(wet, lat, lon)
@@ -1152,43 +1358,31 @@ def main():
     for vkey, info in PANEL_B_VARS.items():
         print(f"\n── Panel (b): {info['label']} ──")
 
-        cache_ml      = CACHE_DIR / f"{vkey}_ml_ts_sub50.npy"
-        cache_halfbgc = CACHE_DIR / f"{vkey}_halfbgc_ts.npy"
-        cache_num     = CACHE_DIR / f"{vkey}_num_ts.npy"
-        cache_gt      = CACHE_DIR / f"{vkey}_gt_ts.npy"
+        biome_bundle, probe_bundle = _compute_or_load_panel_b(
+            vkey, info, biome_weights, probe_indices, lat, wet,
+            gt_store_loaded, gt_times, idx_2015)
+        ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all = biome_bundle
+        ml_pb,     halfbgc_pb,     num_pb,     gt_pb     = probe_bundle
 
-        # Load from cache where available; recompute only what's missing
-        if cache_ml.exists() and cache_num.exists() and cache_gt.exists():
-            print(f"  Loading ml/num/gt from cache...")
-            ml_ts_all  = np.load(cache_ml,  allow_pickle=True).item()
-            num_ts_all = np.load(cache_num, allow_pickle=True).item()
-            gt_ts_all  = np.load(cache_gt,  allow_pickle=True).item()
-            if cache_halfbgc.exists():
-                halfbgc_ts_all = np.load(cache_halfbgc, allow_pickle=True).item()
-            else:
-                print(f"  Computing half-BGC ensemble...")
-                halfbgc_ts_all = _load_ml_ensemble_biome_ts(
-                    ML_HALFBGC_ENSEMBLE_DIR, N_ML_HALFBGC_MEMBERS,
-                    vkey, info, biome_weights, wet)
-                np.save(cache_halfbgc, halfbgc_ts_all)
-        else:
-            ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all = compute_panel_b_data(
-                vkey, info, biome_weights, lat, wet,
-                gt_store_loaded, gt_times, idx_2015)
-            np.save(cache_ml,      ml_ts_all)
-            np.save(cache_halfbgc, halfbgc_ts_all)
-            np.save(cache_num,     num_ts_all)
-            np.save(cache_gt,      gt_ts_all)
-            print(f"  Cached to {CACHE_DIR}")
-
-        fig_b = plot_panel_b(vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
-                             ml_times_plot, num_times_plot, gt_times_plot)
         var_short = vkey.split("_")[0]
+
+        fig_b = plot_panel_b_points(
+            vkey, info, ml_pb, halfbgc_pb, num_pb, gt_pb,
+            ml_times_plot, num_times_plot, gt_times_plot,
+            probe_indices, lat, lon)
         out_b = OUTPUT_DIR / f"fig05_panel_b_{var_short}.png"
         fig_b.savefig(out_b, dpi=300, bbox_inches="tight")
         plt.close(fig_b)
-        print(f"  Saved {out_b}")
+        print(f"  Saved {out_b} (pointwise)")
         panel_b_figs[vkey] = out_b
+
+        fig_bmean = plot_panel_b(
+            vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
+            ml_times_plot, num_times_plot, gt_times_plot)
+        out_bmean = OUTPUT_DIR / f"fig05_panel_b_mean_{var_short}.png"
+        fig_bmean.savefig(out_bmean, dpi=300, bbox_inches="tight")
+        plt.close(fig_bmean)
+        print(f"  Saved {out_bmean} (biome-mean)")
 
         fig_c = plot_panel_c(vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
                              ml_times_plot, num_times_plot, gt_times_plot)
@@ -1213,43 +1407,31 @@ def main():
 
     for vkey, info in PANEL_FINER_VARS.items():
         print(f"\n── Finer: {info['label']} ──")
-        short   = info["short"]
-        band    = info["band_key"]
+        short = info["short"]
+        band  = info["band_key"]
 
-        cache_ml      = CACHE_DIR / f"{vkey}_ml_ts_sub50.npy"
-        cache_halfbgc = CACHE_DIR / f"{vkey}_halfbgc_ts.npy"
-        cache_num     = CACHE_DIR / f"{vkey}_num_ts.npy"
-        cache_gt      = CACHE_DIR / f"{vkey}_gt_ts.npy"
+        biome_bundle, probe_bundle = _compute_or_load_panel_b(
+            vkey, info, biome_weights, probe_indices, lat, wet,
+            gt_store_loaded, gt_times, idx_2015)
+        ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all = biome_bundle
+        ml_pb,     halfbgc_pb,     num_pb,     gt_pb     = probe_bundle
 
-        if cache_ml.exists() and cache_num.exists() and cache_gt.exists():
-            print(f"  Loading ml/num/gt from cache...")
-            ml_ts_all  = np.load(cache_ml,  allow_pickle=True).item()
-            num_ts_all = np.load(cache_num, allow_pickle=True).item()
-            gt_ts_all  = np.load(cache_gt,  allow_pickle=True).item()
-            if cache_halfbgc.exists():
-                halfbgc_ts_all = np.load(cache_halfbgc, allow_pickle=True).item()
-            else:
-                print(f"  Computing half-BGC ensemble...")
-                halfbgc_ts_all = _load_ml_ensemble_biome_ts(
-                    ML_HALFBGC_ENSEMBLE_DIR, N_ML_HALFBGC_MEMBERS,
-                    vkey, info, biome_weights, wet)
-                np.save(cache_halfbgc, halfbgc_ts_all)
-        else:
-            ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all = compute_panel_b_data(
-                vkey, info, biome_weights, lat, wet,
-                gt_store_loaded, gt_times, idx_2015)
-            np.save(cache_ml,      ml_ts_all)
-            np.save(cache_halfbgc, halfbgc_ts_all)
-            np.save(cache_num,     num_ts_all)
-            np.save(cache_gt,      gt_ts_all)
-            print(f"  Cached to {CACHE_DIR}")
-
-        fig_b = plot_panel_b(vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
-                             ml_times_plot, num_times_plot, gt_times_plot)
+        fig_b = plot_panel_b_points(
+            vkey, info, ml_pb, halfbgc_pb, num_pb, gt_pb,
+            ml_times_plot, num_times_plot, gt_times_plot,
+            probe_indices, lat, lon)
         out_b = OUTPUT_DIR / f"fig05_panel_b_{short}_{band}.png"
         fig_b.savefig(out_b, dpi=300, bbox_inches="tight")
         plt.close(fig_b)
-        print(f"  Saved {out_b}")
+        print(f"  Saved {out_b} (pointwise)")
+
+        fig_bmean = plot_panel_b(
+            vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
+            ml_times_plot, num_times_plot, gt_times_plot)
+        out_bmean = OUTPUT_DIR / f"fig05_panel_b_mean_{short}_{band}.png"
+        fig_bmean.savefig(out_bmean, dpi=300, bbox_inches="tight")
+        plt.close(fig_bmean)
+        print(f"  Saved {out_bmean} (biome-mean)")
 
         fig_c = plot_panel_c(vkey, info, ml_ts_all, halfbgc_ts_all, num_ts_all, gt_ts_all,
                              ml_times_plot, num_times_plot, gt_times_plot)
@@ -1272,16 +1454,16 @@ def main():
     combo_vkey = "o2_100_500m"
     combo_info = PANEL_B_VARS[combo_vkey]
 
-    cache_ml      = CACHE_DIR / f"{combo_vkey}_ml_ts_sub50.npy"
-    cache_halfbgc = CACHE_DIR / f"{combo_vkey}_halfbgc_ts.npy"
-    cache_num     = CACHE_DIR / f"{combo_vkey}_num_ts.npy"
-    cache_gt      = CACHE_DIR / f"{combo_vkey}_gt_ts.npy"
-    ml_ts_combo      = np.load(cache_ml,      allow_pickle=True).item()
-    halfbgc_ts_combo = np.load(cache_halfbgc, allow_pickle=True).item()
-    num_ts_combo     = np.load(cache_num,     allow_pickle=True).item()
-    gt_ts_combo      = np.load(cache_gt,      allow_pickle=True).item()
+    cache_ml_probe = CACHE_DIR / f"{combo_vkey}_ml_probe_sub50.npy"
+    cache_hb_probe = CACHE_DIR / f"{combo_vkey}_halfbgc_probe.npy"
+    cache_nm_probe = CACHE_DIR / f"{combo_vkey}_num_probe.npy"
+    cache_gt_probe = CACHE_DIR / f"{combo_vkey}_gt_probe.npy"
+    ml_ts_combo      = np.load(cache_ml_probe, allow_pickle=True).item()
+    halfbgc_ts_combo = np.load(cache_hb_probe, allow_pickle=True).item()
+    num_ts_combo     = np.load(cache_nm_probe, allow_pickle=True).item()
+    gt_ts_combo      = np.load(cache_gt_probe, allow_pickle=True).item()
 
-    n_biomes = len(BIOMES)
+    n_probes = len(PROBES)
     fig = plt.figure(figsize=(20, 14))
     gs = GridSpec(2, 1, figure=fig, height_ratios=[1, 1.2],
                   hspace=0.32, left=0.06, right=0.95, top=0.95, bottom=0.05)
@@ -1327,53 +1509,54 @@ def main():
              f"(a) {no3_ainfo['label']} ensemble spread after 1 year (Dec 2015)",
              fontsize=13, fontweight="bold", va="top")
 
-    # ── Sub-panel (b): 1 row × 4 cols (O2) ──
-    gs_b = GridSpecFromSubplotSpec(1, n_biomes, subplot_spec=gs[1], wspace=0.30)
+    # ── Sub-panel (b): 1 row × n_probes cols (O2 pointwise) ──
+    gs_b = GridSpecFromSubplotSpec(1, n_probes, subplot_spec=gs[1], wspace=0.30)
     axes_b = []
 
-    for col, (bkey, binfo) in enumerate(BIOMES.items()):
+    for col, (pkey, pinfo) in enumerate(PROBES.items()):
         ax = fig.add_subplot(gs_b[0, col])
         axes_b.append(ax)
 
-        gt_raw_c = gt_ts_combo[bkey] if bkey in gt_ts_combo else None
+        gt_raw_c = gt_ts_combo[pkey] if pkey in gt_ts_combo else None
         gt_mean_c = np.nanmean(gt_raw_c) if gt_raw_c is not None else 0.0
-        gt_bc_c  = gt_raw_c
-        ml_bc_c  = ml_ts_combo[bkey] \
-                   if (bkey in ml_ts_combo and ml_ts_combo[bkey].shape[0] > 0) else None
-        halfbgc_bc_c = halfbgc_ts_combo[bkey] \
-                       if (bkey in halfbgc_ts_combo and halfbgc_ts_combo[bkey].shape[0] > 0) else None
-        num_bc_c = _bias_correct(num_ts_combo[bkey], gt_mean_c) \
-                   if (bkey in num_ts_combo and num_ts_combo[bkey].shape[0] > 0) else None
+        ml_bc_c  = ml_ts_combo[pkey] \
+                   if (pkey in ml_ts_combo and ml_ts_combo[pkey].shape[0] > 0) else None
+        halfbgc_bc_c = halfbgc_ts_combo[pkey] \
+                       if (pkey in halfbgc_ts_combo and halfbgc_ts_combo[pkey].shape[0] > 0) else None
+        num_bc_c = _bias_correct(num_ts_combo[pkey], gt_mean_c) \
+                   if (pkey in num_ts_combo and num_ts_combo[pkey].shape[0] > 0) else None
 
         if ml_bc_c is not None:
             for i in range(ml_bc_c.shape[0]):
                 ax.plot(ml_times_plot[:ml_bc_c.shape[1]],
                         ml_bc_c[i],
-                        color=ML_MEMBER_COLOR, lw=0.5, alpha=0.15)
-            ml_mean = np.nanmean(ml_bc_c, axis=0)
-            ax.plot(ml_times_plot[:len(ml_mean)], ml_mean, color=ML_MEAN_COLOR, lw=1.6)
+                        color=ML_MEMBER_COLOR, lw=0.5, alpha=0.18)
+            ax.plot(ml_times_plot[:ml_bc_c.shape[1]], np.nanmean(ml_bc_c, axis=0),
+                    color=ML_MEAN_COLOR, lw=1.6)
 
         if halfbgc_bc_c is not None:
             for i in range(halfbgc_bc_c.shape[0]):
                 ax.plot(ml_times_plot[:halfbgc_bc_c.shape[1]],
                         halfbgc_bc_c[i],
-                        color=HALFBGC_MEMBER_COLOR, lw=0.5, alpha=0.20)
-            hb_mean = np.nanmean(halfbgc_bc_c, axis=0)
-            ax.plot(ml_times_plot[:len(hb_mean)], hb_mean, color=HALFBGC_MEAN_COLOR, lw=1.6)
+                        color=HALFBGC_MEMBER_COLOR, lw=0.5, alpha=0.22)
+            ax.plot(ml_times_plot[:halfbgc_bc_c.shape[1]], np.nanmean(halfbgc_bc_c, axis=0),
+                    color=HALFBGC_MEAN_COLOR, lw=1.6)
 
         if num_bc_c is not None:
             for i in range(num_bc_c.shape[0]):
                 ax.plot(num_times_plot[:num_bc_c.shape[1]],
                         num_bc_c[i],
-                        color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.55)
-            num_mean = np.nanmean(num_bc_c, axis=0)
-            ax.plot(num_times_plot[:len(num_mean)], num_mean, color=NUM_MEAN_COLOR, lw=1.6)
+                        color=NUM_MEMBER_COLOR, lw=0.6, alpha=0.45)
+            ax.plot(num_times_plot[:num_bc_c.shape[1]], np.nanmean(num_bc_c, axis=0),
+                    color=NUM_MEAN_COLOR, lw=1.6)
 
-        if gt_bc_c is not None:
-            ax.plot(gt_times_plot[:len(gt_bc_c)], gt_bc_c,
+        if gt_raw_c is not None:
+            ax.plot(gt_times_plot[:len(gt_raw_c)], gt_raw_c,
                     color=GT_COLOR, lw=1.6)
 
-        ax.set_title(binfo["label"], fontsize=12, fontweight="bold", color=binfo["color"])
+        ilat, ilon = probe_indices[pkey]
+        ax.set_title(f"{pinfo['label']}  ({lat[ilat]:.1f}°N, {lon[ilon]:.1f}°E)",
+                     fontsize=11, fontweight="bold", color=pinfo["color"])
         if col == 0:
             ax.set_ylabel(f"{combo_info['label']}\n({combo_info['units']})", fontsize=11)
         ax.xaxis.set_major_locator(mdates.MonthLocator(bymonth=[1, 4, 7, 10]))
@@ -1384,7 +1567,7 @@ def main():
 
 
     fig.text(0.06, 0.50,
-             f"(b) Biome-mean raw trajectories — {combo_info['label']} (2015)",
+             f"(b) Pointwise trajectories — {combo_info['label']} (2015)",
              fontsize=13, fontweight="bold", va="top")
 
     fig.legend(
@@ -1393,7 +1576,8 @@ def main():
             Line2D([0], [0], color=ML_MEAN_COLOR,    lw=1.6, label="ML ensemble mean"),
             Line2D([0], [0], color=HALFBGC_MEMBER_COLOR, lw=1.0, alpha=0.6, label="ML ½-BGC members (n=50)"),
             Line2D([0], [0], color=HALFBGC_MEAN_COLOR, lw=1.6, label="ML ½-BGC mean"),
-            Line2D([0], [0], color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.6, label="Numerical members (n=10)"),
+            Line2D([0], [0], color=NUM_MEMBER_COLOR, lw=0.8, alpha=0.6,
+                   label=f"Numerical members (n={len(NUMERICAL_MEMBERS)})"),
             Line2D([0], [0], color=NUM_MEAN_COLOR,   lw=1.6, label="Numerical ensemble mean"),
             Line2D([0], [0], color=GT_COLOR,         lw=1.6, label="DG-MOM6-COBALTv2 (GT)"),
         ],

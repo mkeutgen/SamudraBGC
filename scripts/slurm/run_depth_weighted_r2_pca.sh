@@ -33,16 +33,38 @@ echo "Job ID: $SLURM_JOB_ID"
 echo "CPUs: $SLURM_CPUS_PER_TASK"
 echo ""
 
-echo "=== Phase 1 / 1.5 / 2 experiments (local outputs) ==="
+echo "=== Phase 1 new rollouts (fullstate + helmholtz, PCA outputs) ==="
+python /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/scripts/compute_depth_weighted_r2.py \
+    --max-depth 500 \
+    --metrics r2 nrmse nbias nmae \
+    --exclude-vars psi phi \
+    --time-start 2012-01-01 --time-end 2014-12-31 \
+    --outputs-dir /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/ \
+    --pred-zarr predictions.zarr \
+    --experiments \
+    phase1_fullstate_nograd_eval_rollout2010_2014 \
+    phase1_helmholtz_nograd_eval_rollout2010_2014
+
+echo ""
+echo "=== Phase 1.5 log rollout (linear-space predictions) ==="
+python /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/scripts/compute_depth_weighted_r2.py \
+    --max-depth 500 \
+    --metrics r2 nrmse nbias nmae \
+    --exclude-vars psi phi \
+    --time-start 2012-01-01 --time-end 2014-12-31 \
+    --outputs-dir /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/ \
+    --pred-zarr predictions_linear.zarr \
+    --experiments \
+    phase15_helmholtz_log_eval_rollout2010_2014
+
+echo ""
+echo "=== Phase 2 grad-weight experiments (original Ocean_Emulator outputs) ==="
 python scripts/compute_depth_weighted_r2.py \
     --max-depth 500 \
     --metrics r2 nrmse nbias nmae \
     --exclude-vars psi phi \
     --time-start 2012-01-01 --time-end 2014-12-31 \
     --experiments \
-    phase1_velocity_nograd_eval \
-    phase1_helmholtz_nograd_eval \
-    phase15_helmholtz_log_eval_linear \
     phase2_helmholtz_grad00_eval_linear \
     phase2_helmholtz_grad010_eval_linear \
     phase2_helmholtz_grad025_eval_linear \
@@ -76,7 +98,7 @@ python /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/scripts/compute_depth_wei
     --experiments \
     phase7_pca20_arch_wider_eval_rollout2010_2014 \
     phase7_pca20_arch_much_wider_eval_rollout2010_2014 \
-    phase7_pca20_arch_wider_deeper_eval_rollout2010_2014
+    phase7_pca20_arch_wider_deeper_v2_eval_rollout2010_2014
 
 echo ""
 echo "Done!"

@@ -38,30 +38,30 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # ── Ablation tree data ────────────────────────────────────────────────────────
 TREE_LEVELS = [
     {"header": "Ocean Circulation\nRepresentation", "nodes": [
-        {"label": "Helmholtz (ψ, φ)", "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": True},
-        {"label": "Velocity (u, v)",   "r2": -0.0659, "nrmse": 0.1896, "nmae": 0.1442, "nbias": -0.0189, "champion": False},
+        {"label": "Helmholtz", "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": True},
+        {"label": "Velocity",  "r2": -0.0659, "nrmse": 0.1896, "nmae": 0.1442, "nbias": -0.0189, "champion": False},
     ]},
     {"header": "Biogeochemistry\nRepresentation", "nodes": [
         {"label": "Log BGC",     "r2": 0.6345, "nrmse": 0.1052, "nmae": 0.0714, "nbias": 0.0052, "champion": True},
         {"label": "Linear BGC",  "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": False},
     ]},
     {"header": "Fine-scale Dynamics\n(gradient weight in loss)", "nodes": [
-        {"label": "α = 0.10", "r2": 0.7954, "nrmse": 0.0828, "nmae": 0.0527, "nbias": 0.0049, "champion": True},
-        {"label": "α = 0",    "r2": 0.7489, "nrmse": 0.0903, "nmae": 0.0591, "nbias": 0.0026, "champion": False},
-        {"label": "α = 0.25", "r2": 0.7720, "nrmse": 0.0848, "nmae": 0.0556, "nbias": 0.0019, "champion": False},
-        {"label": "α = 0.50", "r2": 0.7791, "nrmse": 0.0837, "nmae": 0.0539, "nbias": 0.0047, "champion": False},
+        {"label": "Grad Weight 0.10", "r2": 0.7954, "nrmse": 0.0828, "nmae": 0.0527, "nbias": 0.0049, "champion": True},
+        {"label": "Grad Weight 0",    "r2": 0.7489, "nrmse": 0.0903, "nmae": 0.0591, "nbias": 0.0026, "champion": False},
+        {"label": "Grad Weight 0.25", "r2": 0.7720, "nrmse": 0.0848, "nmae": 0.0556, "nbias": 0.0019, "champion": False},
+        {"label": "Grad Weight 0.50", "r2": 0.7791, "nrmse": 0.0837, "nmae": 0.0539, "nbias": 0.0047, "champion": False},
     ]},
     {"header": "Vertical Structure\n(PCA)", "nodes": [
-        {"label": "20 PCs", "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010, "champion": True},
-        {"label": "15 PCs", "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias": 0.0016, "champion": False},
-        {"label": "10 PCs", "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias": 0.0046, "champion": False},
-        {"label": "5 PCs",  "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
+        {"label": "20 components", "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010, "champion": True},
+        {"label": "15 components", "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias": 0.0016, "champion": False},
+        {"label": "10 components", "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias": 0.0046, "champion": False},
+        {"label": "5 components",  "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
     ]},
     {"header": "ML Architecture", "nodes": [
-        {"label": "Best Model",   "r2": 0.8062,      "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010,  "champion": True},
-        {"label": "Wider",        "r2": 0.8084,      "nrmse": 0.0791, "nmae": 0.0515, "nbias": -0.0046, "champion": False},
-        {"label": "Much Wider",   "r2": 0.7832,      "nrmse": 0.0842, "nmae": 0.0565, "nbias": 0.0002,  "champion": False},
-        {"label": "Wider+Deeper", "r2": -93893.8253, "nrmse": 0.8103, "nmae": 0.0545, "nbias": -0.0022, "champion": False},
+        {"label": "Best Model",   "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010,  "champion": True},
+        {"label": "Wider",        "r2": 0.8084, "nrmse": 0.0791, "nmae": 0.0515, "nbias": -0.0046, "champion": False},
+        {"label": "Much Wider",   "r2": 0.7832, "nrmse": 0.0842, "nmae": 0.0565, "nbias": 0.0002,  "champion": False},
+        {"label": "Wider+Deeper", "r2": 0.8144, "nrmse": 0.0768, "nmae": 0.0500, "nbias": 0.0042,  "champion": False, "no_star": ("r2", "nmae")},
     ]},
 ]
 
@@ -98,16 +98,25 @@ def _fmt(value, signed=False):
 
 
 def _best_flags(nodes):
-    """Return {metric_key: node_index} for the best node per metric."""
+    """Return {metric_key: node_index} for the best node per metric.
+
+    Nodes may set ``no_star`` to a tuple of metric keys that must not be
+    awarded a star even if the node wins on that metric — used when the
+    author judges the delta to be within rounding/noise.
+    """
     data = [(i, n) for i, n in enumerate(nodes) if n.get("r2") is not None]
     if len(data) < 2:
         return {}
-    return {
+    picks = {
         "r2":    max(data, key=lambda t: t[1]["r2"])[0],
         "nrmse": min(data, key=lambda t: t[1]["nrmse"])[0],
         "nmae":  min(data, key=lambda t: t[1]["nmae"])[0],
         "nbias": min(data, key=lambda t: abs(t[1]["nbias"]))[0],
     }
+    for key, idx in list(picks.items()):
+        if key in nodes[idx].get("no_star", ()):
+            del picks[key]
+    return picks
 
 
 # ── Main drawing function ────────────────────────────────────────────────────
@@ -124,9 +133,9 @@ def draw_ablation_tree(tree_levels=None, output_name="fig03_ablation_tree.png"):
 
     # Node card dimensions
     card_w = 2.10       # inches
-    card_h = 1.38       # inches
-    hdr_h  = 0.30       # header band height
-    gap_v  = 0.22       # vertical gap between cards
+    card_h = 1.65       # inches
+    hdr_h  = 0.34       # header band height
+    gap_v  = 0.45       # vertical gap between cards
     gap_h  = 0.50       # horizontal gap between columns (connector space)
 
     # Column x-centres
@@ -134,7 +143,7 @@ def draw_ablation_tree(tree_levels=None, output_name="fig03_ablation_tree.png"):
     x_centres = [card_w / 2 + i * (card_w + gap_h) for i in range(n_levels)]
 
     # Row y-centres: top-align each column
-    header_room = 0.85   # space above top card for column header text
+    header_room = 1.30   # space above top card for column header text
     y_top = max_nodes * (card_h + gap_v) - gap_v + header_room
 
     level_coords = []     # level_coords[li] = [(cx, cy), ...]
@@ -261,7 +270,9 @@ def draw_ablation_tree(tree_levels=None, output_name="fig03_ablation_tree.png"):
                     elif key in ("nrmse", "nmae"):
                         metric_bad = (val - cv) / max(abs(cv), 1e-9) > 0.20
                     elif key == "nbias":
-                        metric_bad = abs(val - cv) / max(abs(cv), 1e-9) > 0.20
+                        # Smaller |bias| is better. A node is only "bad" if its
+                        # |bias| is worse (larger) than the champion's by >20%.
+                        metric_bad = (abs(val) - abs(cv)) / max(abs(cv), 1e-9) > 0.20
 
                 # Label (left)
                 ax.text(x0 + 0.16, row_y, label + ":",
@@ -289,7 +300,7 @@ def draw_ablation_tree(tree_levels=None, output_name="fig03_ablation_tree.png"):
 
     # ── Column headers ───────────────────────────────────────────────────────
     for li, lv in enumerate(tree_levels):
-        hdr_top = level_coords[li][0][1] + card_h / 2 + 0.12
+        hdr_top = level_coords[li][0][1] + card_h / 2 + 0.45
         ax.text(x_centres_shifted[li], hdr_top, lv["header"],
                 ha="center", va="bottom", fontsize=10, fontweight="bold",
                 color=C["header_txt"], multialignment="center",

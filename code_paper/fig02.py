@@ -37,10 +37,10 @@ from scipy.stats import pearsonr, ks_2samp
 from ocean_emulators.constants import DEPTH_THICKNESS, DEPTH_LEVELS
 
 mpl.rcParams.update({
-    "font.family": "sans-serif", "font.size": 11,
-    "axes.labelsize": 12, "axes.titlesize": 14,
-    "xtick.labelsize": 11, "ytick.labelsize": 11,
-    "legend.fontsize": 11, "figure.dpi": 150,
+    "font.family": "sans-serif", "font.size": 16,
+    "axes.labelsize": 15, "axes.titlesize": 17,
+    "xtick.labelsize": 13, "ytick.labelsize": 13,
+    "legend.fontsize": 12, "figure.dpi": 150,
     "savefig.dpi": 300, "savefig.bbox": "tight",
     "axes.spines.top": False, "axes.spines.right": False,
     "axes.linewidth": 1.2, "xtick.major.width": 1.2, "xtick.major.size": 5,
@@ -578,17 +578,17 @@ def plot_si_timeseries(ts_gt_biome, ts_pred_biome, times_plot, ts_biome_met, out
                 ax.plot(times_plot, ts_pred_biome[(v, bkey)], color=color, lw=1.0, alpha=0.85)
                 m = ts_biome_met[(v, bkey)]
                 ax.text(0.98, 0.92, f"R²={m['R2']:.3f}  RMSE={m['RMSE']:.2f}",
-                        transform=ax.transAxes, fontsize=9, ha="right", va="top",
+                        transform=ax.transAxes, fontsize=12, ha="right", va="top",
                         bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
                 if row == 0:
-                    ax.set_title(binfo["label"], fontsize=12, fontweight="bold", color=binfo["color"])
+                    ax.set_title(binfo["label"], fontsize=15, fontweight="bold", color=binfo["color"])
                 if col == 0:
-                    ax.set_ylabel(f"{label}\n({units})", fontsize=11)
+                    ax.set_ylabel(f"{label}\n({units})", fontsize=14)
                 if row == n_vars - 1:
                     ax.xaxis.set_major_locator(mdates.YearLocator())
                     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-                    ax.tick_params(axis="x", rotation=0, labelsize=11)
-                ax.grid(True, alpha=0.15, lw=0.5); ax.tick_params(labelsize=10)
+                    ax.tick_params(axis="x", rotation=0, labelsize=13)
+                ax.grid(True, alpha=0.15, lw=0.5); ax.tick_params(labelsize=13)
 
         # Sync y-limits across biome columns for each variable row (with 10% padding)
         for row in range(n_vars):
@@ -601,9 +601,9 @@ def plot_si_timeseries(ts_gt_biome, ts_pred_biome, times_plot, ts_biome_met, out
         fig.legend(
             handles=[Line2D([0], [0], color="k",   lw=1.4, label="DG-MOM6-COBALTv2"),
                      Line2D([0], [0], color="0.5", lw=1.4, ls="--", label="ML Emulator")],
-            loc="upper center", ncol=2, fontsize=11, frameon=False, bbox_to_anchor=(0.5, 0.998))
+            loc="upper center", ncol=2, fontsize=14, frameon=False, bbox_to_anchor=(0.5, 0.998))
         fig.suptitle(f"SI — Time series by biome ({drng_info['label']}, 2015–2019)",
-                     fontsize=13, fontweight="bold", y=1.015)
+                     fontsize=16, fontweight="bold", y=1.015)
 
         out = output_dir / f"fig02_si_timeseries_{drng_info['file_suffix']}.png"
         fig.savefig(out, dpi=200, bbox_inches="tight")
@@ -644,20 +644,20 @@ def plot_si_pdfs(pdf_biome_hists, output_dir):
                 if h["log"]:
                     ax.set_xscale("log")
                 ax.text(0.02, 0.92, f"KS={h['ks_stat']:.3f}",
-                        transform=ax.transAxes, fontsize=9, ha="left", va="top",
+                        transform=ax.transAxes, fontsize=12, ha="left", va="top",
                         bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
                 if row == 0:
-                    ax.set_title(binfo["label"], fontsize=12, fontweight="bold", color=bcolor)
+                    ax.set_title(binfo["label"], fontsize=15, fontweight="bold", color=bcolor)
                 if col == 0:
-                    ax.set_ylabel(f"{label}\n({units})", fontsize=11)
-                ax.grid(True, alpha=0.15, lw=0.5); ax.tick_params(labelsize=10)
+                    ax.set_ylabel(f"{label}\n({units})", fontsize=14)
+                ax.grid(True, alpha=0.15, lw=0.5); ax.tick_params(labelsize=13)
 
         fig.legend(
             handles=[Line2D([0], [0], color="k",   lw=1.4, label="DG-MOM6-COBALTv2"),
                      Line2D([0], [0], color="0.5", lw=1.4, ls="--", label="ML Emulator")],
-            loc="upper center", ncol=2, fontsize=11, frameon=False, bbox_to_anchor=(0.5, 0.998))
+            loc="upper center", ncol=2, fontsize=14, frameon=False, bbox_to_anchor=(0.5, 0.998))
         fig.suptitle(f"SI — PDFs by biome ({drng_info['label']}, 2015–2019)",
-                     fontsize=13, fontweight="bold", y=1.015)
+                     fontsize=16, fontweight="bold", y=1.015)
 
         out = output_dir / f"fig02_si_pdfs_{drng_info['file_suffix']}.png"
         fig.savefig(out, dpi=200, bbox_inches="tight")
@@ -697,20 +697,20 @@ def plot_si_gradient_pdfs(grad_hists, output_dir):
                 ax.plot(h["centers"], h["pred"],          color=bcolor, lw=1.3, ls="--", label="ML Emulator")
                 ax.set_xscale("log")
                 ax.text(0.02, 0.92, f"KS={h['ks_stat']:.3f}",
-                        transform=ax.transAxes, fontsize=9, ha="left", va="top",
+                        transform=ax.transAxes, fontsize=12, ha="left", va="top",
                         bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
                 if row == 0:
-                    ax.set_title(binfo["label"], fontsize=12, fontweight="bold", color=bcolor)
+                    ax.set_title(binfo["label"], fontsize=15, fontweight="bold", color=bcolor)
                 if col == 0:
-                    ax.set_ylabel(f"|∇{label}|\n({units}/cell)", fontsize=11)
-                ax.grid(True, alpha=0.15, lw=0.5); ax.tick_params(labelsize=10)
+                    ax.set_ylabel(f"|∇{label}|\n({units}/cell)", fontsize=14)
+                ax.grid(True, alpha=0.15, lw=0.5); ax.tick_params(labelsize=13)
 
         fig.legend(
             handles=[Line2D([0], [0], color="k",   lw=1.4, label="DG-MOM6-COBALTv2"),
                      Line2D([0], [0], color="0.5", lw=1.4, ls="--", label="ML Emulator")],
-            loc="upper center", ncol=2, fontsize=11, frameon=False, bbox_to_anchor=(0.5, 0.998))
+            loc="upper center", ncol=2, fontsize=14, frameon=False, bbox_to_anchor=(0.5, 0.998))
         fig.suptitle(f"SI — Gradient magnitude PDFs by biome ({drng_info['label']}, 2015–2019)",
-                     fontsize=13, fontweight="bold", y=1.015)
+                     fontsize=16, fontweight="bold", y=1.015)
 
         out = output_dir / f"fig02_si_grad_pdfs_{drng_info['file_suffix']}.png"
         fig.savefig(out, dpi=200, bbox_inches="tight")
@@ -750,17 +750,17 @@ def plot_fine_depth_timeseries(ts_gt_biome, ts_pred_biome, times_plot, ts_biome_
                 ax.plot(times_plot, ts_pred_biome[(v, bkey)], color=color,  lw=1.0, alpha=0.85)
                 m = ts_biome_met[(v, bkey)]
                 ax.text(0.98, 0.92, f"R\u00b2={m['R2']:.3f}  RMSE={m['RMSE']:.2f}",
-                        transform=ax.transAxes, fontsize=9, ha="right", va="top",
+                        transform=ax.transAxes, fontsize=12, ha="right", va="top",
                         bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
                 if row == 0:
-                    ax.set_title(binfo["label"], fontsize=12, fontweight="bold", color=binfo["color"])
+                    ax.set_title(binfo["label"], fontsize=15, fontweight="bold", color=binfo["color"])
                 if col == 0:
-                    ax.set_ylabel(f"{FINE_DEPTH_RANGES[drng_key]['label']}\n({units})", fontsize=11)
+                    ax.set_ylabel(f"{FINE_DEPTH_RANGES[drng_key]['label']}\n({units})", fontsize=14)
                 if row == n_bands - 1:
                     ax.xaxis.set_major_locator(mdates.YearLocator())
                     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-                    ax.tick_params(axis="x", rotation=0, labelsize=11)
-                ax.grid(True, alpha=0.15, lw=0.5); ax.tick_params(labelsize=10)
+                    ax.tick_params(axis="x", rotation=0, labelsize=13)
+                ax.grid(True, alpha=0.15, lw=0.5); ax.tick_params(labelsize=13)
 
         # Sync y-limits across biome columns for each depth band row (with 10% padding)
         for row in range(n_bands):
@@ -773,9 +773,9 @@ def plot_fine_depth_timeseries(ts_gt_biome, ts_pred_biome, times_plot, ts_biome_
         fig.legend(
             handles=[Line2D([0], [0], color="k",   lw=1.4, label="DG-MOM6-COBALTv2"),
                      Line2D([0], [0], color=color, lw=1.4, alpha=0.85, label="ML Emulator")],
-            loc="upper center", ncol=2, fontsize=11, frameon=False, bbox_to_anchor=(0.5, 0.998))
+            loc="upper center", ncol=2, fontsize=14, frameon=False, bbox_to_anchor=(0.5, 0.998))
         fig.suptitle(f"SI \u2014 {var_label} time series by depth band & biome (2010\u20132014)",
-                     fontsize=13, fontweight="bold", y=1.015)
+                     fontsize=16, fontweight="bold", y=1.015)
 
         out = output_dir / f"fig02_diag_fine_depth_ts_{base}.png"
         fig.savefig(out, dpi=200, bbox_inches="tight")
@@ -882,16 +882,16 @@ def plot_depth_profile(per_level_metrics, output_dir):
             ax.axhline(100, color="0.5", ls="--", lw=0.8, alpha=0.5)
             ax.axhline(500, color="0.5", ls="--", lw=0.8, alpha=0.5)
             ax.grid(True, alpha=0.15, lw=0.5)
-            ax.tick_params(labelsize=10)
+            ax.tick_params(labelsize=13)
 
-        ax_r2.set_title(f"{BIOMES[bkey]['label']} \u2014 R\u00b2", fontsize=12, fontweight="bold")
-        ax_rmse.set_title(f"{BIOMES[bkey]['label']} \u2014 RMSE", fontsize=12, fontweight="bold")
+        ax_r2.set_title(f"{BIOMES[bkey]['label']} \u2014 R\u00b2", fontsize=15, fontweight="bold")
+        ax_rmse.set_title(f"{BIOMES[bkey]['label']} \u2014 RMSE", fontsize=15, fontweight="bold")
 
         if row == 0:
-            ax_rmse.legend(loc="lower right", fontsize=9, framealpha=0.85)
+            ax_rmse.legend(loc="lower right", fontsize=12, framealpha=0.85)
 
     fig.suptitle("Per-level R\u00b2 and RMSE vs depth (2010\u20132014)",
-                 fontsize=14, fontweight="bold", y=1.01)
+                 fontsize=17, fontweight="bold", y=1.01)
 
     out = output_dir / "fig02_diag_depth_profile.png"
     fig.savefig(out, dpi=200, bbox_inches="tight")

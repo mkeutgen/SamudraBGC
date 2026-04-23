@@ -1,10 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=fig05
-#SBATCH --account=lrgroup
+#SBATCH --partition=cimes
+#SBATCH --account=cimes3
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=112
-#SBATCH --mem=900G
+#SBATCH --mem=600G
 #SBATCH --time=12:00:00
 #SBATCH --output=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/code_paper/logs/fig05_%j.out
 #SBATCH --error=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/code_paper/logs/fig05_%j.err

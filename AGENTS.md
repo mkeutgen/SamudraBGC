@@ -2,9 +2,29 @@
 
 This file provides guidance to automated agents when working with code in this repository.
 
+# Claude Configuration
+
+Use max effort for all responses in this project.
+
+# Communication Style
+
+- Be thorough, not terse
+- Think through problems step-by-step before proposing solutions
+- Use validation-forward phrasing when discussing tradeoffs
+- Show your reasoning process, don't just assert conclusions
+- When uncertain, say so explicitly rather than hedging implicitly
+- Prioritize correctness over speed
+
+# Code Review Standards
+
+- Actually read the full file before proposing changes
+- Verify your edits compile/run before reporting completion
+- Flag subtle design issues, not just syntax errors
+- Course-correct immediately if you catch a mistake
+
 ## Overview
 
-Ocean Emulator is a PyTorch-based machine learning project for training and evaluating models that emulate ocean physics and biogeochemistry. It implements a ConvNeXt U-Net neural network architecture for predicting ocean variables including temperature, salinity, velocities, biogeochemical tracers (DIC, O2, NO3, Chl, POC), and derived fields (Helmholtz decomposition).
+SamudraBGC is a PyTorch-based machine learning project for training and evaluating models that emulate ocean physics and biogeochemistry. It implements a ConvNeXt U-Net neural network architecture for predicting ocean variables including temperature, salinity, velocities, biogeochemical tracers (DIC, O2, NO3, Chl, POC), and derived fields (Helmholtz decomposition).
 
 ## Development Commands
 
@@ -314,6 +334,70 @@ When a training job fails:
    - **NaN in loss**: Check learning rate, add gradient clipping, check data normalization
    - **Data loading errors**: Verify dataset paths, check zarr file integrity
    - **DDP hangs**: Check network connectivity, MASTER_ADDR/PORT settings
+
+### Paper Figure Conventions (`code_paper/fig*.py`)
+
+**Always submit via SLURM**: `sbatch code_paper/figXX_vY.sh`, never run the `.py` directly.
+
+**Naming conventions — use consistently across all paper figures**:
+- The ground-truth MOM6-Cobalt simulation must be labelled **"Ground Truth"** (not "MOM6-DG", "MOM6", or "GT")
+- The emulator's predictions must be labelled **"SamudraBGC"** (not "ML", "Haddock", or "Ocean Emulator")
+- Apply in panel titles, legend entries, and in-figure annotations
+
+**Plain-language node / axis labels — prefer accessible phrasing over symbolic jargon**:
+- Use `"Grad Weight 0.10"` rather than `"α = 0.10"` in figure labels
+- Use `"20 components"` rather than `"20 PCs"` for PCA rank labels
+- Reserve symbolic notation (α, PCs, ψ/φ, u/v, etc.) for the methods text where it is defined — in figure labels use plain names like `"Helmholtz"` and `"Velocity"`, not `"Helmholtz (ψ, φ)"` / `"Velocity (u, v)"`
+- Applies to `fig03_ablation_tree.py` and any future ablation / sweep figures
+
+**Ablation-figure experiment labels must match the ablation tree verbatim**:
+- `fig03_ablation_tree.py` TREE_LEVELS is the canonical source for every experiment name. Any other paper figure (fig04, fig04_bis, SI variants) that references the same experiments MUST spell them exactly the same way, character for character
+- Current canonical set: `"Ground Truth"`, `"Helmholtz"`, `"Velocity"`, `"Log BGC"`, `"Linear BGC"`, `"Grad Weight 0"`, `"Grad Weight 0.10"`, `"Grad Weight 0.25"`, `"Grad Weight 0.50"`, `"5 components"`, `"10 components"`, `"15 components"`, `"20 components"`, `"Best Model"`
+- `"Ground Truth"` itself is not a tree node — it comes from the naming-convention rule above (never `"MOM6-DG"`, `"MOM6-DG (truth)"`, etc.)
+- Do NOT embed parenthetical context like `"(log BGC)"` or `"(no transform)"` in ablation-line labels — the tree is the single place where rationale is spelled out; figures just use the names
+
+**Metric-polarity-aware degradation coloring** (applies to any figure that red-flags "bad" metrics vs a champion):
+- For "lower is better" metrics like `nBias` (smaller `|bias|` is better), the >20%-worse test is `(abs(val) - abs(cv)) / abs(cv) > 0.20` — NOT `abs(val - cv) / abs(cv) > 0.20`
+- The signed-difference form is a bug: a node with `nBias = +0.0026` is *better* than a champion with `nBias = +0.0049` but the signed form flags it red anyway
+- Always key the comparison off the polarity of the metric (higher-is-better, lower-is-better, lower-absolute-is-better) rather than raw differences
+
+**Legend placement — avoid data overlap**:
+- Time series: put legends in `"lower left"` / `"lower right"`, or anchor *outside* the axes below the bottom panel (`loc="upper center", bbox_to_anchor=(0.5, -0.25)`) — data peaks in upper half, so upper placements overlap
+- When a shared legend spans multi-panel time series, attach it to the *bottom* panel with `bbox_to_anchor` below the axes so it can't collide with any curve
+- PDF panels: `"lower right"` (distributions usually peak on the left)
+- Power spectra: `"lower left"` (power decays to the right)
+- Never default to `"upper right"`/`"upper left"` without checking the data curves
+
+**Legend line style must match the plotted line style**:
+- If the SamudraBGC time series is drawn solid (`lw=X`, no `ls` kwarg), the custom `Line2D` handle must also be solid — don't use `ls="--"` in the handle just because the PDF panel uses dashes
+- For multi-variable shared legends, label the emulator entry simply `"SamudraBGC"` — do NOT use `"SamudraBGC (colored per variable)"` or similar parenthetical explainers, they're clutter
+
+**Font sizes — keep consistent across all paper figures**:
+- Panel titles `(a), (b), ...`: `fontsize=17-18, fontweight="bold"`
+- Axis labels: `fontsize=15`
+- Tick labels: `tick_params(labelsize=13)` — set explicitly, don't rely on rcParams
+- Annotations (R²/RMSE/KS boxes): `fontsize=13-14`
+- Colorbar labels: `fontsize=15`, cbar `tick_params(labelsize=13)`
+- Contour clabels: `fontsize=11`
+- Legend: `fontsize=13`
+
+**Subplot spacing — prevent label/title collisions**:
+- When a subplot's title sits under another subplot's x-axis labels: increase `hspace` (e.g., 0.28 → 0.55) or add `pad=12` to the title
+- When adjacent subplot x-labels collide horizontally: increase `wspace` (e.g., 0.06 → 0.28)
+
+### Critical Reasoning — Always Think Through Before Answering
+
+**ALWAYS reason through the full chain of implications before giving an answer** — especially for questions that have an obvious-seeming but wrong answer. Hidden constraints invalidate the surface reading.
+
+Example failure: *"A car wash is 50 metres away, should I walk or drive?"* — the obvious answer is "walk" (short distance), but the correct answer is "drive" because a car wash requires the car to be there. The distance is a red herring; the constraint is that the car must be present.
+
+This generalises: before answering, ask "what does this question actually require?" and "am I missing a hidden constraint?". State the reasoning, not just the conclusion. A wrong fast answer is worse than a correct slow one.
+
+### Manuscript Writing
+
+**Never invent numerical values for methods sections**: before writing "perturbations of X°C" or similar, grep the code for the actual config values (e.g., `pert_std_temp`, `pert_rel_dic`). Cite what the code does, not what sounds plausible.
+
+**Plain language over jargon**: this user prefers accessible phrasing. Avoid phrases like "mean-preserving lognormal multipliers with σ=0.1 in log-space" — prefer "perturbed by ~10%". Don't use "receive" / "exhibit" / "propagation" when "are perturbed by" / "have" / "spread" work.
 
 ### Best Practices for Agents
 
