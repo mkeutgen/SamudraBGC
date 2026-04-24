@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Figure 2 v6 — Champion Model BGC Performance  (publication-ready iteration)
+Figure 2 — Champion Model BGC Performance  (publication-ready iteration)
 ============================================================================
 Changes vs v5:
   - load_data parallelized across (var_prefix × depth_range) tasks using
     threads (result arrays are too large to pickle across processes).
   - compute_dic_zonal_mean parallelized across (var × level) tasks.
-  - Output dir: figures/fig02_v6/
+  - Output dir: figures/fig02/
 
-Outputs in figures/fig02_v6/:
+Outputs in figures/fig02/:
   chl_snapshots/fig02_snap_chl_2015-04-01_algae_loose.png
   fig02_zonal_dic_{cmap}.png          — panels c+d with RMSE + R² annotation
   fig02_ts_pdf_withno3.png
@@ -16,8 +16,8 @@ Outputs in figures/fig02_v6/:
   fig02_main.png                       — combined publication figure
 
 Usage:
-    python code_paper/fig02_v6.py
-    sbatch code_paper/fig02_v6.sh
+    python code_paper/fig02.py
+    sbatch code_paper/fig02.sh
 """
 
 import datetime
@@ -71,7 +71,7 @@ mpl.rcParams.update({
 # ── Config ─────────────────────────────────────────────────────────────────
 GT_PATH   = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
 PRED_PATH = "outputs/champion_model_eval_rollout2015_2019/predictions_depth.zarr"
-OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig02_v6"
+OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig02"
 
 # Cache the expensive stage-1/2 arrays and per-level metrics so label-only
 # tweaks re-render in seconds. Delete this file to force regeneration.

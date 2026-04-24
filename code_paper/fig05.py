@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Figure 5 v7 — Physical vs SamudraBGC ensemble spread comparison (2015)
+Figure 5 — Physical vs SamudraBGC ensemble spread comparison (2015)
 =======================================================================
 
 For each of 6 variables, produces TWO figures:
 
-  Variant A: Pointwise trajectories (fig05_v7_{var}_pointwise.png)
+  Variant A: Pointwise trajectories (fig05_{var}_pointwise.png)
     Row 1 (maps):      (a) Physical σ (n=30) | (b) SamudraBGC σ (n=50)
     Row 2 (fan charts): 3 probes at 28°N, 40°N, 50°N
 
-  Variant B: Biome trajectories (fig05_v7_{var}_biomes.png)
+  Variant B: Biome trajectories (fig05_{var}_biomes.png)
     Row 1 (maps):      (a) Physical σ (n=30) | (b) SamudraBGC σ (n=50)
     Row 2 (fan charts): 4 biomes — Subtropical, Jet, Subpolar, Full Domain
 
@@ -22,7 +22,7 @@ Variables:
     chl_surface    Chl (surface)
 
 Usage:
-    sbatch code_paper/fig05_v7.sh
+    sbatch code_paper/fig05.sh
 """
 
 import datetime
@@ -62,7 +62,7 @@ PCA_PARAMS_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6
 ML_ENSEMBLE_DIR = Path("outputs/champion_model_eval_ensemble50_tsonly_std05_2015")
 PHYSICAL_BASE_DIR = Path(os.environ.get("MOM6_NUMERICAL_PATH", "."))
 
-OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig05_v7"
+OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig05"
 
 N_ML_MEMBERS = 50
 N_PHYS_MEMBERS = 50
@@ -704,7 +704,7 @@ def main():
                 }, f, protocol=pickle.HIGHEST_PROTOCOL)
             print(f"  Cache saved: {cache_path.stat().st_size / 1e6:.1f} MB")
 
-        out_pointwise = OUTPUT_DIR / f"fig05_v7_{vc.key}_pointwise.png"
+        out_pointwise = OUTPUT_DIR / f"fig05_{vc.key}_pointwise.png"
         print(f"  Rendering pointwise → {out_pointwise.name}")
         plot_pointwise_figure(
             ml_stack, phys_stack, gt_field,
@@ -713,7 +713,7 @@ def main():
             vc, out_pointwise,
         )
 
-        out_biomes = OUTPUT_DIR / f"fig05_v7_{vc.key}_biomes.png"
+        out_biomes = OUTPUT_DIR / f"fig05_{vc.key}_biomes.png"
         print(f"  Rendering biomes → {out_biomes.name}")
         plot_biomes_figure(
             ml_stack, phys_stack, gt_field,
