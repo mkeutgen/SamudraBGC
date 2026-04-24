@@ -4,7 +4,7 @@ A PyTorch-based machine learning system for emulating MOM6-COBALT ocean physics 
 
 ## Model
 
-**Architecture**: ConvNeXt U-Net operating on a 360x180 global grid with 50 vertical depth levels.
+**Architecture**: ConvNeXt U-Net operating on a 360x360 idealized grid for the North Atlantic with 50 vertical depth levels.
 
 **Prognostic variables** (~401 output channels):
 - Physical: temperature, salinity, streamfunction (psi), velocity potential (phi), SSH
@@ -157,7 +157,7 @@ Reduce vertical dimension using PCA before the neural network:
 - `phase5_pca20_helmholtz_grad010` — k=20 components **[WINNER]**
 - `phase5_pca25_helmholtz_grad010` — k=25 components
 
-### Phase 6: Anomaly-Based Training
+### Phase 6: Anomaly-Based Training (Optional)
 Train on anomalies (deviations from climatology) instead of full fields:
 - `phase6_pca15_anomaly_helmholtz_grad010`
 
