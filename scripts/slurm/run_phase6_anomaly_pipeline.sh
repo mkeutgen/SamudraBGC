@@ -5,6 +5,8 @@
 
 set -e
 
+source "$(dirname "$0")/env_setup.sh"
+
 echo "=== Phase 6: PCA k=15 Anomaly Pipeline ==="
 
 # Step 1: Train

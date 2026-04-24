@@ -14,16 +14,10 @@
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
-export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:$PYTHONPATH
+source "$(dirname "$0")/env_setup.sh"
 
-mkdir -p logs
 
-DATA_DIR=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz_Anomaly
+DATA_DIR=${OCEAN_EMU_DATA_ROOT}
 
 echo "Rechunking anomaly dataset to 10-day chunks"
 echo "Data dir: ${DATA_DIR}"

@@ -42,7 +42,7 @@ class Stepper:
         input = batch.get_input(0)
         label = batch.get_label(0)
         # TODO(jder): we need the underlying model so we can use forward_once;
-        # see https://github.com/suryadheeshjith/Ocean_Emulator/issues/51
+        
         model = (
             model.module
             if isinstance(model, torch.nn.parallel.DistributedDataParallel)

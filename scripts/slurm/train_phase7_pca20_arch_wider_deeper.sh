@@ -1,7 +1,7 @@
 #!/bin/bash
-# Phase 7: PCA k=20 architecture ablation — Wider+Deeper [400,550,650,750]
+# Phase 7: PCA k=20 architecture ablation — Wider+Deeper [400,550,650,750] — RETRAIN (seed=123)
 
-#SBATCH --job-name=p7_wider_deeper
+#SBATCH --job-name=p7_wd_v2
 #SBATCH --partition=cimes
 #SBATCH --account=cimes3
 #SBATCH --gres=gpu:l40s:1
@@ -9,20 +9,14 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=300G
-#SBATCH --time=3-00:00:00
-#SBATCH --output=logs/phase7_pca20_arch_wider_deeper_train_%j.out
-#SBATCH --error=logs/phase7_pca20_arch_wider_deeper_train_%j.err
+#SBATCH --time=4-00:00:00
+#SBATCH --output=logs/phase7_pca20_arch_wider_deeper_v2_train_%j.out
+#SBATCH --error=logs/phase7_pca20_arch_wider_deeper_v2_train_%j.err
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
-export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:$PYTHONPATH
+source "$(dirname "$0")/env_setup.sh"
 
-mkdir -p logs
 
 GPUS_PER_NODE=$(echo $SLURM_GPUS_ON_NODE | tr ',' '\n' | wc -l)
 [ -z "$GPUS_PER_NODE" ] || [ "$GPUS_PER_NODE" -eq 0 ] && GPUS_PER_NODE=1
@@ -32,7 +26,7 @@ export WORLD_SIZE=$((SLURM_NNODES * GPUS_PER_NODE))
 
 CONFIG=configs/train/phase7_pca20_arch_wider_deeper.yaml
 
-echo "Training phase7_pca20_arch_wider_deeper [400,550,650,750]"
+echo "Retraining phase7_pca20_arch_wider_deeper [400,550,650,750] from scratch (seed=123)"
 echo "Config: ${CONFIG}"
 echo "Using $WORLD_SIZE GPUs across $SLURM_NNODES nodes"
 

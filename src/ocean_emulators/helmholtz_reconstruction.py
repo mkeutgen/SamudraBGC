@@ -553,8 +553,11 @@ def verify_reconstruction(
 
 
 if __name__ == "__main__":
-    # Default paths for verification
-    GRID_FILE = "/scratch/cimes/maximek/MOM6_Double_Gyre/DG-MOM6-COBALTv2/ice_ocean_SIS2/OM4_DG_COBALT/hist_control_ocean_static.nc"
-    DYNAMICS_FILE = "/scratch/cimes/maximek/MOM6_Double_Gyre/DG-MOM6-COBALTv2/ice_ocean_SIS2/MOM6_COBALT_DG_JRA_POC/hist_control_dynamics3d_yearly__1960_01.nc"
+    import argparse
 
-    stats = verify_reconstruction(GRID_FILE, DYNAMICS_FILE)
+    parser = argparse.ArgumentParser(description="Verify Helmholtz reconstruction")
+    parser.add_argument("--grid-file", required=True, help="Path to grid static file")
+    parser.add_argument("--dynamics-file", required=True, help="Path to dynamics file")
+    args = parser.parse_args()
+
+    stats = verify_reconstruction(args.grid_file, args.dynamics_file)

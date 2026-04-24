@@ -9,7 +9,7 @@ debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 30
+epochs: 50
 batch_size: 1
 learning_rate: 0.0002
 scheduler:
@@ -46,8 +46,8 @@ experiment:
   base_output_dir: ./outputs
   wandb:
     mode: offline
-    project: bgc-emulator
-    entity: m2lines
+    project: ''  # Set WANDB_PROJECT env var
+    entity: ''  # Set WANDB_ENTITY env var
     group: paper-ablations-phase1
     tags:
     - "paper-ablation"
@@ -56,14 +56,14 @@ experiment:
     - "no-gradient-penalty"
   prognostic_vars_key: helmholtz_only_all
   boundary_vars_key: minimal_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+  data_root: null  # Set OCEAN_EMU_DATA_ROOT env var
 
 data:
   data_location: bgc_data.zarr
   data_means_location: bgc_means.zarr
   data_stds_location: bgc_stds.zarr
   scaling_residuals_file: null
-  num_workers: 2
+  num_workers: 4
   persistent_workers: true
   prefetch_factor: 2
   hist: 1

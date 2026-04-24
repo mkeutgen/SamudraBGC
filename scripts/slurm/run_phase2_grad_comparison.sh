@@ -21,11 +21,8 @@
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
+source "$(dirname "$0")/env_setup.sh"
+
 
 export PYTHONUNBUFFERED=1
 export DASK_NUM_WORKERS=${SLURM_CPUS_PER_TASK:-16}

@@ -18,8 +18,8 @@ experiment:
   base_output_dir: ./outputs
   wandb:
     mode: offline
-    project: bgc-emulator
-    entity: m2lines
+    project: ''  # Set WANDB_PROJECT env var
+    entity: ''  # Set WANDB_ENTITY env var
     group: phase6-anomaly-eval
     tags:
     - "phase6-anomaly"
@@ -30,7 +30,7 @@ experiment:
     - "anomaly-dataset"
   prognostic_vars_key: helmholtz_log_no_logno3_pca15_all
   boundary_vars_key: minimal_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz_Anomaly
+  data_root: null  # Set OCEAN_EMU_DATA_ROOT env var
 
 data:
   data_location: bgc_data.zarr
@@ -74,7 +74,7 @@ model:
     ocean_heat_corrector: false
 
 pca:
-  pca_params_path: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz_Anomaly/pca_params.npz
-  original_data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz_Anomaly
+  pca_params_path: pca_params.npz  # Relative to OCEAN_EMU_DATA_ROOT
+  original_data_root: null  # Set OCEAN_EMU_DATA_ROOT env var
   original_prognostic_vars_key: helmholtz_log_no_logno3_all
   n_components: 15

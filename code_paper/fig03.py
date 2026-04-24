@@ -15,6 +15,7 @@ Usage:
 """
 
 import time as _time
+import os
 import datetime
 import matplotlib as mpl
 mpl.use("Agg")
@@ -44,16 +45,16 @@ OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig03_panels"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-GT_PATH       = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-LINEAR_PATH   = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
-LOG_PATH      = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase15_helmholtz_log_eval_linear/predictions.zarr"
-VELOCITY_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_velocity_nograd_eval/predictions.zarr"
+GT_PATH       = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
+LINEAR_PATH   = "outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
+LOG_PATH      = "outputs/phase15_helmholtz_log_eval_linear/predictions.zarr"
+VELOCITY_PATH = "outputs/phase1_velocity_nograd_eval/predictions.zarr"
 
 GRAD_PATHS = {
-    "α = 0":    "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad00_eval_linear/predictions.zarr",
-    "α = 0.10": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr",
-    "α = 0.25": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr",
-    "α = 0.50": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr",
+    "α = 0":    "outputs/phase2_helmholtz_grad00_eval_linear/predictions.zarr",
+    "α = 0.10": "outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr",
+    "α = 0.25": "outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr",
+    "α = 0.50": "outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr",
 }
 
 MOL_TO_UMOL = 1e6

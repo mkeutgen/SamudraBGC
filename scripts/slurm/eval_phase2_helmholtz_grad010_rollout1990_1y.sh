@@ -15,11 +15,8 @@
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
+source "$(dirname "$0")/env_setup.sh"
+
 
 echo "Starting 1-year rollout (1990) for phase2_helmholtz_grad010"
 echo "Job ID: ${SLURM_JOB_ID}"

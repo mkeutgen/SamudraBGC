@@ -16,20 +16,14 @@
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
-export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:$PYTHONPATH
+source "$(dirname "$0")/env_setup.sh"
+
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 export MKL_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 export OPENBLAS_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 export NUMEXPR_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 
-mkdir -p logs
-
-DATA_DIR=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+DATA_DIR=${OCEAN_EMU_DATA_ROOT}
 EVAL_DIR=outputs/phase5_pca20_helmholtz_grad010_eval_rollout2015_2019
 
 echo "Reconstructing depth-space predictions for phase5_pca20_helmholtz_grad010 rollout"

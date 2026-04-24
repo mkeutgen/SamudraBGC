@@ -15,14 +15,8 @@
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
-export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:$PYTHONPATH
+source "$(dirname "$0")/env_setup.sh"
 
-mkdir -p logs
 
 CONFIG=configs/eval/phase5_pca10_helmholtz_grad010_eval.yaml
 
@@ -43,7 +37,7 @@ if [ -d "${PRED_ZARR}" ]; then
     echo "Computing depth-level reconstruction metrics"
     echo "============================================="
 
-    DATA_DIR=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+    DATA_DIR=${OCEAN_EMU_DATA_ROOT}
 
     python scripts/analysis/eval_pca_reconstruction.py \
         --pred-zarr ${PRED_ZARR} \

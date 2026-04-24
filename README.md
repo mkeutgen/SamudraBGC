@@ -60,11 +60,26 @@ tests/              # Test suite
 
 ## Quick Start
 
-### Environment
+### Environment Variables
+
+Before running any commands, set these environment variables (e.g., in `~/.bashrc`):
+
+```bash
+# Required
+export OCEAN_EMU_CONDA_ENV=/path/to/your/conda/env
+export OCEAN_EMU_DATA_ROOT=/path/to/processed_data
+export OCEAN_EMU_PROJECT_DIR=/path/to/Ocean_Emulator_PCA
+
+# Optional (for Weights & Biases logging)
+export WANDB_PROJECT=your-project-name
+export WANDB_ENTITY=your-username
+```
+
+### Environment Setup
 
 ```bash
 module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
+conda activate $OCEAN_EMU_CONDA_ENV
 ```
 
 ### Training
@@ -104,30 +119,74 @@ pytest tests/ -m "not manual and not cuda"       # Fast unit tests
 pytest tests/ -m "not manual and not cuda" -n auto  # Parallel
 pytest tests/ -m cuda                             # GPU tests (needs GPU node)
 ```
-lin
+
 ## Paper Experiments
 
-The paper ablations span multiple phases (see `code_paper/FIGURES.md` for the registry):
+The paper ablations span multiple phases. Each phase builds on the winner of the previous phase, following a sequential design approach. All experiments share: `batch_size=1`, `lr=0.0002`, cosine schedule, 50 epochs, 16 L40S GPUs (DDP).
 
-1. **Phase 1: Velocity representation** — Helmholtz-only (psi/phi) vs full-state (u/v) vs both (u/v + psi/phi).
-1. **Phase 1.5: Log-transform ablation** — linear vs log BGC state for the Phase 1 winner.
-1. **Phase 2: Loss ablation** — gradient penalty weights `0.0`, `0.10`, `0.25`, `0.50` (Helmholtz-only, minimal forcing).
-1. **Phase 3: Architecture ablation** — alternate architectures (placeholders in figure registry).
+### Phase 1: Velocity Representation
+Compare alternative velocity representations:
+- `phase1_helmholtz_nograd` — Helmholtz decomposition (psi/phi) **[WINNER]**
+- `phase1_fullstate_nograd` — Raw velocity (u/v)
+- `phase1_fullstate_helmholtz_nograd` — Both (u/v + psi/phi)
 
-All experiments share: `batch_size=1`, `lr=0.0002`, cosine schedule, 50 epochs, 16 L40S GPUs.
+### Phase 1.5: BGC Transform
+Test log-transform of biogeochemical variables (Chl, POC):
+- `phase15_helmholtz_log_all` — Log-transform BGC **[WINNER]**
+- (Baseline = Phase 1 winner with linear BGC)
 
-See [PAPER_EXPERIMENTS.md](PAPER_EXPERIMENTS.md) and `code_paper/FIGURES.md` for full details.
+### Phase 2: Gradient Loss Weight
+Tune the spatial gradient penalty weight (α):
+- `phase2_helmholtz_grad00` — α=0.0 (pure MAE)
+- `phase2_helmholtz_grad010` — α=0.10 **[WINNER]**
+- `phase2_helmholtz_grad025` — α=0.25
+- `phase2_helmholtz_grad050` — α=0.50
+
+### Phase 4: Architecture (Full Vertical Resolution)
+Architecture ablations with all 50 depth levels:
+- `phase4_arch_baseline` — Standard ConvNeXt U-Net
+- `phase4_arch_wider` — Wider channels
+- `phase4_arch_deeper` — More encoder/decoder blocks
+- `phase4_arch_deeper_wider` — Both
+
+### Phase 5: PCA Vertical Compression
+Reduce vertical dimension using PCA before the neural network:
+- `phase5_pca5_helmholtz_grad010` — k=5 components
+- `phase5_pca10_helmholtz_grad010` — k=10 components
+- `phase5_pca15_helmholtz_grad010` — k=15 components
+- `phase5_pca20_helmholtz_grad010` — k=20 components **[WINNER]**
+- `phase5_pca25_helmholtz_grad010` — k=25 components
+
+### Phase 6: Anomaly-Based Training
+Train on anomalies (deviations from climatology) instead of full fields:
+- `phase6_pca15_anomaly_helmholtz_grad010`
+
+### Phase 7: Architecture with PCA
+Architecture ablations using PCA-compressed inputs (k=15 or k=20):
+- `phase7_pca15_arch_wider` / `phase7_pca20_arch_wider`
+- `phase7_pca15_arch_wider_deeper` / `phase7_pca20_arch_wider_deeper`
+- `phase7_pca15_arch_much_wider` / `phase7_pca20_arch_much_wider`
+
+### Champion Model
+The final champion model combines all winning choices:
+- Helmholtz velocity representation
+- Log-transform for BGC variables
+- Gradient loss weight α=0.10
+- PCA vertical compression (k=20)
+- (Architecture TBD based on Phase 7 results)
+
+See `code_paper/FIGURES.md` for detailed figure specifications.
 
 ## Configuration
 
 All experiments are defined via YAML configs. Key fields:
 
 ```yaml
-data_root: /path/to/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+data_root: null  # Uses OCEAN_EMU_DATA_ROOT env var
 prognostic_vars_key: helmholtz_only_all   # Variable set from constants.py
 boundary_vars_key: minimal_forcing        # Forcing variables
 loss:
-  grad_weight: 0.5                        # Spatial gradient penalty
+  grad_weight: 0.10                       # Spatial gradient penalty
 training:
   batch_size: 1
   learning_rate: 0.0002

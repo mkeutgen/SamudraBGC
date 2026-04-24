@@ -18,12 +18,9 @@
 
 set -e
 
-source ~/.bashrc
+source "$(dirname "$0")/env_setup.sh"
 
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
+
 
 echo "Starting Weidong RMSE computation"
 echo "Config: configs/eval/jra_helmholtz_min_grad05_eval_rollout2010_2019.yaml"

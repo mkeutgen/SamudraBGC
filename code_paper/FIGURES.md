@@ -10,7 +10,7 @@ Figures 1–4 of the GRL submission. Figure 5 (ensemble comparison) is handled s
 ## Data & Paths
 
 ```python
-GROUND_TRUTH_PATH = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+GROUND_TRUTH_PATH = "$OCEAN_EMU_DATA_ROOT/bgc_data.zarr"
 
 # All ablation predictions live here (test period: 2015-01-01 to 2019-12-31)
 OUTPUTS_DIR = "./outputs/"

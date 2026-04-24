@@ -1,25 +1,27 @@
 #!/bin/bash
 #SBATCH --job-name=fig05
-#SBATCH --account=lrgroup
+#SBATCH --partition=cimes
+#SBATCH --account=cimes3
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=32
 #SBATCH --mem=800G
-#SBATCH --time=06:00:00
-#SBATCH --output=/scratch/cimes/maximek/INMOS/Ocean_Emulator/code_paper/logs/fig05_%j.out
-#SBATCH --error=/scratch/cimes/maximek/INMOS/Ocean_Emulator/code_paper/logs/fig05_%j.err
-
-# Figure 5: ML Ensemble vs Physical Ensemble
-# Loads 10 ML ensemble members + 10 physical ensemble members (2015-2019).
-# Produces spatial spread maps and biome time series.
+#SBATCH --time=02:00:00
+#SBATCH --output=logs/fig05_%j.out
+#SBATCH --error=logs/fig05_%j.err
 
 set -e
 
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
+source "$(dirname "$0")/env_setup.sh"
 
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
+
+
+mkdir -p logs
+mkdir -p code_paper/figures/fig05
+
+echo "Starting fig05.py at $(date)"
+echo "SLURM_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK"
 
 PYTHONUNBUFFERED=1 python code_paper/fig05.py
 
-echo "Done: $(date)"
+echo "Finished at $(date)"

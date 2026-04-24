@@ -37,7 +37,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from ocean_emulators.constants import DEPTH_LEVELS, DEPTH_THICKNESS
 
-GT_PATH = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+GT_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr")
 DEFAULT_OUTPUTS_DIR = "outputs"
 DEFAULT_PRED_ZARR = "predictions.zarr"
 
@@ -319,6 +319,9 @@ def main():
     parser.add_argument("--time-end", default=None,
                         help="Override prediction time end (e.g. '2014-12-31'). "
                              "Default: last timestep in predictions.")
+    parser.add_argument("--csv", default=None,
+                        help="Path to write consolidated CSV with all metrics "
+                             "(columns: experiment, metric, var1, var2, ..., MEAN)")
     args = parser.parse_args()
 
     n_workers = args.workers or int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count() // 2))
@@ -440,6 +443,31 @@ def main():
         for rank, (name, res) in enumerate(ranked, 1):
             val = res["metric_means"].get(metric, np.nan)
             print(f"  {rank}. {name}: {val:.4f}")
+
+
+    # Write consolidated CSV
+    if args.csv and all_results:
+        import csv
+        csv_path = Path(args.csv)
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["experiment", "metric"] + all_var_names + ["MEAN"])
+            for exp_name, res in all_results.items():
+                exp_results = res["variables"]
+                for metric in metrics:
+                    row = [exp_name, metric]
+                    for vname in all_var_names:
+                        if (vname in exp_results and exp_results[vname] is not None
+                                and metric in exp_results[vname]
+                                and np.isfinite(exp_results[vname][metric]["value"])):
+                            row.append(f"{exp_results[vname][metric]['value']:.6f}")
+                        else:
+                            row.append("")
+                    mean_val = res["metric_means"].get(metric, np.nan)
+                    row.append(f"{mean_val:.6f}" if np.isfinite(mean_val) else "")
+                    writer.writerow(row)
+        print(f"\nCSV written to: {csv_path}")
 
 
 if __name__ == "__main__":

@@ -235,7 +235,6 @@ class Eval:
         total_time = time.perf_counter() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         logger.info(f"Eval time (Including wandb logging) {total_time_str}")
-        self._reconstruct_pca_to_depth()
         self.finish()
 
     def run_ensemble(self) -> None:
@@ -379,7 +378,6 @@ class Eval:
             if self.distributed is not None:
                 logger.info(f"Distributed across {self.world_size} GPUs")
 
-        self._reconstruct_pca_to_depth()
         self.finish()
 
     def _gather_ensemble_stats(self, local_stats: list[dict]) -> list[dict]:

@@ -1,4 +1,5 @@
 import abc
+import os
 from functools import cached_property
 from pathlib import Path
 from typing import Annotated, Literal, Self, assert_never, Optional, List
@@ -37,81 +38,44 @@ from ocean_emulators.utils.schedule import SchedulerConfig
 
 class WandBConfig(BaseConfig):
     mode: Literal["online", "offline", "disabled"] = "disabled"
-    project: str = "3D_ocean_emu_CM4"
-    entity: str = "suryadheeshjith"
+    project: str = Field(
+        default_factory=lambda: os.environ.get("WANDB_PROJECT", ""),
+        description="W&B project name. Set via WANDB_PROJECT env var or config.",
+    )
+    entity: str = Field(
+        default_factory=lambda: os.environ.get("WANDB_ENTITY", ""),
+        description="W&B entity/user. Set via WANDB_ENTITY env var or config.",
+    )
     group: str | None = None
     tags: list[str] | None = None
     notes: str | None = None
 
 
-# class JulianDate:
-#    """Represents a Julian date as a cftime.datetime at noon on the relevant day.
-#
-#    This is the format the OM4 data uses, so we match that here.
-#    TODO(jder): probably worth asserting the date format when opening the data.
-#    """
-#
-#    datetime: cftime.datetime
-#
-#    def __init__(self, s: str):
-#        datetime = cftime.datetime.strptime(s, "%Y-%m-%d", calendar="julian")
-#        datetime = datetime.replace(hour=12)
-#        self.datetime = datetime
-#
-#    def __str__(self) -> str:
-#        return self.datetime.strftime("%Y-%m-%d")
-#
-#
-# def _julian_date_validator(value: str | JulianDate) -> JulianDate:
-#    """Pydantic validator which must handle strings or JulianDate objects."""
-#    if isinstance(value, str):
-#        return JulianDate(value)
-#    else:
-#        return value
+class JulianDate:
+    """Represents a Julian-calendar date as a cftime.datetime at noon on the relevant day.
+
+    Retained for OM4-era data and tests that encode dates on the julian calendar.
+    Runtime training/eval for MOM6-Cobalt uses NoLeapDate (below); DateConfig is
+    wired to NoLeapDate.
+    """
+
+    datetime: cftime.datetime
+
+    def __init__(self, s: str):
+        datetime = cftime.datetime.strptime(s, "%Y-%m-%d", calendar="julian")
+        datetime = datetime.replace(hour=12)
+        self.datetime = datetime
+
+    def __str__(self) -> str:
+        return self.datetime.strftime("%Y-%m-%d")
 
 
-# """Represents a Julian date as a string."""
-# DateConfig = Annotated[
-#    JulianDate,
-#    PlainValidator(_julian_date_validator),
-#    PlainSerializer(JulianDate.__str__),
-#    WithJsonSchema({"type": "string", "format": "date"}),
-# ]
-#
-#
-#
-# class TimeConfig(BaseConfig):
-#    """Represents a time slice of the data.
-#
-#    Endpoints are Julian dates (not times) but cftime stores them in datetimes.
-#    The final endpoint is exclusive.
-#    """
-#
-#    start: DateConfig
-#    end: DateConfig
-#
-#    @property
-#    def time_slice(self) -> slice:
-#        return slice(self.start.datetime, self.end.datetime)
-#
-#    def overlaps(self, other: Self) -> bool:
-#        """Check if this time range overlaps with another time range.
-#
-#        Args:
-#            other: Another TimeConfig to check for overlap
-#
-#        Returns:
-#            True if the time ranges overlap, False otherwise
-#        """
-#        return (
-#            self.start.datetime < other.end.datetime
-#            and self.end.datetime > other.start.datetime
-#        )
-#
-#    def __str__(self) -> str:
-#        return f"{self.start} to {self.end}"
-#
-#
+def _julian_date_validator(value: str | JulianDate) -> JulianDate:
+    """Pydantic validator which must handle strings or JulianDate objects."""
+    if isinstance(value, str):
+        return JulianDate(value)
+    else:
+        return value
 
 
 class NoLeapDate:
@@ -149,41 +113,6 @@ DateConfig = Annotated[
 ]
 
 
-
-# class TimeConfig(BaseConfig):
-#    """Represents a time slice of the data.
-#
-#    Endpoints are Julian dates (not times) but cftime stores them in datetimes.
-#    The final endpoint is exclusive.
-#    """
-#
-#    start: DateConfig
-#    end: DateConfig
-#
-#    @property
-#    def time_slice(self) -> slice:
-#        return slice(self.start.datetime, self.end.datetime)
-#
-#    def overlaps(self, other: Self) -> bool:
-#        """Check if this time range overlaps with another time range.
-#
-#        Args:
-#            other: Another TimeConfig to check for overlap
-#
-#        Returns:
-#            True if the time ranges overlap, False otherwise
-#        """
-#        return (
-#            self.start.datetime < other.end.datetime
-#            and self.end.datetime > other.start.datetime
-#        )
-#
-#    def __str__(self) -> str:
-#        return f"{self.start} to {self.end}"
-#
-#
-
-# The TimeConfig class remains the same but now uses NoLeapDate internally
 class TimeConfig(BaseConfig):
     """
     Represents a time slice of the data using noleap calendar.
@@ -637,8 +566,12 @@ class ExperimentConfig(BaseConfig):
     @cached_property
     def resolved_data_root(self) -> ResolvedLocation:
         if self.data_root is None:
+            env_root = os.environ.get("OCEAN_EMU_DATA_ROOT")
+            if env_root:
+                return LocalLocation(path=Path(env_root))
             raise ValueError(
-                "data_root must be set, try --experiment.data_root=path/to/data"
+                "data_root must be set via config, --experiment.data_root=path/to/data, "
+                "or OCEAN_EMU_DATA_ROOT environment variable"
             )
         default_root = LocalLocation(path=Path.cwd())
         return default_root.resolve(self.data_root)

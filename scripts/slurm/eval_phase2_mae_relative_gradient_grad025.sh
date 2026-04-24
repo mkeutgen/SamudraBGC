@@ -15,14 +15,11 @@
 
 set -e
 
+source "$(dirname "$0")/env_setup.sh"
+
 # Source bashrc for wandb API key
-source ~/.bashrc
 
 # Load modules
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
 echo "Starting evaluation: phase2_mae_relative_gradient_grad025"
 echo "Config: configs/eval/phase2_mae_relative_gradient_grad025_eval.yaml"

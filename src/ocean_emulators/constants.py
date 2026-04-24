@@ -318,6 +318,15 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
         for j in [str(i) for i in range(20)]
     ]
     + ["SSH"],
+    "helmholtz_log_no_logno3_pca25_all": [
+        k + str(j)
+        for k in [
+            "log_dicpc_", "log_o2pc_", "no3pc_", "log_chlpc_",
+            "temppc_", "saltpc_", "psipc_", "phipc_",
+        ]
+        for j in [str(i) for i in range(25)]
+    ]
+    + ["SSH"],
     "helmholtz_log_pca10_all": [
         k + str(j)
         for k in [
@@ -464,6 +473,12 @@ class LoaderVersion(enum.Enum):
     OM4_TORCH = "om4-torch"
 
 
+def _base_name(channel_name: str) -> str:
+    # "temp_0" -> "temp", "log_dic_0" -> "log_dic", "SSH" -> "SSH".
+    # Channel naming is {base}_{depth_idx}; strip the trailing depth token only.
+    return channel_name.rsplit("_", 1)[0] if "_" in channel_name else channel_name
+
+
 # TODO(#95): See if this can be removed and replaced.
 class TensorMap(Multiton):
     def _initialize(self, prognostic_vars_key: str, boundary_vars_key: str):
@@ -481,16 +496,15 @@ class TensorMap(Multiton):
         self.VAR_SET_2D = []
         self.VAR_SET_3D = []
         for out in PROGNOSTIC_VARS[prognostic_vars_key]:
-            var_split = out.split("_")
-            if len(var_split) == 1:
-                self.VAR_SET_2D.append(var_split[0])
+            base = _base_name(out)
+            if base == out:          # no depth suffix ⇒ 2D var
+                self.VAR_SET_2D.append(base)
             else:
-                self.VAR_SET_3D.append(var_split[0])
+                self.VAR_SET_3D.append(base)
 
-        # Consistent order of variables
         self.VAR_SET = list(
             dict.fromkeys(
-                [out.split("_")[0] for out in PROGNOSTIC_VARS[prognostic_vars_key]]
+                [_base_name(out) for out in PROGNOSTIC_VARS[prognostic_vars_key]]
             )
         )
 
@@ -513,7 +527,7 @@ class TensorMap(Multiton):
         for kt in self.VAR_SET:
             self.VAR_3D_IDX[kt] = torch.tensor([])
             for i, k in enumerate(self.prognostic_var_names):
-                if kt in k:
+                if _base_name(k) == kt:
                     self.VAR_3D_IDX[kt] = torch.cat(
                         [self.VAR_3D_IDX[kt], torch.tensor([i])]
                     )

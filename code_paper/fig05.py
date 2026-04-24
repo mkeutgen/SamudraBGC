@@ -1,20 +1,40 @@
 #!/usr/bin/env python3
 """
-Figure 5 — ML Ensemble vs Physical Ensemble
-=============================================
-(a) top:    Spatial ensemble spread at year 5 (2×2: Temp 0–100m / DIC 100–500m × ML / Physical)
-(b) bottom: Biome time series (2×4: Temp 0–100m / DIC 100–500m × Subtropical / Jet / Subpolar / Global)
+Figure 5 — Physical vs SamudraBGC ensemble spread comparison (2015)
+=======================================================================
+
+For each of 6 variables, produces TWO figures:
+
+  Variant A: Pointwise trajectories (fig05_{var}_pointwise.png)
+    Row 1 (maps):      (a) Physical σ (n=30) | (b) SamudraBGC σ (n=50)
+    Row 2 (fan charts): 3 probes at 28°N, 40°N, 50°N
+
+  Variant B: Biome trajectories (fig05_{var}_biomes.png)
+    Row 1 (maps):      (a) Physical σ (n=30) | (b) SamudraBGC σ (n=50)
+    Row 2 (fan charts): 4 biomes — Subtropical, Jet, Subpolar, Full Domain
+
+Variables:
+    temp_surface   Temp (surface)
+    temp_0_100m    Temp (0–100 m)
+    no3_0_100m     NO₃ (0–100 m)
+    o2_100_200m    O₂ (100–200 m)
+    dic_100_200m   DIC (100–200 m)
+    chl_surface    Chl (surface)
 
 Usage:
-    python code_paper/fig05.py
     sbatch code_paper/fig05.sh
 """
 
 import datetime
 import os
+import pickle
+import sys
 import time
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import matplotlib as mpl
 mpl.use("Agg")
@@ -23,51 +43,38 @@ import matplotlib.dates as mdates
 import numpy as np
 import xarray as xr
 import cftime
-import dask
-from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+import zarr
+from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
+
 from ocean_emulators.constants import DEPTH_THICKNESS
+from ocean_emulators.pca import load_pca_params, inverse_transform
 
-_n_workers = int(os.environ.get("DASK_NUM_WORKERS", os.cpu_count() or 4))
-dask.config.set(scheduler="threads", num_workers=_n_workers)
+_n_workers = int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count() or 8))
 
-mpl.rcParams.update({
-    "font.family": "sans-serif", "font.size": 11,
-    "axes.labelsize": 12, "axes.titlesize": 14,
-    "xtick.labelsize": 11, "ytick.labelsize": 11,
-    "legend.fontsize": 11, "figure.dpi": 150,
-    "savefig.dpi": 300, "savefig.bbox": "tight",
-    "axes.spines.top": False, "axes.spines.right": False,
-    "axes.linewidth": 1.2, "xtick.major.width": 1.2, "xtick.major.size": 5,
-    "ytick.major.width": 1.2, "ytick.major.size": 5,
-})
+# =============================================================================
+# CONFIG
+# =============================================================================
+GT_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
+PCA_PARAMS_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/pca_params.npz")
 
-# ── Paths ────────────────────────────────────────────────────────────────────
-GT_PATH = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-ML_ENSEMBLE_DIR = Path("outputs/phase2_helmholtz_grad010_ensemble_eval")
-NUMERICAL_BASE_DIR = Path("/scratch/cimes/maximek/MOM6_Double_Gyre/DG-MOM6-COBALTv2/ice_ocean_SIS2")
-OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig05_panels"
+ML_ENSEMBLE_DIR = Path("outputs/champion_model_eval_ensemble50_tsonly_std05_2015")
+PHYSICAL_BASE_DIR = Path(os.environ.get("MOM6_NUMERICAL_PATH", "."))
 
-NUMERICAL_MEMBERS = [f"ENS{i:02d}" for i in range(1, 11)]
-NUMERICAL_MEMBERS[-1] = "ENS010"  # ENS10 is ENS010 on disk
-NUMERICAL_YEARS = [2015, 2016, 2017, 2018, 2019]
+OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig05"
 
+N_ML_MEMBERS = 50
+N_PHYS_MEMBERS = 50
+N_COMPONENTS = 20
+EPSILON = 1e-10
 MOL_TO_UMOL = 1e6
-EPSILON_DIC = 1e-10
+DEC_DAYS = 28
+YEAR = 2015
 
-# ── Depth ranges (ML model has 50 levels) ────────────────────────────────────
-# 0–100m: levels 0–32 (centers 1m–102m)
-# 100–500m: levels 33–46 (centers 111m–365m)
-DEPTH_RANGES = OrderedDict([
-    ("temp_0_100m", {"var": "temp", "levels": list(range(0, 33)),
-                     "label": "Temp (0–100 m)", "units": "°C",
-                     "is_log": False, "num_var": "temp", "num_file": "dynamics3d"}),
-    ("dic_100_500m", {"var": "dic", "levels": list(range(33, 47)),
-                      "label": "DIC (100–500 m)", "units": "µmol kg⁻¹",
-                      "is_log": True, "num_var": "dic", "num_file": "cobalt3d"}),
-])
+ML_MEMBER_IDS = list(range(N_ML_MEMBERS))
+PHYSICAL_MEMBERS = [f"ENS_1YR_{i:02d}" for i in range(1, N_PHYS_MEMBERS + 1)]
 
-# Physical ensemble z_l centers (first 50 are identical to ML model)
 DEPTH_CENTERS = [
     1.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.005, 17.015, 19.03,
     21.055, 23.095, 25.16, 27.255, 29.385, 31.565, 33.81, 36.135,
@@ -78,299 +85,125 @@ DEPTH_CENTERS = [
     440.46, 483.69,
 ]
 
-NUMERICAL_FILE_PATTERNS = {
-    "dynamics3d": "hist_control_dynamics3d_yearly__{year}_{month:02d}.nc",
-    "cobalt3d": "hist_control_cobalt_3d_yearly__{year}_{month:02d}.nc",
-}
+PHYSICAL_FILE_PATTERN = "hist_control_3d__{year}_{month:02d}.nc"
 
-# ── Biomes ───────────────────────────────────────────────────────────────────
-_bcolors = plt.cm.viridis(np.linspace(0.15, 0.85, 4))
+# Wong colorblind-safe palette
+ML_ENVELOPE_COLOR = "#66c2a5"
+ML_MEAN_COLOR = "#009E73"
+PHYS_ENVELOPE_COLOR = "#E69F00"
+PHYS_MEAN_COLOR = "#D55E00"
+GT_COLOR = "#000000"
+
+# Biome definitions (latitude ranges)
 BIOMES = OrderedDict([
-    ("subtropical", {"lat_min": 20, "lat_max": 37, "label": "Subtropical Gyre", "color": _bcolors[0]}),
-    ("jet",         {"lat_min": 37, "lat_max": 43, "label": "Jet",              "color": _bcolors[1]}),
-    ("subpolar",    {"lat_min": 43, "lat_max": 60, "label": "Subpolar Gyre",    "color": _bcolors[2]}),
-    ("full",        {"lat_min": -90, "lat_max": 90, "label": "Full Domain",     "color": _bcolors[3]}),
+    ("subtropical", {"lat_min": 20, "lat_max": 37, "label": "Subtropical Gyre"}),
+    ("jet", {"lat_min": 37, "lat_max": 43, "label": "Jet"}),
+    ("subpolar", {"lat_min": 43, "lat_max": 60, "label": "Subpolar Gyre"}),
+    ("domain", {"lat_min": -90, "lat_max": 90, "label": "Full Domain"}),
+])
+
+# Probes at representative locations (from fig05_v2)
+PROBES = OrderedDict([
+    ("subtropical", {"lat": 27.0, "lon": -42.0, "label": "Subtropical Gyre"}),
+    ("jet", {"lat": 42.0, "lon": -47.0, "label": "Jet"}),
+    ("subpolar", {"lat": 53.0, "lon": -30.0, "label": "Subpolar Gyre"}),
 ])
 
 
 # =============================================================================
-# DATA LOADING
+# VARIABLE CONFIGS
 # =============================================================================
-
-def to_display(data, var_key):
-    """Convert raw model units to display units."""
-    var = var_key.split("_")[0]
-    if var == "dic":
-        return data * MOL_TO_UMOL
-    return data
-
-
-def load_ml_var_level(ds, base_var, level, is_log):
-    """Load a single variable+level from ML zarr, converting log→linear."""
-    vname = f"log_{base_var}_{level}" if is_log else f"{base_var}_{level}"
-    data = ds[vname].values.astype(np.float64)
-    if is_log:
-        mask = data == 0
-        linear = np.exp(data) - EPSILON_DIC
-        linear[mask] = np.nan
-        return linear
-    else:
-        data[data == 0] = np.nan
-        return data
+@dataclass
+class VarConfig:
+    key: str
+    label: str
+    units: str
+    pca_var_key: str
+    pc_prefix: str
+    gt_prefix: str
+    phys_var: str
+    levels: list
+    log_transform: bool
+    scale_factor: float
+    clip_min: Optional[float] = None
 
 
-def load_ml_depth_band(ds, info):
-    """Load depth-weighted average (time, lat, lon) from ML zarr."""
-    levels = info["levels"]
-    base_var = info["var"]
-    is_log = info["is_log"]
-    dz = np.array([DEPTH_THICKNESS[i] for i in levels])
-    total_dz = dz.sum()
-
-    result = np.zeros_like(load_ml_var_level(ds, base_var, levels[0], is_log))
-    for j, lev in enumerate(levels):
-        result += load_ml_var_level(ds, base_var, lev, is_log) * dz[j]
-    return result / total_dz
-
-
-def load_ml_ensemble():
-    """Load all ML ensemble members. Returns list of xr.Datasets."""
-    members = []
-    for i in range(10):
-        pred_path = ML_ENSEMBLE_DIR / f"ensemble_{i:03d}" / "predictions.zarr"
-        if not pred_path.exists():
-            print(f"  WARNING: {pred_path} not found, skipping")
-            continue
-        members.append(xr.open_zarr(pred_path, consolidated=True))
-        print(f"  Loaded ML member {i}")
-    print(f"  Total ML members: {len(members)}")
-    return members
+VARIABLES = [
+    VarConfig("temp_surface", "Temp (surface)", "°C", "temp", "temppc", "temp", "temp",
+              [0], log_transform=False, scale_factor=1.0),
+    VarConfig("temp_0_100m", "Temp (0–100 m)", "°C", "temp", "temppc", "temp", "temp",
+              list(range(0, 32)), log_transform=False, scale_factor=1.0),
+    VarConfig("no3_0_100m", "NO₃ (0–100 m)", "µmol kg⁻¹", "no3", "no3pc", "no3", "no3",
+              list(range(0, 32)), log_transform=False, scale_factor=MOL_TO_UMOL, clip_min=0.0),
+    VarConfig("o2_100_200m", "O₂ (100–200 m)", "µmol kg⁻¹", "log_o2", "log_o2pc", "o2", "o2",
+              list(range(32, 40)), log_transform=True, scale_factor=MOL_TO_UMOL),
+    VarConfig("dic_100_200m", "DIC (100–200 m)", "µmol kg⁻¹", "log_dic", "log_dicpc", "dic", "dic",
+              list(range(32, 40)), log_transform=True, scale_factor=MOL_TO_UMOL),
+    VarConfig("chl_surface", "Chl (surface)", "mg m⁻³", "log_chl", "log_chlpc", "chl", "chl",
+              [0], log_transform=True, scale_factor=1.0),
+]
 
 
-def load_numerical_depth_band(member_dir, info, years, months=None):
-    """Load depth-weighted average from numerical ensemble member.
-
-    Returns (time, lat, lon) numpy array in raw model units.
-    months: list of months to load (default: all 12). Use [12] for Dec only.
-    """
-    if months is None:
-        months = list(range(1, 13))
-
-    file_pattern = NUMERICAL_FILE_PATTERNS[info["num_file"]]
-    target_depths = [DEPTH_CENTERS[i] for i in info["levels"]]
-
-    files = []
-    for year in years:
-        for month in months:
-            fp = member_dir / file_pattern.format(year=year, month=month)
-            if fp.exists():
-                files.append(fp)
-
-    if not files:
-        return None
-
-    ds = xr.open_mfdataset(files, combine="by_coords", decode_timedelta=False)
-    var_data = ds[info["num_var"]]
-
-    # Find closest z_l indices for target depths
-    z_l = var_data.z_l.values
-    z_indices = sorted(set(int(np.argmin(np.abs(z_l - d))) for d in target_depths))
-
-    # Depth-weighted average using thickness
-    dz = np.array([DEPTH_THICKNESS[info["levels"][j]] for j in range(len(info["levels"]))])
-    total_dz = dz.sum()
-
-    # Map ML level indices to physical z_l indices
-    result = None
-    for j, ml_lev in enumerate(info["levels"]):
-        target_z = DEPTH_CENTERS[ml_lev]
-        phys_idx = int(np.argmin(np.abs(z_l - target_z)))
-        layer = var_data.isel(z_l=phys_idx).values.astype(np.float64)
-        if result is None:
-            result = np.zeros_like(layer)
-        result += layer * dz[j]
-
-    ds.close()
-    return result / total_dz
-
-
-def load_ground_truth(n_times=None):
-    """Load ground truth zarr, sliced to 2015-2019."""
+# =============================================================================
+# SHARED LOADING
+# =============================================================================
+def load_gt_and_mask():
+    print("  Opening GT zarr...")
     gt_ds = xr.open_zarr(GT_PATH, consolidated=True)
-    t_start = cftime.DatetimeNoLeap(2015, 1, 1, 12, 0, 0)
-    t_end = cftime.DatetimeNoLeap(2019, 12, 31, 12, 0, 0)
-    gt_times = gt_ds.time.values
-    gt_mask = (gt_times >= t_start) & (gt_times <= t_end)
-    gt_idx = np.where(gt_mask)[0]
-    gt_sliced = gt_ds.isel(time=gt_idx)
-    if n_times is not None:
-        gt_sliced = gt_sliced.isel(time=slice(0, n_times))
-    return gt_ds, gt_sliced
+    times = gt_ds.time.values
+    t_start = cftime.DatetimeNoLeap(YEAR, 1, 1)
+    t_end = cftime.DatetimeNoLeap(YEAR + 1, 1, 1)
+    mask_2015 = (times >= t_start) & (times < t_end)
+    idx_2015 = np.where(mask_2015)[0]
+
+    lat = gt_ds.lat.values
+    lon = gt_ds.lon.values
+    wet = gt_ds.mask.values > 0.5 if "mask" in gt_ds else None
+    gt_store = zarr.open(GT_PATH, mode="r")
+
+    if wet is None:
+        wet = gt_store["wetmask"][0] > 0.5
+
+    gt_times_dt = [datetime.datetime(t.year, t.month, t.day) for t in times[idx_2015]]
+    print(f"  GT 2015: {len(idx_2015)} timesteps, lat={lat.shape}, lon={lon.shape}")
+    return gt_store, lat, lon, wet, idx_2015, gt_times_dt
 
 
-# =============================================================================
-# PANEL (a): SPATIAL SPREAD MAPS AT YEAR 5
-# =============================================================================
-
-def compute_ml_spread_maps(ml_members, info):
-    """Compute ensemble spread (std) at last timestep. Returns (lat, lon)."""
-    print(f"  Computing ML spread for {info['label']}...")
-    t0 = time.time()
-    snapshots = []
-    for i, ds in enumerate(ml_members):
-        arr = load_ml_depth_band(ds, info)
-        snapshots.append(arr[-1])  # last timestep
-        print(f"    Member {i}: loaded ({time.time()-t0:.1f}s)")
-    stack = np.stack(snapshots, axis=0)  # (n_members, lat, lon)
-    spread = np.nanstd(stack, axis=0)
-    return spread
+def build_mask_3d(gt_store, n_levels, n_lat, n_lon):
+    if "wetmask" not in gt_store:
+        raise RuntimeError("GT zarr missing wetmask")
+    wetmask = gt_store["wetmask"][:]
+    if wetmask.shape != (n_levels, n_lat, n_lon):
+        raise RuntimeError(f"wetmask shape {wetmask.shape} != ({n_levels}, {n_lat}, {n_lon})")
+    return wetmask > 0.5
 
 
-def compute_phys_spread_maps(info):
-    """Compute physical ensemble spread at Dec 2019. Returns (lat, lon)."""
-    print(f"  Computing physical spread for {info['label']}...")
-    t0 = time.time()
-    snapshots = []
-    for ens_name in NUMERICAL_MEMBERS:
-        member_dir = NUMERICAL_BASE_DIR / ens_name
-        if not member_dir.exists():
-            print(f"    WARNING: {member_dir} not found, skipping")
-            continue
-        # Load Dec 2019 only
-        arr = load_numerical_depth_band(member_dir, info, years=[2019], months=[12])
-        if arr is None:
-            print(f"    WARNING: No data for {ens_name}")
-            continue
-        # arr is (time, lat, lon) for Dec 2019 (~31 daily snapshots) — take time-mean
-        snapshot = np.nanmean(arr, axis=0)  # (lat, lon)
-        snapshots.append(snapshot)
-        print(f"    {ens_name}: loaded ({time.time()-t0:.1f}s)")
-
-    stack = np.stack(snapshots, axis=0)
-    spread = np.nanstd(stack, axis=0)
-    return spread
-
-
-def plot_panel_a(ml_spreads, phys_spreads, lat, lon, wet):
-    """Plot spatial spread maps: 2 rows (temp, dic) × 2 cols (ML, Physical)."""
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8),
-                             gridspec_kw={"hspace": 0.25, "wspace": 0.15})
-
-    var_keys = list(DEPTH_RANGES.keys())
-    cmaps = ["YlOrRd", "YlOrRd"]
-
-    for row, vkey in enumerate(var_keys):
-        info = DEPTH_RANGES[vkey]
-        ml_sp = ml_spreads[vkey]
-        ph_sp = phys_spreads[vkey]
-
-        # Convert to display units
-        ml_disp = to_display(ml_sp, vkey)
-        ph_disp = to_display(ph_sp, vkey)
-
-        # Shared colorbar range
-        ml_masked = np.where(wet, ml_disp, np.nan)
-        ph_masked = np.where(wet, ph_disp, np.nan)
-        vmax = max(np.nanpercentile(ml_masked, 98), np.nanpercentile(ph_masked, 98))
-        vmin = 0
-
-        for col, (data, title_prefix) in enumerate([
-            (ml_masked, "ML Ensemble"),
-            (ph_masked, "Physical Ensemble"),
-        ]):
-            ax = axes[row, col]
-            im = ax.pcolormesh(lon, lat, data, vmin=vmin, vmax=vmax,
-                               cmap=cmaps[row], shading="auto")
-            ax.set_aspect("equal")
-            ax.set_facecolor("#cccccc")
-            if col == 0:
-                ax.set_ylabel("Latitude (°N)", fontsize=11)
-            if row == 0:
-                ax.set_title(f"{title_prefix}", fontsize=12, fontweight="bold")
-            if row == 1:
-                ax.set_xlabel("Longitude (°E)", fontsize=11)
-            ax.tick_params(labelsize=10)
-
-        # Shared colorbar for this row
-        cbar = fig.colorbar(im, ax=axes[row, :].tolist(), shrink=0.8, pad=0.02,
-                            extend="max", aspect=25)
-        cbar.set_label(f"Spread σ — {info['label']} ({info['units']})", fontsize=11)
-        cbar.ax.tick_params(labelsize=10)
-
-    # Row labels on the left
-    for row, vkey in enumerate(var_keys):
-        info = DEPTH_RANGES[vkey]
-        axes[row, 0].annotate(
-            info["label"], xy=(-0.22, 0.5), xycoords="axes fraction",
-            fontsize=12, fontweight="bold", ha="center", va="center", rotation=90)
-
-    return fig
+def build_probe_indices(lat, lon, wet):
+    indices = {}
+    for pkey, pinfo in PROBES.items():
+        lon_target = pinfo.get("lon", 0.5 * (float(lon.min()) + float(lon.max())))
+        lon_idx_ideal = int(np.argmin(np.abs(lon - lon_target)))
+        lat_idx = int(np.argmin(np.abs(lat - pinfo["lat"])))
+        found = False
+        for dlat in range(0, max(wet.shape[0], 1)):
+            for try_lat in sorted({lat_idx - dlat, lat_idx + dlat}):
+                if not (0 <= try_lat < wet.shape[0]):
+                    continue
+                row = wet[try_lat]
+                if row.any():
+                    wet_cols = np.where(row)[0]
+                    lon_idx = int(wet_cols[np.argmin(np.abs(wet_cols - lon_idx_ideal))])
+                    indices[pkey] = (int(try_lat), lon_idx)
+                    found = True
+                    break
+            if found:
+                break
+        if not found:
+            raise RuntimeError(f"No wet cell found for probe {pkey}")
+    return indices
 
 
-# =============================================================================
-# PANEL (b): BIOME TIME SERIES
-# =============================================================================
-
-def compute_biome_timeseries(ml_members, gt_sliced, lat, wet):
-    """Compute biome-averaged time series for ML ensemble, GT, and physical ensemble.
-
-    Returns: ml_ts, gt_ts, phys_ts dicts keyed by (var_key, biome_key).
-    ml_ts values are (n_members, n_times) arrays.
-    gt_ts and phys_ts values are (n_times,) arrays (phys_ts is dict of member arrays).
-    """
-    cos_lat = np.cos(np.deg2rad(lat))
-
-    # Build biome masks and weights
-    biome_weights = {}
-    for bkey, binfo in BIOMES.items():
-        lat_2d = np.broadcast_to(lat[:, None], wet.shape)
-        bmask = (lat_2d >= binfo["lat_min"]) & (lat_2d < binfo["lat_max"]) & wet
-        bw = np.where(bmask, np.broadcast_to(cos_lat[:, None], wet.shape), 0.0)
-        bw_sum = bw.sum()
-        biome_weights[bkey] = bw / bw_sum if bw_sum > 0 else bw
-        print(f"  Biome '{bkey}': {bmask.sum():,} cells")
-
-    n_ml_times = ml_members[0].sizes["time"]
-    n_gt_times = gt_sliced.sizes["time"]
-    n_times = min(n_ml_times, n_gt_times)
-
-    ml_ts = {}   # (var_key, biome_key) -> (n_members, n_times)
-    gt_ts = {}   # (var_key, biome_key) -> (n_times,)
-
-    for vkey, info in DEPTH_RANGES.items():
-        print(f"\n  Loading {info['label']}...")
-        t0 = time.time()
-
-        # Ground truth
-        gt_band = load_ml_depth_band(gt_sliced, info)[:n_times]
-        gt_disp = to_display(gt_band, vkey)
-
-        for bkey, bw in biome_weights.items():
-            gt_ts[(vkey, bkey)] = np.nansum(gt_disp * bw[None], axis=(1, 2))
-
-        print(f"    GT loaded ({time.time()-t0:.1f}s)")
-
-        # ML ensemble members
-        member_ts_all = {bkey: [] for bkey in BIOMES}
-        for i, ds in enumerate(ml_members):
-            arr = load_ml_depth_band(ds, info)[:n_times]
-            arr_disp = to_display(arr, vkey)
-            for bkey, bw in biome_weights.items():
-                member_ts_all[bkey].append(np.nansum(arr_disp * bw[None], axis=(1, 2)))
-            print(f"    ML member {i} ({time.time()-t0:.1f}s)")
-
-        for bkey in BIOMES:
-            ml_ts[(vkey, bkey)] = np.stack(member_ts_all[bkey], axis=0)
-
-    return ml_ts, gt_ts, n_times
-
-
-def compute_phys_biome_timeseries(lat, wet):
-    """Compute biome-averaged time series for physical ensemble.
-
-    Returns phys_ts: dict (var_key, biome_key) -> (n_members, n_times) and
-            phys_times: time coordinate array.
-    """
+def build_biome_weights(lat, wet):
     cos_lat = np.cos(np.deg2rad(lat))
     biome_weights = {}
     for bkey, binfo in BIOMES.items():
@@ -379,354 +212,517 @@ def compute_phys_biome_timeseries(lat, wet):
         bw = np.where(bmask, np.broadcast_to(cos_lat[:, None], wet.shape), 0.0)
         bw_sum = bw.sum()
         biome_weights[bkey] = bw / bw_sum if bw_sum > 0 else bw
-
-    phys_ts = {}
-    phys_times = None
-
-    for vkey, info in DEPTH_RANGES.items():
-        print(f"\n  Loading physical {info['label']}...")
-        t0 = time.time()
-
-        member_ts_all = {bkey: [] for bkey in BIOMES}
-
-        for ens_name in NUMERICAL_MEMBERS:
-            member_dir = NUMERICAL_BASE_DIR / ens_name
-            if not member_dir.exists():
-                continue
-
-            arr = load_numerical_depth_band(member_dir, info, years=NUMERICAL_YEARS)
-            if arr is None:
-                continue
-
-            # Convert to display units
-            arr_disp = to_display(arr, vkey)
-            # Apply wet mask
-            arr_disp[:, ~wet] = np.nan
-
-            for bkey, bw in biome_weights.items():
-                member_ts_all[bkey].append(np.nansum(arr_disp * bw[None], axis=(1, 2)))
-
-            print(f"    {ens_name} loaded ({time.time()-t0:.1f}s)")
-
-        for bkey in BIOMES:
-            if member_ts_all[bkey]:
-                phys_ts[(vkey, bkey)] = np.stack(member_ts_all[bkey], axis=0)
-
-    return phys_ts
+    return biome_weights
 
 
-def plot_panel_b(ml_ts, gt_ts, phys_ts, ml_times_plot, phys_times_plot):
-    """Plot biome time series: 2 rows (temp, dic) × 4 cols (biomes)."""
-    var_keys = list(DEPTH_RANGES.keys())
-    n_vars = len(var_keys)
-    n_biomes = len(BIOMES)
+# =============================================================================
+# DEPTH-WEIGHTED MEAN
+# =============================================================================
+def _depth_weighted_mean(arr_tlyx, levels):
+    dz = np.array([DEPTH_THICKNESS[i] for i in levels], dtype=np.float64)
+    sub = arr_tlyx[:, levels, :, :].astype(np.float64)
+    return (sub * dz[None, :, None, None]).sum(axis=1) / dz.sum()
 
-    fig, axes = plt.subplots(
-        n_vars, n_biomes,
-        figsize=(5.0 * n_biomes, 3.0 * n_vars),
-        sharex=True,
-        gridspec_kw={"hspace": 0.15, "wspace": 0.32},
+
+# =============================================================================
+# ML ENSEMBLE LOADING
+# =============================================================================
+def load_ml_member_var(pred_zarr_path, pca_var, mask_3d, vc: VarConfig):
+    store = zarr.open(str(pred_zarr_path), mode="r")
+    n_time = store[f"{vc.pc_prefix}_0"].shape[0]
+
+    coeffs = np.stack(
+        [store[f"{vc.pc_prefix}_{c}"][:] for c in range(N_COMPONENTS)],
+        axis=1,
     )
 
-    for col, (bkey, binfo) in enumerate(BIOMES.items()):
-        for row, vkey in enumerate(var_keys):
-            info = DEPTH_RANGES[vkey]
-            ax = axes[row, col]
+    recon = inverse_transform(coeffs, pca_var, mask_3d).astype(np.float64)
 
-            # Ground truth
-            gt = gt_ts[(vkey, bkey)]
-            ax.plot(ml_times_plot[:len(gt)], gt, color="k", lw=1.0, label="DG-MOM6-COBALTv2")
+    if vc.log_transform:
+        out = np.exp(recon) - EPSILON
+    else:
+        out = recon.copy()
 
-            # ML ensemble
-            ml = ml_ts[(vkey, bkey)]
-            ml_mean = ml.mean(axis=0)
-            ml_std = ml.std(axis=0)
-            ax.plot(ml_times_plot[:len(ml_mean)], ml_mean, color="navy", lw=1.0, label="ML Ensemble")
-            ax.fill_between(ml_times_plot[:len(ml_mean)],
-                            ml_mean - ml_std, ml_mean + ml_std,
-                            color="steelblue", alpha=0.25)
+    for lev in range(out.shape[1]):
+        out[:, lev][..., ~mask_3d[lev]] = np.nan
 
-            # Physical ensemble
-            if (vkey, bkey) in phys_ts:
-                ph = phys_ts[(vkey, bkey)]
-                ph_mean = ph.mean(axis=0)
-                ph_std = ph.std(axis=0)
-                ax.plot(phys_times_plot[:len(ph_mean)], ph_mean,
-                        color="firebrick", lw=1.0, label="Physical Ensemble")
-                ax.fill_between(phys_times_plot[:len(ph_mean)],
-                                ph_mean - ph_std, ph_mean + ph_std,
-                                color="salmon", alpha=0.25)
+    band = _depth_weighted_mean(out, vc.levels) * vc.scale_factor
+    if vc.clip_min is not None:
+        band = np.where(band < vc.clip_min, vc.clip_min, band)
+    band[:, ~mask_3d[0]] = np.nan
 
-                # Spread ratio annotation
-                # Align to common time range for ratio computation
-                n_common = min(len(ml_std), len(ph_std))
-                if n_common > 0:
-                    ml_std_common = ml_std[:n_common]
-                    ph_std_common = ph_std[:n_common]
-                    # Avoid division by zero
-                    valid = ph_std_common > 0
-                    if valid.any():
-                        ratio = np.mean(ml_std_common[valid] / ph_std_common[valid])
-                        ax.text(0.02, 0.08, f"σ ratio={ratio:.2f}",
-                                transform=ax.transAxes, fontsize=10, ha="left", va="bottom",
-                                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
+    del coeffs, recon, out
+    return band.astype(np.float32)
 
-            # Formatting
-            if row == 0:
-                ax.set_title(binfo["label"], fontsize=12, fontweight="bold", color=binfo["color"])
-            if col == 0:
-                ax.set_ylabel(f"{info['label']}\n({info['units']})", fontsize=11)
-            if row == n_vars - 1:
-                ax.xaxis.set_major_locator(mdates.YearLocator())
-                ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-                ax.tick_params(axis="x", rotation=0, labelsize=11)
-            ax.grid(True, alpha=0.15, lw=0.7)
-            ax.tick_params(labelsize=10)
 
-    # Sync y-limits across biome columns
-    for row in range(n_vars):
-        ymin = min(axes[row, c].get_ylim()[0] for c in range(n_biomes))
-        ymax = max(axes[row, c].get_ylim()[1] for c in range(n_biomes))
-        margin = 0.10 * (ymax - ymin)
-        for c in range(n_biomes):
-            axes[row, c].set_ylim(ymin - margin, ymax + margin)
+def load_ml_ensemble_var(pca_params, mask_3d, vc: VarConfig):
+    pca_var = pca_params[vc.pca_var_key]
 
-    # Legend
-    fig.legend(
-        handles=[
-            Line2D([0], [0], color="k", lw=1.4, label="DG-MOM6-COBALTv2"),
-            Line2D([0], [0], color="navy", lw=1.4, label="ML Ensemble"),
-            Line2D([0], [0], color="firebrick", lw=1.4, label="Physical Ensemble"),
-        ],
-        loc="upper center", ncol=3, fontsize=11, frameon=False, bbox_to_anchor=(0.5, 1.01))
+    first_pred = ML_ENSEMBLE_DIR / f"ensemble_{ML_MEMBER_IDS[0]:03d}" / "predictions.zarr"
+    ds0 = xr.open_zarr(str(first_pred), consolidated=False)
+    ml_times_dt = [datetime.datetime(t.year, t.month, t.day) for t in ds0.time.values]
 
-    return fig
+    def _load(mid):
+        pred = ML_ENSEMBLE_DIR / f"ensemble_{mid:03d}" / "predictions.zarr"
+        if not pred.exists():
+            print(f"    MISSING: ensemble_{mid:03d}", flush=True)
+            return None
+        t0 = time.time()
+        out = load_ml_member_var(pred, pca_var, mask_3d, vc)
+        print(f"    ML ensemble_{mid:03d} [{vc.key}] done ({time.time() - t0:.1f}s)", flush=True)
+        return out
+
+    max_workers = min(len(ML_MEMBER_IDS), max(2, _n_workers // 4))
+    print(f"  Loading {len(ML_MEMBER_IDS)} ML members for {vc.key} (max {max_workers} concurrent)...")
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        results = list(ex.map(_load, ML_MEMBER_IDS))
+
+    results = [r for r in results if r is not None]
+    print(f"  ML members loaded: {len(results)}")
+
+    stack = np.stack(results, axis=0)
+    return stack, ml_times_dt
 
 
 # =============================================================================
-# COMBINED FIGURE
+# GT LOADING
 # =============================================================================
+def load_gt_var(gt_store, idx_2015, wet, vc: VarConfig):
+    dz = np.array([DEPTH_THICKNESS[i] for i in vc.levels], dtype=np.float64)
+    total_dz = dz.sum()
 
-def plot_fig05(ml_spreads, phys_spreads, ml_ts, gt_ts, phys_ts,
-               lat, lon, wet, ml_times_plot, phys_times_plot):
-    """Combined 2-row figure: (a) spatial spread maps, (b) biome time series."""
-    var_keys = list(DEPTH_RANGES.keys())
-    n_biomes = len(BIOMES)
+    band = None
+    for j, lev in enumerate(vc.levels):
+        data = gt_store[f"{vc.gt_prefix}_{lev}"][idx_2015].astype(np.float64)
+        data[data == 0] = np.nan
+        if band is None:
+            band = np.zeros_like(data)
+        band += data * dz[j]
 
-    fig = plt.figure(figsize=(20, 18))
-    gs = GridSpec(2, 1, figure=fig, height_ratios=[1, 1], hspace=0.28,
-                  left=0.06, right=0.94, top=0.94, bottom=0.05)
+    band = (band / total_dz) * vc.scale_factor
+    if vc.clip_min is not None:
+        band = np.where(band < vc.clip_min, vc.clip_min, band)
+    band[:, ~wet] = np.nan
 
-    # ── Panel (a): Spatial spread maps ──
-    gs_a = GridSpecFromSubplotSpec(2, 2, subplot_spec=gs[0], hspace=0.25, wspace=0.15)
-    cmaps = ["YlOrRd", "YlOrRd"]
+    return band.astype(np.float32)
 
-    for row, vkey in enumerate(var_keys):
-        info = DEPTH_RANGES[vkey]
-        ml_sp = to_display(ml_spreads[vkey], vkey)
-        ph_sp = to_display(phys_spreads[vkey], vkey)
-        ml_masked = np.where(wet, ml_sp, np.nan)
-        ph_masked = np.where(wet, ph_sp, np.nan)
-        vmax = max(np.nanpercentile(ml_masked, 98), np.nanpercentile(ph_masked, 98))
 
-        for col, (data, title_prefix) in enumerate([
-            (ml_masked, "ML Ensemble"),
-            (ph_masked, "Physical Ensemble"),
-        ]):
-            ax = fig.add_subplot(gs_a[row, col])
-            im = ax.pcolormesh(lon, lat, data, vmin=0, vmax=vmax,
-                               cmap=cmaps[row], shading="auto")
-            ax.set_aspect("equal")
-            ax.set_facecolor("#cccccc")
-            if col == 0:
-                ax.set_ylabel("Latitude (°N)", fontsize=11)
-            else:
-                ax.tick_params(labelleft=False)
-            if row == 0:
-                ax.set_title(f"{title_prefix}", fontsize=12, fontweight="bold")
-            if row == 1:
-                ax.set_xlabel("Longitude (°E)", fontsize=11)
-            ax.tick_params(labelsize=10)
+# =============================================================================
+# PHYSICAL ENSEMBLE LOADING
+# =============================================================================
+def _load_phys_member_var(member_dir, wet, vc: VarConfig):
+    dz = np.array([DEPTH_THICKNESS[i] for i in vc.levels], dtype=np.float64)
+    total_dz = dz.sum()
 
-            # Row label
-            if col == 0:
-                ax.annotate(
-                    info["label"], xy=(-0.18, 0.5), xycoords="axes fraction",
-                    fontsize=11, fontweight="bold", ha="center", va="center", rotation=90)
+    parts = []
+    for month in range(1, 13):
+        fp = member_dir / PHYSICAL_FILE_PATTERN.format(year=YEAR, month=month)
+        if not fp.exists():
+            continue
+        try:
+            ds = xr.open_dataset(fp, decode_timedelta=False)
+        except Exception as e:
+            print(f"    WARN {fp}: {e}", flush=True)
+            continue
 
-        # Colorbar spanning both columns
-        cbar_ax = fig.add_axes([0.95, 0.72 - row * 0.22, 0.012, 0.18])
-        cbar = fig.colorbar(im, cax=cbar_ax, extend="max")
-        cbar.set_label(f"σ ({info['units']})", fontsize=10)
-        cbar.ax.tick_params(labelsize=9)
+        z_l = ds[vc.phys_var].z_l.values
+        o_var = ds[vc.phys_var]
+        result = None
+        for j, lev in enumerate(vc.levels):
+            phys_idx = int(np.argmin(np.abs(z_l - DEPTH_CENTERS[lev])))
+            layer = o_var.isel(z_l=phys_idx).values.astype(np.float64)
+            layer[layer == 0] = np.nan
+            if result is None:
+                result = np.zeros_like(layer)
+            result += layer * dz[j]
+        ds.close()
+        if result is not None:
+            parts.append(result / total_dz)
 
-    # Panel label
-    fig.text(0.06, 0.96, "(a) Ensemble spread after 5 years (Dec 2019)",
-             fontsize=14, fontweight="bold", va="top")
+    if not parts:
+        return None
 
-    # ── Panel (b): Biome time series ──
-    gs_b = GridSpecFromSubplotSpec(2, n_biomes, subplot_spec=gs[1],
-                                   hspace=0.15, wspace=0.32)
+    arr = np.concatenate(parts, axis=0) * vc.scale_factor
+    if vc.clip_min is not None:
+        arr = np.where(arr < vc.clip_min, vc.clip_min, arr)
+    arr[:, ~wet] = np.nan
 
-    all_axes_b = np.empty((2, n_biomes), dtype=object)
-    for col, (bkey, binfo) in enumerate(BIOMES.items()):
-        for row, vkey in enumerate(var_keys):
-            info = DEPTH_RANGES[vkey]
-            ax = fig.add_subplot(gs_b[row, col])
-            all_axes_b[row, col] = ax
+    return arr.astype(np.float32)
 
-            # Ground truth
-            gt = gt_ts[(vkey, bkey)]
-            ax.plot(ml_times_plot[:len(gt)], gt, color="k", lw=1.0)
 
-            # ML ensemble
-            ml = ml_ts[(vkey, bkey)]
-            ml_mean = ml.mean(axis=0)
-            ml_std = ml.std(axis=0)
-            ax.plot(ml_times_plot[:len(ml_mean)], ml_mean, color="navy", lw=1.0)
-            ax.fill_between(ml_times_plot[:len(ml_mean)],
-                            ml_mean - ml_std, ml_mean + ml_std,
-                            color="steelblue", alpha=0.25)
+def load_physical_ensemble_var(wet, vc: VarConfig):
+    t0 = time.time()
 
-            # Physical ensemble
-            if (vkey, bkey) in phys_ts:
-                ph = phys_ts[(vkey, bkey)]
-                ph_mean = ph.mean(axis=0)
-                ph_std = ph.std(axis=0)
-                ax.plot(phys_times_plot[:len(ph_mean)], ph_mean, color="firebrick", lw=1.0)
-                ax.fill_between(phys_times_plot[:len(ph_mean)],
-                                ph_mean - ph_std, ph_mean + ph_std,
-                                color="salmon", alpha=0.25)
+    def _load_one(ens_name):
+        md = PHYSICAL_BASE_DIR / ens_name
+        if not md.exists():
+            print(f"    MISSING: {md}", flush=True)
+            return None
+        out = _load_phys_member_var(md, wet, vc)
+        if out is None:
+            return None
+        print(f"    Physical {ens_name} [{vc.key}] loaded", flush=True)
+        return ens_name, out
 
-                # Spread ratio
-                n_common = min(len(ml_std), len(ph_std))
-                if n_common > 0:
-                    valid = ph_std[:n_common] > 0
-                    if valid.any():
-                        ratio = np.mean(ml_std[:n_common][valid] / ph_std[:n_common][valid])
-                        ax.text(0.02, 0.08, f"σ ratio={ratio:.2f}",
-                                transform=ax.transAxes, fontsize=10, ha="left", va="bottom",
-                                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
+    max_workers = min(len(PHYSICAL_MEMBERS), max(2, _n_workers // 4))
+    print(f"  Loading {len(PHYSICAL_MEMBERS)} physical members for {vc.key} "
+          f"(max {max_workers} concurrent)...")
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        results = list(ex.map(_load_one, PHYSICAL_MEMBERS))
 
-            if row == 0:
-                ax.set_title(binfo["label"], fontsize=12, fontweight="bold", color=binfo["color"])
-            if col == 0:
-                ax.set_ylabel(f"{info['label']}\n({info['units']})", fontsize=11)
-            if row == 1:
-                ax.xaxis.set_major_locator(mdates.YearLocator())
-                ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-                ax.tick_params(axis="x", rotation=0, labelsize=11)
-            else:
-                ax.tick_params(labelbottom=False)
-            ax.grid(True, alpha=0.15, lw=0.7)
-            ax.tick_params(labelsize=10)
+    results = [r for r in results if r is not None]
+    results.sort(key=lambda r: r[0])
+    print(f"  Physical members loaded: {len(results)} ({time.time() - t0:.1f}s)")
 
-    # Sync y-limits
-    for row in range(2):
-        ymin = min(all_axes_b[row, c].get_ylim()[0] for c in range(n_biomes))
-        ymax = max(all_axes_b[row, c].get_ylim()[1] for c in range(n_biomes))
-        margin = 0.10 * (ymax - ymin)
-        for c in range(n_biomes):
-            all_axes_b[row, c].set_ylim(ymin - margin, ymax + margin)
+    if results:
+        stack = np.stack([r[1] for r in results])
+    else:
+        stack = np.full((0, wet.shape[0], wet.shape[1], 365), np.nan, dtype=np.float32)
 
-    # Panel label and legend
-    fig.text(0.06, 0.48, "(b) Biome-averaged time series (2015–2019)",
-             fontsize=14, fontweight="bold", va="top")
+    month_lens = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    phys_times_dt = [
+        datetime.datetime(YEAR, m, d)
+        for m, nd in enumerate(month_lens, start=1)
+        for d in range(1, nd + 1)
+    ]
+    return stack, phys_times_dt
 
-    fig.legend(
-        handles=[
-            Line2D([0], [0], color="k", lw=1.4, label="DG-MOM6-COBALTv2"),
-            Line2D([0], [0], color="navy", lw=1.4, label="ML Ensemble"),
-            Line2D([0], [0], color="firebrick", lw=1.4, label="Physical Ensemble"),
-        ],
-        loc="upper center", ncol=3, fontsize=11, frameon=False,
-        bbox_to_anchor=(0.5, 0.485))
 
-    fig.suptitle("Figure 5 — ML Ensemble vs Physical Ensemble",
-                 fontsize=16, fontweight="bold")
-    return fig
+# =============================================================================
+# TIME SERIES EXTRACTION
+# =============================================================================
+def extract_probe_ts(stack, probe_indices):
+    return {pkey: stack[:, :, ilat, ilon] for pkey, (ilat, ilon) in probe_indices.items()}
+
+
+def extract_biome_ts(stack, biome_weights):
+    out = {}
+    for bkey, bw in biome_weights.items():
+        weighted = stack * bw[None, None, :, :]
+        out[bkey] = np.nansum(weighted, axis=(2, 3))
+    return out
+
+
+def bias_correct_to_gt(ts_2d, gt_mean):
+    if ts_2d.size == 0:
+        return ts_2d
+    return ts_2d - np.nanmean(ts_2d, axis=1, keepdims=True) + gt_mean
+
+
+# =============================================================================
+# PLOTTING
+# =============================================================================
+mpl.rcParams.update({
+    "font.family": "sans-serif",
+    "font.size": 16,
+    "axes.labelsize": 15,
+    "axes.titlesize": 17,
+    "xtick.labelsize": 13,
+    "ytick.labelsize": 13,
+    "legend.fontsize": 13,
+    "figure.dpi": 150,
+    "savefig.dpi": 300,
+    "savefig.bbox": "tight",
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "axes.linewidth": 1.2,
+})
+
+
+def _plot_maps_row(fig, gs_row, lat, lon, phys_spread, ml_spread, n_phys, n_ml,
+                   vc, vmax, probe_indices=None):
+    row = gs_row.subgridspec(1, 3, width_ratios=[1.0, 1.0, 0.06], wspace=0.18)
+    ax_phys = fig.add_subplot(row[0, 0])
+    ax_ml = fig.add_subplot(row[0, 1])
+    cax = fig.add_subplot(row[0, 2])
+
+    for ax, spread, title in [
+        (ax_phys, phys_spread, f"(a) Physical Ensembles (n={n_phys})"),
+        (ax_ml, ml_spread, f"(b) SamudraBGC Ensembles (n={n_ml})"),
+    ]:
+        im = ax.pcolormesh(lon, lat, spread, vmin=0.0, vmax=vmax,
+                           cmap="cividis", shading="auto")
+        ax.set_aspect("equal")
+        ax.set_facecolor("#cccccc")
+        ax.set_title(title, fontsize=17, fontweight="bold", pad=10)
+        ax.set_xlabel("Longitude (°E)", fontsize=15)
+        ax.tick_params(labelsize=13)
+
+        if probe_indices is not None:
+            for pkey, (ilat, ilon) in probe_indices.items():
+                ax.plot(lon[ilon], lat[ilat], marker="o",
+                        mfc="white", mec="k", ms=8, mew=1.4, zorder=10)
+
+    ax_phys.set_ylabel("Latitude (°N)", fontsize=15)
+
+    cbar = fig.colorbar(im, cax=cax, extend="max")
+    cbar.set_label(f"Spread σ ({vc.units})", fontsize=15)
+    cbar.ax.tick_params(labelsize=13)
+
+    return ax_phys, ax_ml
+
+
+def _plot_fan_chart(ax, ml_arr, phys_arr, gt_ts, ml_times, phys_times, gt_times, title):
+    gt_mean = float(np.nanmean(gt_ts))
+    phys_arr_bc = bias_correct_to_gt(phys_arr, gt_mean)
+
+    if ml_arr.size and ml_arr.shape[0] > 0:
+        t_ml = ml_times[:ml_arr.shape[1]]
+        ml_mean = np.nanmean(ml_arr, axis=0)
+        ml_std = np.nanstd(ml_arr, axis=0)
+        ax.fill_between(t_ml, np.nanmin(ml_arr, axis=0), np.nanmax(ml_arr, axis=0),
+                        color=ML_ENVELOPE_COLOR, alpha=0.20, lw=0, zorder=2)
+        ax.fill_between(t_ml, ml_mean - ml_std, ml_mean + ml_std,
+                        color=ML_MEAN_COLOR, alpha=0.35, lw=0, zorder=3)
+        ax.plot(t_ml, ml_mean, color=ML_MEAN_COLOR, lw=2.0, zorder=5)
+
+    if phys_arr_bc.size and phys_arr_bc.shape[0] > 0:
+        t_ph = phys_times[:phys_arr_bc.shape[1]]
+        ph_mean = np.nanmean(phys_arr_bc, axis=0)
+        ph_std = np.nanstd(phys_arr_bc, axis=0)
+        ax.fill_between(t_ph, np.nanmin(phys_arr_bc, axis=0), np.nanmax(phys_arr_bc, axis=0),
+                        color=PHYS_ENVELOPE_COLOR, alpha=0.22, lw=0, zorder=2)
+        ax.fill_between(t_ph, ph_mean - ph_std, ph_mean + ph_std,
+                        color=PHYS_MEAN_COLOR, alpha=0.38, lw=0, zorder=3)
+        ax.plot(t_ph, ph_mean, color=PHYS_MEAN_COLOR, lw=2.0, zorder=5)
+
+    ax.plot(gt_times[:len(gt_ts)], gt_ts, color=GT_COLOR, lw=2.0, zorder=6)
+    ax.set_title(title, fontsize=17, fontweight="bold", pad=10)
+    ax.xaxis.set_major_locator(mdates.MonthLocator(bymonth=[1, 4, 7, 10]))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
+    ax.tick_params(labelsize=13)
+    ax.grid(True, alpha=0.15, lw=0.7)
+
+
+def plot_pointwise_figure(
+    ml_stack, phys_stack, gt_field,
+    ml_times, phys_times, gt_times,
+    lat, lon, wet, probe_indices,
+    vc: VarConfig, output_path,
+):
+    dec_slice = slice(-DEC_DAYS, None)
+    ml_dec = np.nanmean(ml_stack[:, dec_slice, :, :], axis=1)
+    phys_dec = np.nanmean(phys_stack[:, dec_slice, :, :], axis=1)
+
+    ml_spread = np.nanstd(ml_dec, axis=0)
+    phys_spread = np.nanstd(phys_dec, axis=0)
+
+    finite = np.concatenate([
+        ml_spread[np.isfinite(ml_spread)],
+        phys_spread[np.isfinite(phys_spread)],
+    ])
+    vmax = float(np.nanpercentile(finite, 98)) if finite.size else 1.0
+
+    ml_probe_ts = extract_probe_ts(ml_stack, probe_indices)
+    phys_probe_ts = extract_probe_ts(phys_stack, probe_indices)
+    gt_probe_ts = {pkey: gt_field[:, ilat, ilon] for pkey, (ilat, ilon) in probe_indices.items()}
+
+    fig = plt.figure(figsize=(14, 10))
+    outer_gs = GridSpec(
+        2, 1, figure=fig,
+        height_ratios=[1.15, 1.0],
+        hspace=0.38,
+        left=0.06, right=0.95, top=0.93, bottom=0.22,
+    )
+
+    _plot_maps_row(fig, outer_gs[0], lat, lon, phys_spread, ml_spread,
+                   phys_stack.shape[0], ml_stack.shape[0], vc, vmax,
+                   probe_indices=probe_indices)
+
+    panel_labels = ["(c)", "(d)", "(e)"]
+    row2 = outer_gs[1].subgridspec(1, 3, wspace=0.30)
+
+    for col, pkey in enumerate(["subtropical", "jet", "subpolar"]):
+        ax = fig.add_subplot(row2[0, col])
+        pinfo = PROBES[pkey]
+        ilat, ilon = probe_indices[pkey]
+
+        _plot_fan_chart(
+            ax, ml_probe_ts[pkey], phys_probe_ts[pkey], gt_probe_ts[pkey],
+            ml_times, phys_times, gt_times,
+            f"{panel_labels[col]} {pinfo['label']} ({lat[ilat]:.1f}°N, {lon[ilon]:.1f}°E)",
+        )
+        if col == 0:
+            ax.set_ylabel(f"{vc.label} ({vc.units})", fontsize=15)
+
+    n_ml = ml_stack.shape[0]
+    n_ph = phys_stack.shape[0]
+    legend_handles = [
+        Patch(facecolor=ML_ENVELOPE_COLOR, alpha=0.35, label=f"SamudraBGC Ensembles min–max (n={n_ml})"),
+        Patch(facecolor=ML_MEAN_COLOR, alpha=0.55, label="SamudraBGC Ensembles ±1σ"),
+        Line2D([0], [0], color=ML_MEAN_COLOR, lw=2.0, label="SamudraBGC Ensembles mean"),
+        Patch(facecolor=PHYS_ENVELOPE_COLOR, alpha=0.40, label=f"Physical Ensembles min–max (n={n_ph})"),
+        Patch(facecolor=PHYS_MEAN_COLOR, alpha=0.60, label="Physical Ensembles ±1σ"),
+        Line2D([0], [0], color=PHYS_MEAN_COLOR, lw=2.0, label="Physical Ensembles mean"),
+        Line2D([0], [0], color=GT_COLOR, lw=2.0, label="Ground Truth"),
+    ]
+    fig.legend(handles=legend_handles, loc="upper center",
+               bbox_to_anchor=(0.5, 0.14), ncol=4, fontsize=11, framealpha=0.90)
+
+    fig.suptitle(
+        f"{vc.label} — ensemble spread and pointwise trajectories ({YEAR})",
+        fontsize=18, fontweight="bold", y=0.995,
+    )
+
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    print(f"Wrote: {output_path}")
+    plt.close(fig)
+
+
+def plot_biomes_figure(
+    ml_stack, phys_stack, gt_field,
+    ml_times, phys_times, gt_times,
+    lat, lon, wet, probe_indices, biome_weights,
+    vc: VarConfig, output_path,
+):
+    dec_slice = slice(-DEC_DAYS, None)
+    ml_dec = np.nanmean(ml_stack[:, dec_slice, :, :], axis=1)
+    phys_dec = np.nanmean(phys_stack[:, dec_slice, :, :], axis=1)
+
+    ml_spread = np.nanstd(ml_dec, axis=0)
+    phys_spread = np.nanstd(phys_dec, axis=0)
+
+    finite = np.concatenate([
+        ml_spread[np.isfinite(ml_spread)],
+        phys_spread[np.isfinite(phys_spread)],
+    ])
+    vmax = float(np.nanpercentile(finite, 98)) if finite.size else 1.0
+
+    ml_biome_ts = extract_biome_ts(ml_stack, biome_weights)
+    phys_biome_ts = extract_biome_ts(phys_stack, biome_weights)
+    gt_biome_ts = {bkey: np.nansum(gt_field * bw[None, :, :], axis=(1, 2))
+                   for bkey, bw in biome_weights.items()}
+
+    fig = plt.figure(figsize=(16, 10))
+    outer_gs = GridSpec(
+        2, 1, figure=fig,
+        height_ratios=[1.0, 1.0],
+        hspace=0.40,
+        left=0.05, right=0.95, top=0.93, bottom=0.18,
+    )
+
+    _plot_maps_row(fig, outer_gs[0], lat, lon, phys_spread, ml_spread,
+                   phys_stack.shape[0], ml_stack.shape[0], vc, vmax)
+
+    panel_labels = ["(c)", "(d)", "(e)", "(f)"]
+    row2 = outer_gs[1].subgridspec(1, 4, wspace=0.28)
+
+    for col, bkey in enumerate(["subtropical", "jet", "subpolar", "domain"]):
+        ax = fig.add_subplot(row2[0, col])
+        binfo = BIOMES[bkey]
+
+        _plot_fan_chart(
+            ax, ml_biome_ts[bkey], phys_biome_ts[bkey], gt_biome_ts[bkey],
+            ml_times, phys_times, gt_times,
+            f"{panel_labels[col]} {binfo['label']}",
+        )
+        if col == 0:
+            ax.set_ylabel(f"{vc.label} ({vc.units})", fontsize=15)
+
+    n_ml = ml_stack.shape[0]
+    n_ph = phys_stack.shape[0]
+    legend_handles = [
+        Patch(facecolor=ML_ENVELOPE_COLOR, alpha=0.35, label=f"SamudraBGC Ensembles min–max (n={n_ml})"),
+        Patch(facecolor=ML_MEAN_COLOR, alpha=0.55, label="SamudraBGC Ensembles ±1σ"),
+        Line2D([0], [0], color=ML_MEAN_COLOR, lw=2.0, label="SamudraBGC Ensembles mean"),
+        Patch(facecolor=PHYS_ENVELOPE_COLOR, alpha=0.40, label=f"Physical Ensembles min–max (n={n_ph})"),
+        Patch(facecolor=PHYS_MEAN_COLOR, alpha=0.60, label="Physical Ensembles ±1σ"),
+        Line2D([0], [0], color=PHYS_MEAN_COLOR, lw=2.0, label="Physical Ensembles mean"),
+        Line2D([0], [0], color=GT_COLOR, lw=2.0, label="Ground Truth"),
+    ]
+    fig.legend(handles=legend_handles, loc="upper center",
+               bbox_to_anchor=(0.5, 0.10), ncol=4, fontsize=11, framealpha=0.90)
+
+    fig.suptitle(
+        f"{vc.label} — ensemble spread and biome-averaged trajectories ({YEAR})",
+        fontsize=18, fontweight="bold", y=0.995,
+    )
+
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    print(f"Wrote: {output_path}")
+    plt.close(fig)
 
 
 # =============================================================================
 # MAIN
 # =============================================================================
-
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    t_total = time.time()
 
-    print("=" * 70)
-    print("FIGURE 5: ML ENSEMBLE vs PHYSICAL ENSEMBLE")
-    print("=" * 70)
-    print(f"Start: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=== Loading GT + masks (shared) ===")
+    gt_store, lat, lon, wet, idx_2015, gt_times_dt = load_gt_and_mask()
+    n_lat, n_lon = lat.shape[0], lon.shape[0]
+    mask_3d = build_mask_3d(gt_store, n_levels=50, n_lat=n_lat, n_lon=n_lon)
+    probe_indices = build_probe_indices(lat, lon, wet)
+    biome_weights = build_biome_weights(lat, wet)
 
-    # ── Load ML ensemble ──
-    print("\n── Loading ML ensemble ──")
-    ml_members = load_ml_ensemble()
-    n_ml_times = ml_members[0].sizes["time"]
-    lat = ml_members[0].lat.values
-    lon = ml_members[0].lon.values
+    for pkey, (ilat, ilon) in probe_indices.items():
+        print(f"  Probe {pkey}: lat={lat[ilat]:.2f} lon={lon[ilon]:.2f}")
 
-    # ── Load ground truth ──
-    print("\n── Loading ground truth ──")
-    gt_ds, gt_sliced = load_ground_truth(n_times=n_ml_times)
-    mask = gt_ds.mask.values
-    wet = mask > 0.5
+    print("\n=== Loading PCA params (shared) ===")
+    pca_params = load_pca_params(PCA_PARAMS_PATH)
 
-    # ── Panel (a): Spatial spread maps ──
-    print("\n── Computing spatial spread maps (Panel a) ──")
-    ml_spreads, phys_spreads = {}, {}
-    for vkey, info in DEPTH_RANGES.items():
-        ml_spreads[vkey] = compute_ml_spread_maps(ml_members, info)
-        phys_spreads[vkey] = compute_phys_spread_maps(info)
+    month_lens = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    phys_times_dt = [
+        datetime.datetime(YEAR, m, d)
+        for m, nd in enumerate(month_lens, start=1)
+        for d in range(1, nd + 1)
+    ]
 
-    # Save standalone panel (a)
-    print("\n── Plotting Panel (a) ──")
-    fig_a = plot_panel_a(ml_spreads, phys_spreads, lat, lon, wet)
-    fig_a.suptitle("(a) Ensemble Spread After 5 Years (Dec 2019)", fontsize=14, fontweight="bold")
-    out_a = OUTPUT_DIR / "fig05_panel_a.png"
-    fig_a.savefig(out_a, dpi=300, bbox_inches="tight")
-    plt.close(fig_a)
-    print(f"  Saved {out_a}")
+    for vc in VARIABLES:
+        print(f"\n{'=' * 60}")
+        print(f"  Variable: {vc.key}")
+        print(f"{'=' * 60}")
 
-    # ── Panel (b): Biome time series ──
-    print("\n── Computing biome time series (Panel b) ──")
-    ml_ts, gt_ts, n_times = compute_biome_timeseries(ml_members, gt_sliced, lat, wet)
+        cache_path = OUTPUT_DIR / f"_cache_{vc.key}.pkl"
 
-    print("\n── Loading physical ensemble time series ──")
-    phys_ts = compute_phys_biome_timeseries(lat, wet)
+        if cache_path.exists():
+            print("  Loading from cache...")
+            with open(cache_path, "rb") as f:
+                cached = pickle.load(f)
+            ml_stack = cached["ml_stack"]
+            phys_stack = cached["phys_stack"]
+            gt_field = cached["gt_field"]
+            ml_times_dt = cached["ml_times"]
+        else:
+            print(f"  Loading GT {vc.key}...")
+            gt_field = load_gt_var(gt_store, idx_2015, wet, vc)
 
-    # Build time axes
-    ml_pred_times = ml_members[0].time.values
-    ml_times_plot = [datetime.datetime(t.year, t.month, t.day) for t in ml_pred_times]
+            print(f"  Loading ML ensemble {vc.key}...")
+            ml_stack, ml_times_dt = load_ml_ensemble_var(pca_params, mask_3d, vc)
 
-    # Physical time axis: daily data for 5 years
-    # Build from year/month structure (daily within each monthly file)
-    phys_n = max(ph.shape[1] for ph in phys_ts.values()) if phys_ts else 0
-    phys_start = datetime.datetime(2015, 1, 1)
-    phys_times_plot = [phys_start + datetime.timedelta(days=d) for d in range(phys_n)]
+            print(f"  Loading physical ensemble {vc.key}...")
+            phys_stack, _ = load_physical_ensemble_var(wet, vc)
 
-    # Save standalone panel (b)
-    print("\n── Plotting Panel (b) ──")
-    fig_b = plot_panel_b(ml_ts, gt_ts, phys_ts, ml_times_plot, phys_times_plot)
-    fig_b.suptitle("(b) Biome-Averaged Time Series (2015–2019)",
-                   fontsize=14, fontweight="bold", y=1.03)
-    out_b = OUTPUT_DIR / "fig05_panel_b.png"
-    fig_b.savefig(out_b, dpi=300, bbox_inches="tight")
-    plt.close(fig_b)
-    print(f"  Saved {out_b}")
+            print("  Writing cache...")
+            with open(cache_path, "wb") as f:
+                pickle.dump({
+                    "ml_stack": ml_stack,
+                    "phys_stack": phys_stack,
+                    "gt_field": gt_field,
+                    "ml_times": ml_times_dt,
+                }, f, protocol=pickle.HIGHEST_PROTOCOL)
+            print(f"  Cache saved: {cache_path.stat().st_size / 1e6:.1f} MB")
 
-    # ── Combined figure ──
-    print("\n── Plotting combined Figure 5 ──")
-    fig = plot_fig05(ml_spreads, phys_spreads, ml_ts, gt_ts, phys_ts,
-                     lat, lon, wet, ml_times_plot, phys_times_plot)
-    out = OUTPUT_DIR / "fig05.png"
-    fig.savefig(out, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"  Saved {out}")
+        out_pointwise = OUTPUT_DIR / f"fig05_{vc.key}_pointwise.png"
+        print(f"  Rendering pointwise → {out_pointwise.name}")
+        plot_pointwise_figure(
+            ml_stack, phys_stack, gt_field,
+            ml_times_dt, phys_times_dt, gt_times_dt,
+            lat, lon, wet, probe_indices,
+            vc, out_pointwise,
+        )
 
-    print(f"\nTotal time: {time.time()-t_total:.1f}s")
-    print(f"All outputs in: {OUTPUT_DIR}")
+        out_biomes = OUTPUT_DIR / f"fig05_{vc.key}_biomes.png"
+        print(f"  Rendering biomes → {out_biomes.name}")
+        plot_biomes_figure(
+            ml_stack, phys_stack, gt_field,
+            ml_times_dt, phys_times_dt, gt_times_dt,
+            lat, lon, wet, probe_indices, biome_weights,
+            vc, out_biomes,
+        )
+
+    print("\nAll variables done.")
 
 
 if __name__ == "__main__":

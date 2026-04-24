@@ -10,17 +10,14 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=400G
 #SBATCH --time=24:00:00
-#SBATCH --output=/scratch/cimes/maximek/INMOS/Ocean_Emulator/scripts/slurm/logs/jra_helmholtz_min_grad05_ensemble_test_%j.out
-#SBATCH --error=/scratch/cimes/maximek/INMOS/Ocean_Emulator/scripts/slurm/logs/jra_helmholtz_min_grad05_ensemble_test_%j.err
+#SBATCH --output=logs/jra_helmholtz_min_grad05_ensemble_test_%j.out
+#SBATCH --error=logs/jra_helmholtz_min_grad05_ensemble_test_%j.err
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
+source "$(dirname "$0")/env_setup.sh"
 
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
+
 
 # Ensure log directory exists
 mkdir -p scripts/slurm/logs

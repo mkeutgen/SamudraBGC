@@ -47,8 +47,8 @@ experiment:
   base_output_dir: ./outputs
   wandb:
     mode: offline
-    project: bgc-emulator
-    entity: m2lines
+    project: ''  # Set WANDB_PROJECT env var
+    entity: ''  # Set WANDB_ENTITY env var
     group: mom6-bgc-training-jra60
     tags:
     - "phase1-forcing"
@@ -58,7 +58,7 @@ experiment:
     - "ablation"
   prognostic_vars_key: helmholtz_only_all
   boundary_vars_key: minimal_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+  data_root: null  # Set OCEAN_EMU_DATA_ROOT env var
 
 data:
   data_location: bgc_data.zarr

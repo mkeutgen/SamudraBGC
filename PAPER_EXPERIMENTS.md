@@ -1,5 +1,7 @@
 # Paper Ablation Experiments
 
+> **Note**: This document describes the early experiments (Phase 1-2). For the complete ablation study including Phase 4-7 and PCA experiments, see the "Paper Experiments" section in [README.md](README.md).
+
 This document describes the experiments created for the paper analysis.
 
 ## Research Questions

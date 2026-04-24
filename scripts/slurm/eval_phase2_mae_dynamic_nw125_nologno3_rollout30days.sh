@@ -10,18 +10,15 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=400G
 #SBATCH --time=4:00:00
-#SBATCH --output=/scratch/cimes/maximek/INMOS/Ocean_Emulator/scripts/slurm/logs/mae_dyn_nologno3_rollout30d_%j.out
-#SBATCH --error=/scratch/cimes/maximek/INMOS/Ocean_Emulator/scripts/slurm/logs/mae_dyn_nologno3_rollout30d_%j.err
+#SBATCH --output=logs/mae_dyn_nologno3_rollout30d_%j.out
+#SBATCH --error=logs/mae_dyn_nologno3_rollout30d_%j.err
 
 set -e
 
-source ~/.bashrc
+source "$(dirname "$0")/env_setup.sh"
 
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
 
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
+
 
 mkdir -p scripts/slurm/logs
 

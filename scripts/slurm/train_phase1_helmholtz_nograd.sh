@@ -16,14 +16,11 @@
 
 set -e
 
+source "$(dirname "$0")/env_setup.sh"
+
 # Source bashrc for wandb API key
-source ~/.bashrc
 
 # Load modules
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
 # Distributed training environment (canonical)
 GPUS_PER_NODE=$(echo $SLURM_GPUS_ON_NODE | tr ',' '\n' | wc -l)

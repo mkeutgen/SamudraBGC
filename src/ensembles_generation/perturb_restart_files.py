@@ -78,8 +78,8 @@ class PerturbConfig:
 CFG = PerturbConfig()
 
 
-# Paths
-BASE_PATH = Path("/scratch/cimes/maximek/MOM6_Double_Gyre/DG-MOM6-COBALTv2/ice_ocean_SIS2")
+# Paths - set via environment variable or override at runtime
+BASE_PATH = Path(os.environ.get("MOM6_NUMERICAL_PATH", "."))
 HIST_PATH = BASE_PATH / "OM4_DG_COBALT/hist_control_cobalt_3d_yearly__1990_02.nc"
 STATIC_PATH = BASE_PATH / "OM4_DG_COBALT/hist_control_ocean_static.nc"
 OUTPUT_DIR = BASE_PATH / "ensemble_perturbation_diagnostics"
