@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=112
 #SBATCH --mem=600G
 #SBATCH --time=12:00:00
-#SBATCH --output=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/code_paper/logs/fig05_%j.out
-#SBATCH --error=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/code_paper/logs/fig05_%j.err
+#SBATCH --output=code_paper/logs/fig05_%j.out
+#SBATCH --error=code_paper/logs/fig05_%j.err
 
 # Figure 5: ML Ensemble (100 members) vs Physical Ensemble (10 members)
 # Panel (a): Surface NO3 spread after 1 year (Dec 2015)
@@ -16,16 +16,13 @@
 
 set -e
 
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
+source "$(dirname "$0")/env_setup.sh"
 
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
 
-mkdir -p code_paper/logs
 mkdir -p code_paper/figures/fig05_panels
 mkdir -p code_paper/figures/fig05_cache
 
-export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:${PYTHONPATH:-}
+export PYTHONPATH=${OCEAN_EMU_PROJECT_DIR}:${PYTHONPATH:-}
 export DASK_NUM_WORKERS=${SLURM_CPUS_PER_TASK}
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1

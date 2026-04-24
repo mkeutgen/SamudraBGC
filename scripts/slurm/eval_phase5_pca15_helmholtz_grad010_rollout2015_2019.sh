@@ -15,14 +15,8 @@
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
-export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:$PYTHONPATH
+source "$(dirname "$0")/env_setup.sh"
 
-mkdir -p logs
 
 CONFIG=configs/eval/phase5_pca15_helmholtz_grad010_eval_rollout2015_2019.yaml
 

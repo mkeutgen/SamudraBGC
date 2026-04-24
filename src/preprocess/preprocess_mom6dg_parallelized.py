@@ -864,9 +864,10 @@ def process_mom6_cobalt_data(
             logger.error(f"Reset year {reset_year} (sim year {sim_year}) not found in years list {years}")
             raise ValueError(f"Invalid reset year: {reset_year}")
 
-    # Setup spill directory on scratch
+    # Setup spill directory (uses DASK_SPILL_DIR env var or system temp)
     import os
-    spill_dir = "/scratch/cimes/maximek/dask-spill-temp"
+    import tempfile
+    spill_dir = os.environ.get("DASK_SPILL_DIR", tempfile.gettempdir())
     os.makedirs(spill_dir, exist_ok=True)
 
     # Define cluster parameters

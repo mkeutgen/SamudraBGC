@@ -13,6 +13,7 @@ Usage:
 """
 
 import sys
+import os
 import time as _time
 import datetime
 import matplotlib as mpl
@@ -40,25 +41,25 @@ OUTPUT_DIR = Path(__file__).resolve().parent / "figures"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-GT_PATH       = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-LINEAR_PATH   = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
-LOG_PATH      = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase15_helmholtz_log_eval_linear/predictions.zarr"
-VELOCITY_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_velocity_nograd_eval/predictions.zarr"
-BEST_PATH     = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr"
+GT_PATH       = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
+LINEAR_PATH   = "outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
+LOG_PATH      = "outputs/phase15_helmholtz_log_eval_linear/predictions.zarr"
+VELOCITY_PATH = "outputs/phase1_velocity_nograd_eval/predictions.zarr"
+BEST_PATH     = "outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr"
 BEST_LABEL    = "Best model"
 
 GRAD_PATHS = {
-    "α = 0":    "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad00_eval_linear/predictions.zarr",
-    "α = 0.25": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr",
-    "α = 0.50": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr",
+    "α = 0":    "outputs/phase2_helmholtz_grad00_eval_linear/predictions.zarr",
+    "α = 0.25": "outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr",
+    "α = 0.50": "outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr",
 }
 
 PCA_PATHS = {
-    "Baseline (50 lvl)": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr",
-    "PCA k=5":  "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca5_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
-    "PCA k=10": "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca10_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
-    "PCA k=15": "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca15_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
-    "PCA k=20": "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "Baseline (50 lvl)": "outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr",
+    "PCA k=5":  "outputs/phase5_pca5_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "PCA k=10": "outputs/phase5_pca10_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "PCA k=15": "outputs/phase5_pca15_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "PCA k=20": "outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
 }
 
 # Subpolar gyre location: ~55°N, 35°W in North Atlantic

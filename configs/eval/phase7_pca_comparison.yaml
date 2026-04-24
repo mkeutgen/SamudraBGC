@@ -18,7 +18,7 @@ experiments:
   "Much Wider":                     "outputs/phase7_pca20_arch_much_wider_eval_rollout2010_2014/predictions_depth.zarr/"
 
 # Path to ground truth data
-ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+ground_truth_path: null  # Set OCEAN_EMU_DATA_ROOT env var
 
 # Output directory for results
 output_dir: "outputs/phase7_pca_comparison"

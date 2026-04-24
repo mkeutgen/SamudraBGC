@@ -11,6 +11,7 @@ Usage:
 """
 
 import datetime
+import os
 import time
 import matplotlib as mpl
 mpl.use("Agg")
@@ -34,8 +35,8 @@ mpl.rcParams.update({
 })
 
 # ── Config ────────────────────────────────────────────────────────────────────
-GT_PATH   = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-PRED_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca20_helmholtz_grad010_eval_rollout2015_2019/predictions_depth.zarr"
+GT_PATH   = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
+PRED_PATH = "outputs/phase5_pca20_helmholtz_grad010_eval_rollout2015_2019/predictions_depth.zarr"
 OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig02_bis_panels"
 
 MOL_TO_UMOL = 1e6

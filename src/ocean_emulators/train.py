@@ -195,7 +195,7 @@ class Trainer:
 
         # We use dask for inference since it has memory issues otherwise.
         # TODO(jder): Could rewrite inference dataset like we did for TorchTrainDataset
-        # see https://github.com/suryadheeshjith/Ocean_Emulator/issues/208
+        
         self.inference_src = self.data_container.source_using_dask
 
         self.loader_version = self.data_container.loader_version
@@ -724,7 +724,7 @@ class Trainer:
                 )
 
                 # TODO(jder): we need the underlying model so we can use forward_once;
-                # see https://github.com/suryadheeshjith/Ocean_Emulator/issues/51
+                
                 Stepper.inference(
                     model=self.model.module
                     if isinstance(self.model, torch.nn.parallel.DistributedDataParallel)

@@ -23,6 +23,7 @@ Performance note
 """
 
 import multiprocessing as mp
+import os
 import sys
 from pathlib import Path
 
@@ -38,7 +39,7 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 — registers 3D projectio
 
 # ── Config ────────────────────────────────────────────────────────────────────
 DATA_PATH = (
-    "/scratch/cimes/maximek/INMOS/processed_data/"
+    os.environ.get("OCEAN_EMU_DATA_ROOT", ".")
     "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
 )
 OUTPUT_DIR    = Path(__file__).parent / "figures" / "fig01_3d_schematic"

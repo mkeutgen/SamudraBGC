@@ -13,23 +13,16 @@
 #SBATCH --output=logs/reconstruct_phase5_pca15_ensemble50_halfbgc_2015_%A_%a.out
 #SBATCH --error=logs/reconstruct_phase5_pca15_ensemble50_halfbgc_2015_%A_%a.err
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
-
 set -euo pipefail
 
-export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:${PYTHONPATH:-}
+source "$(dirname "$0")/env_setup.sh"
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 export MKL_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 export OPENBLAS_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 export NUMEXPR_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 
-mkdir -p logs
 
-DATA_DIR=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+DATA_DIR="${OCEAN_EMU_DATA_ROOT}"
 EVAL_ROOT=outputs/phase5_pca15_helmholtz_grad010_eval_ensemble50_halfbgc_2015
 
 printf -v ENSEMBLE_ID "%03d" "${SLURM_ARRAY_TASK_ID}"

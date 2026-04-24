@@ -3,8 +3,8 @@
 Figure 2ter — Surface Chl + MLD Seasonal Hovmoller
 ====================================================
 2 rows × 2 columns:
-  Row 0: Surface Chlorophyll — ML Emulator (left) vs MOM6-COBALT (right)
-  Row 1: Mixed Layer Depth   — ML Emulator (left) vs MOM6-COBALT (right)
+  Row 0: Surface Chlorophyll — Ground Truth (left) vs SamudraBGC (right)
+  Row 1: Mixed Layer Depth   — Ground Truth (left) vs SamudraBGC (right)
 X-axis: months, Y-axis: latitude (20–60°N)
 
 Uses gsw (TEOS-10) for potential density in MLD computation.
@@ -16,6 +16,7 @@ Usage:
 """
 
 import datetime
+import os
 import time
 import matplotlib as mpl
 mpl.use("Agg")
@@ -39,8 +40,8 @@ mpl.rcParams.update({
 })
 
 # ── Config ────────────────────────────────────────────────────────────────────
-GT_PATH   = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-PRED_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca20_helmholtz_grad010_eval_rollout2015_2019/predictions_depth.zarr"
+GT_PATH   = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
+PRED_PATH = "outputs/champion_model_eval_rollout2015_2019/predictions_depth.zarr"
 OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig02_ter_panels"
 
 N_LEVELS = 50
@@ -259,8 +260,8 @@ def plot_figure(chl_gt, chl_pred, mld_gt, mld_pred, lat,
     chl_norm = BoundaryNorm(chl_levels, ncolors=256)
 
     for col, (data, title) in enumerate([
-        (chl_pred[:, lat_i], "ML Emulator"),
-        (chl_gt[:, lat_i],   "DG-MOM6-COBALTv2"),
+        (chl_gt[:, lat_i],   "Ground Truth"),
+        (chl_pred[:, lat_i], "SamudraBGC"),
     ]):
         ax = axes[0, col]
         cf_chl = ax.contourf(months, lat_disp, data.T, levels=chl_levels,
@@ -269,21 +270,22 @@ def plot_figure(chl_gt, chl_pred, mld_gt, mld_pred, lat,
         ax.set_ylim(20, 60)
         ax.set_xticks(months)
         ax.set_xticklabels([])  # no x-labels on top row
-        ax.set_title(title, fontsize=13, fontweight="bold")
+        ax.set_title(title, fontsize=17, fontweight="bold")
+        ax.tick_params(labelsize=13)
 
-    # Chl metrics on Emulator panel
+    # Chl metrics on SamudraBGC panel (right)
     m = chl_metrics
-    axes[0, 0].text(0.98, 0.08, f"r={m['r']:.3f}  RMSE={m['RMSE']:.3f}  bias={m['bias']:.3f}",
-                    transform=axes[0, 0].transAxes, fontsize=10, ha="right", va="bottom",
+    axes[0, 1].text(0.98, 0.08, f"r={m['r']:.3f}  RMSE={m['RMSE']:.3f}  bias={m['bias']:.3f}",
+                    transform=axes[0, 1].transAxes, fontsize=13, ha="right", va="bottom",
                     bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
 
-    axes[0, 0].set_ylabel("Latitude (°N)", fontsize=12)
+    axes[0, 0].set_ylabel("Latitude (°N)", fontsize=15)
 
     # Chl colorbar
     cbar_chl = fig.colorbar(cf_chl, ax=axes[0, :].tolist(), shrink=0.85, pad=0.03, aspect=25,
                             ticks=chl_levels)
-    cbar_chl.set_label("Chl (mg m⁻³)", fontsize=12)
-    cbar_chl.ax.tick_params(labelsize=9)
+    cbar_chl.set_label("Chl (mg m⁻³)", fontsize=15)
+    cbar_chl.ax.tick_params(labelsize=13)
     cbar_chl.ax.set_yticklabels([str(l) for l in chl_levels])
 
     # ── Row 1: MLD ────────────────────────────────────────────────────────────
@@ -291,8 +293,8 @@ def plot_figure(chl_gt, chl_pred, mld_gt, mld_pred, lat,
     mld_norm = BoundaryNorm(mld_levels, ncolors=256)
 
     for col, (data, _) in enumerate([
-        (mld_pred[:, lat_i], "ML Emulator"),
-        (mld_gt[:, lat_i],   "DG-MOM6-COBALTv2"),
+        (mld_gt[:, lat_i],   "Ground Truth"),
+        (mld_pred[:, lat_i], "SamudraBGC"),
     ]):
         ax = axes[1, col]
         cf_mld = ax.contourf(months, lat_disp, data.T, levels=mld_levels,
@@ -301,25 +303,26 @@ def plot_figure(chl_gt, chl_pred, mld_gt, mld_pred, lat,
         ax.set_ylim(20, 60)
         ax.set_xticks(months)
         ax.set_xticklabels(month_labels)
-        ax.set_xlabel("Month", fontsize=12)
+        ax.set_xlabel("Month", fontsize=15)
+        ax.tick_params(labelsize=13)
 
-    # MLD metrics on Emulator panel
+    # MLD metrics on SamudraBGC panel (right)
     m = mld_metrics
-    axes[1, 0].text(0.98, 0.08, f"r={m['r']:.3f}  RMSE={m['RMSE']:.1f}  bias={m['bias']:.1f}",
-                    transform=axes[1, 0].transAxes, fontsize=10, ha="right", va="bottom",
+    axes[1, 1].text(0.98, 0.08, f"r={m['r']:.3f}  RMSE={m['RMSE']:.1f}  bias={m['bias']:.1f}",
+                    transform=axes[1, 1].transAxes, fontsize=13, ha="right", va="bottom",
                     bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
 
-    axes[1, 0].set_ylabel("Latitude (°N)", fontsize=12)
+    axes[1, 0].set_ylabel("Latitude (°N)", fontsize=15)
 
     # MLD colorbar
     cbar_mld = fig.colorbar(cf_mld, ax=axes[1, :].tolist(), shrink=0.85, pad=0.03, aspect=25,
                             ticks=mld_levels)
-    cbar_mld.set_label("MLD (m)", fontsize=12)
-    cbar_mld.ax.tick_params(labelsize=9)
+    cbar_mld.set_label("MLD (m)", fontsize=15)
+    cbar_mld.ax.tick_params(labelsize=13)
     cbar_mld.ax.set_yticklabels([str(l) for l in mld_levels])
 
     fig.suptitle("Seasonal Cycle — Surface Chlorophyll & Mixed Layer Depth (2015–2019)",
-                 fontsize=14, fontweight="bold")
+                 fontsize=17, fontweight="bold")
 
     out = output_dir / "fig02_ter.png"
     fig.savefig(out, dpi=300, bbox_inches="tight")

@@ -4,7 +4,7 @@
 
 A preprocessed version of the original `MOM6_CobaltDG_JRA_FULL_POC_Helmholtz` dataset where each variable stores **daily climatology anomalies** instead of raw values, and data is rechunked from daily `(1, 362, 362)` to yearly `(365, 362, 362)` chunks.
 
-**Location**: `/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz_Anomaly/`
+**Location**: `$OCEAN_EMU_DATA_ROOT/`
 
 ## Why
 
@@ -92,4 +92,4 @@ sbatch scripts/slurm/fit_pca.sh
 - **Grid**: 362 × 362
 - **Climatology period**: 1960-2009 (50 years, first 18250 timesteps)
 - **Training period** (for means/stds): 1960-2009
-- **Source**: `/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/`
+- **Source**: `$OCEAN_EMU_DATA_ROOT/`

@@ -25,6 +25,7 @@ Usage:
 """
 
 import sys
+import os
 import time as _time
 import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -85,16 +86,16 @@ RHO_0       = 1025.0
 DX_KM       = 9.0
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-GT_PATH       = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-LINEAR_PATH   = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
-LOG_PATH      = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase15_helmholtz_log_eval_linear/predictions.zarr"
-VELOCITY_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_velocity_nograd_eval/predictions.zarr"
-BEST_PATH     = "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr"
+GT_PATH       = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
+LINEAR_PATH   = "outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
+LOG_PATH      = "outputs/phase15_helmholtz_log_eval_linear/predictions.zarr"
+VELOCITY_PATH = "outputs/phase1_velocity_nograd_eval/predictions.zarr"
+BEST_PATH     = "outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr"
 
 GRAD_PATHS = {
-    "alpha0":   "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad00_eval_linear/predictions.zarr",
-    "alpha025": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr",
-    "alpha050": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr",
+    "alpha0":   "outputs/phase2_helmholtz_grad00_eval_linear/predictions.zarr",
+    "alpha025": "outputs/phase2_helmholtz_grad025_eval_linear/predictions.zarr",
+    "alpha050": "outputs/phase2_helmholtz_grad050_eval_linear/predictions.zarr",
 }
 
 # All comparison models for the unified panel (ordered for legend)
@@ -130,11 +131,11 @@ HELM_COLORS = {
 }
 
 PCA_PATHS = {
-    "Baseline (50 lvl)": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr",
-    "PCA k=5":  "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca5_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
-    "PCA k=10": "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca10_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
-    "PCA k=15": "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca15_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
-    "PCA k=20": "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "Baseline (50 lvl)": "outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr",
+    "PCA k=5":  "outputs/phase5_pca5_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "PCA k=10": "outputs/phase5_pca10_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "PCA k=15": "outputs/phase5_pca15_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
+    "PCA k=20": "outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
 }
 PCA_COLORS = {
     "Baseline (50 lvl)": "#E07B39",

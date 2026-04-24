@@ -17,11 +17,7 @@
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
+source "$(dirname "$0")/env_setup.sh"
 
 export PYTHONUNBUFFERED=1
 
@@ -34,12 +30,12 @@ echo "CPUs: $SLURM_CPUS_PER_TASK"
 echo ""
 
 echo "=== Phase 1 new rollouts (fullstate + helmholtz, PCA outputs) ==="
-python /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/scripts/compute_depth_weighted_r2.py \
+python scripts/compute_depth_weighted_r2.py \
     --max-depth 500 \
     --metrics r2 nrmse nbias nmae \
     --exclude-vars psi phi \
     --time-start 2012-01-01 --time-end 2014-12-31 \
-    --outputs-dir /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/ \
+    --outputs-dir outputs/ \
     --pred-zarr predictions.zarr \
     --experiments \
     phase1_fullstate_nograd_eval_rollout2010_2014 \
@@ -47,23 +43,24 @@ python /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/scripts/compute_depth_wei
 
 echo ""
 echo "=== Phase 1.5 log rollout (linear-space predictions) ==="
-python /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/scripts/compute_depth_weighted_r2.py \
-    --max-depth 500 \
-    --metrics r2 nrmse nbias nmae \
-    --exclude-vars psi phi \
-    --time-start 2012-01-01 --time-end 2014-12-31 \
-    --outputs-dir /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/ \
-    --pred-zarr predictions_linear.zarr \
-    --experiments \
-    phase15_helmholtz_log_eval_rollout2010_2014
-
-echo ""
-echo "=== Phase 2 grad-weight experiments (original Ocean_Emulator outputs) ==="
 python scripts/compute_depth_weighted_r2.py \
     --max-depth 500 \
     --metrics r2 nrmse nbias nmae \
     --exclude-vars psi phi \
     --time-start 2012-01-01 --time-end 2014-12-31 \
+    --outputs-dir outputs/ \
+    --pred-zarr predictions_linear.zarr \
+    --experiments \
+    phase15_helmholtz_log_eval_rollout2010_2014
+
+echo ""
+echo "=== Phase 2 grad-weight experiments ==="
+python scripts/compute_depth_weighted_r2.py \
+    --max-depth 500 \
+    --metrics r2 nrmse nbias nmae \
+    --exclude-vars psi phi \
+    --time-start 2012-01-01 --time-end 2014-12-31 \
+    --outputs-dir outputs/ \
     --experiments \
     phase2_helmholtz_grad00_eval_linear \
     phase2_helmholtz_grad010_eval_linear \
@@ -77,7 +74,7 @@ python scripts/compute_depth_weighted_r2.py \
     --metrics r2 nrmse nbias nmae \
     --exclude-vars psi phi \
     --time-start 2012-01-01 --time-end 2014-12-31 \
-    --outputs-dir /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/ \
+    --outputs-dir outputs/ \
     --pred-zarr predictions_depth.zarr \
     --experiments \
     phase5_pca5_helmholtz_grad010_eval_rollout2010_2014 \
@@ -87,14 +84,14 @@ python scripts/compute_depth_weighted_r2.py \
 
 echo ""
 echo "=== Phase 7 PCA20 architecture experiments ==="
-python /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/scripts/compute_depth_weighted_r2.py \
+python scripts/compute_depth_weighted_r2.py \
     --max-depth 500 \
     --metrics r2 nrmse nbias nmae \
     --exclude-vars psi phi \
     --time-start 2012-01-01 --time-end 2014-12-31 \
-    --outputs-dir /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/ \
+    --outputs-dir outputs/ \
     --pred-zarr predictions_depth.zarr \
-    --csv /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/depth_weighted_metrics_phase7_pca20.csv \
+    --csv outputs/depth_weighted_metrics_phase7_pca20.csv \
     --experiments \
     phase7_pca20_arch_wider_eval_rollout2010_2014 \
     phase7_pca20_arch_much_wider_eval_rollout2010_2014 \

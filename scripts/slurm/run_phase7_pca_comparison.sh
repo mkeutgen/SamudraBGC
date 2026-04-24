@@ -19,11 +19,7 @@
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
+source "$(dirname "$0")/env_setup.sh"
 
 export PYTHONUNBUFFERED=1
 export DASK_NUM_WORKERS=${SLURM_CPUS_PER_TASK:-16}
@@ -47,7 +43,7 @@ echo "Removing old output directory..."
 rm -rf outputs/phase7_pca_comparison
 
 echo "Step 1/2: Computing metrics..."
-python /scratch/cimes/maximek/INMOS/Ocean_Emulator/scripts/compare_rollouts.py \
+python scripts/compare_rollouts.py \
     --config configs/eval/phase7_pca_comparison.yaml \
     --skip-seasonal \
     --skip-interannual \
@@ -56,7 +52,7 @@ python /scratch/cimes/maximek/INMOS/Ocean_Emulator/scripts/compare_rollouts.py \
 
 echo ""
 echo "Step 2/2: Generating figures..."
-python /scratch/cimes/maximek/INMOS/Ocean_Emulator/scripts/visualize_comparison.py \
+python scripts/visualize_comparison.py \
     --config configs/eval/phase7_pca_comparison.yaml \
     --plot-types spatial timeseries variable_pdf
 

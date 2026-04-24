@@ -26,16 +26,16 @@ epochs: 50
 experiment:
   base_output_dir: ./outputs
   boundary_vars_key: minimal_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+  data_root: null  # Set OCEAN_EMU_DATA_ROOT env var
   name: phase7_pca20_arch_much_wider
   prognostic_vars_key: helmholtz_log_no_logno3_pca20_all
   rand_seed: 42
   wandb:
-    entity: m2lines
+    entity: ''  # Set WANDB_ENTITY env var
     group: phase7-arch
     mode: offline
     notes: null
-    project: bgc-emulator
+    project: ''  # Set WANDB_PROJECT env var
     tags:
     - phase7-architecture
     - pca-k20

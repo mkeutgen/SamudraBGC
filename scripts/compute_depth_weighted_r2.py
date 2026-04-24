@@ -37,7 +37,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from ocean_emulators.constants import DEPTH_LEVELS, DEPTH_THICKNESS
 
-GT_PATH = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+GT_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr")
 DEFAULT_OUTPUTS_DIR = "outputs"
 DEFAULT_PRED_ZARR = "predictions.zarr"
 

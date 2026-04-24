@@ -60,11 +60,26 @@ tests/              # Test suite
 
 ## Quick Start
 
-### Environment
+### Environment Variables
+
+Before running any commands, set these environment variables (e.g., in `~/.bashrc`):
+
+```bash
+# Required
+export OCEAN_EMU_CONDA_ENV=/path/to/your/conda/env
+export OCEAN_EMU_DATA_ROOT=/path/to/processed_data
+export OCEAN_EMU_PROJECT_DIR=/path/to/Ocean_Emulator_PCA
+
+# Optional (for Weights & Biases logging)
+export WANDB_PROJECT=your-project-name
+export WANDB_ENTITY=your-username
+```
+
+### Environment Setup
 
 ```bash
 module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
+conda activate $OCEAN_EMU_CONDA_ENV
 ```
 
 ### Training
@@ -104,7 +119,7 @@ pytest tests/ -m "not manual and not cuda"       # Fast unit tests
 pytest tests/ -m "not manual and not cuda" -n auto  # Parallel
 pytest tests/ -m cuda                             # GPU tests (needs GPU node)
 ```
-lin
+
 ## Paper Experiments
 
 The paper ablations span multiple phases (see `code_paper/FIGURES.md` for the registry):

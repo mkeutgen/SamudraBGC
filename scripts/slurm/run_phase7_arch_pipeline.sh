@@ -6,6 +6,8 @@
 
 set -e
 
+source "$(dirname "$0")/env_setup.sh"
+
 echo "=== Phase 7: PCA k=15 Architecture Ablation Pipeline ==="
 echo ""
 

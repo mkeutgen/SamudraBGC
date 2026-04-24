@@ -16,6 +16,7 @@ Usage:
 """
 
 import matplotlib as mpl
+import os
 import matplotlib.pyplot as plt
 import cmocean
 import numpy as np
@@ -40,7 +41,7 @@ mpl.rcParams.update({
 })
 
 # ── Config ───────────────────────────────────────────────────────────────────
-DATA_PATH = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC/bgc_data.zarr"
+DATA_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC/bgc_data.zarr")
 OUTPUT_DIR = Path(__file__).parent / "figures" / "fig01_panels"
 SNAPSHOT_DATE = "2005-04-15"
 

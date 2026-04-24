@@ -14,11 +14,9 @@
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
+source "$(dirname "$0")/env_setup.sh"
+
 conda activate preprocess_env
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
 
 mkdir -p logs
 

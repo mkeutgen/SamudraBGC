@@ -26,6 +26,21 @@ Use max effort for all responses in this project.
 
 SamudraBGC is a PyTorch-based machine learning project for training and evaluating models that emulate ocean physics and biogeochemistry. It implements a ConvNeXt U-Net neural network architecture for predicting ocean variables including temperature, salinity, velocities, biogeochemical tracers (DIC, O2, NO3, Chl, POC), and derived fields (Helmholtz decomposition).
 
+## Required Environment Variables
+
+Before running any commands, set these environment variables (e.g., in `~/.bashrc`):
+
+```bash
+# Required
+export OCEAN_EMU_CONDA_ENV=/path/to/your/conda/env
+export OCEAN_EMU_DATA_ROOT=/path/to/processed_data
+export OCEAN_EMU_PROJECT_DIR=/path/to/Ocean_Emulator_PCA
+
+# Optional (for W&B logging)
+export WANDB_PROJECT=your-project-name
+export WANDB_ENTITY=your-username
+```
+
 ## Development Commands
 
 ### Environment Setup
@@ -35,10 +50,10 @@ SamudraBGC is a PyTorch-based machine learning project for training and evaluati
 module load anaconda3/2024.10
 
 # Activate the ocean-emulator conda environment
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
+conda activate $OCEAN_EMU_CONDA_ENV
 
 # Navigate to project directory
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
+cd $OCEAN_EMU_PROJECT_DIR
 ```
 
 ### Running Tests
@@ -46,7 +61,7 @@ cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 ```bash
 # Activate environment first
 module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
+conda activate $OCEAN_EMU_CONDA_ENV
 
 # Run standard tests (excluding manual and CUDA tests)
 pytest -m "not manual and not cuda"
@@ -102,7 +117,7 @@ tail -f logs/jra_helmholtz_min_grad05_train_JOBID.out
 ```
 
 Training scripts follow this pattern:
-1. Load environment: `module load anaconda3/2024.10 && conda activate /scratch/cimes/maximek/envs/ocean-emulator`
+1. Load environment: `module load anaconda3/2024.10 && conda activate $OCEAN_EMU_CONDA_ENV`
 2. Set up distributed training environment (MASTER_ADDR, WORLD_SIZE, etc.)
 3. Run with srun: `srun python -m ocean_emulators.train configs/train/config.yaml`
 
@@ -125,7 +140,7 @@ For quick testing without SLURM submission:
 ```bash
 # Activate environment
 module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
+conda activate $OCEAN_EMU_CONDA_ENV
 
 # Run a quick test training (single GPU, limited data)
 # Note: Modify config to use small subset first
@@ -230,7 +245,7 @@ code_paper/               # Paper figure generation scripts
 ### Important Considerations
 
 1. **Data Format**: Uses Zarr format for efficient array storage
-   - Data location: `/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/`
+   - Data location: `$OCEAN_EMU_DATA_ROOT/`
    - Each dataset has: `bgc_data.zarr`, `bgc_means.zarr`, `bgc_stds.zarr`
 
 2. **Distributed Training**: Supports multi-GPU via PyTorch DDP
@@ -262,7 +277,7 @@ code_paper/               # Paper figure generation scripts
 ### Data Locations
 
 Current dataset on the cluster:
-- **JRA-55 with POC + Helmholtz**: `/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/`
+- **JRA-55 with POC + Helmholtz**: `$OCEAN_EMU_DATA_ROOT/`
 
 ## Common Workflows
 
@@ -323,7 +338,7 @@ When a training job fails:
 
    # Activate environment
    module load anaconda3/2024.10
-   conda activate /scratch/cimes/maximek/envs/ocean-emulator
+   conda activate $OCEAN_EMU_CONDA_ENV
 
    # Run with debugging
    python -m pdb -m ocean_emulators.train configs/train/test_config.yaml

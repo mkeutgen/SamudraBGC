@@ -10,6 +10,7 @@ Usage:
 """
 
 import time as _time
+import os
 import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
@@ -34,10 +35,10 @@ mpl.rcParams.update({
 OUTPUT_DIR = Path(__file__).resolve().parent / "figures"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-GT_PATH     = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-LINEAR_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
-LOG_PATH    = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase15_helmholtz_log_eval_linear/predictions.zarr"
-BEST_PATH   = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr"
+GT_PATH     = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
+LINEAR_PATH = "outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
+LOG_PATH    = "outputs/phase15_helmholtz_log_eval_linear/predictions.zarr"
+BEST_PATH   = "outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr"
 BEST_LABEL  = "Best model"
 
 MOL_TO_UMOL = 1e6

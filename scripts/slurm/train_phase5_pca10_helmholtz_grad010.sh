@@ -16,17 +16,11 @@
 
 set -e
 
-source ~/.bashrc
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA
-export PYTHONPATH=/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/src:$PYTHONPATH
+source "$(dirname "$0")/env_setup.sh"
 
-mkdir -p logs
 
 # Check that PCA params exist (created by scripts/slurm/fit_pca.sh)
-PCA_PARAMS=/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/pca_params.npz
+PCA_PARAMS="${OCEAN_EMU_DATA_ROOT}/pca_params.npz"
 if [ ! -f "${PCA_PARAMS}" ]; then
     echo "ERROR: PCA params not found at ${PCA_PARAMS}"
     echo "Run 'sbatch scripts/slurm/fit_pca.sh' first"

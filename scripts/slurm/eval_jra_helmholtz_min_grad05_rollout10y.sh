@@ -10,21 +10,18 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=400G
 #SBATCH --time=24:00:00
-#SBATCH --output=/scratch/cimes/maximek/INMOS/Ocean_Emulator/scripts/slurm/logs/jra_helmholtz_min_grad05_rollout10y_%j.out
-#SBATCH --error=/scratch/cimes/maximek/INMOS/Ocean_Emulator/scripts/slurm/logs/jra_helmholtz_min_grad05_rollout10y_%j.err
+#SBATCH --output=logs/jra_helmholtz_min_grad05_rollout10y_%j.out
+#SBATCH --error=logs/jra_helmholtz_min_grad05_rollout10y_%j.err
 
 set -e
 
+source "$(dirname "$0")/env_setup.sh"
+
 # Source bashrc for wandb API key and any user env
-source ~/.bashrc
 
 # Load environment
-module purge
-module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
 
 # Navigate to project
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
 
 # Ensure log directory exists (mirrors #SBATCH paths)
 mkdir -p scripts/slurm/logs

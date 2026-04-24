@@ -33,9 +33,8 @@ import matplotlib.pyplot as plt
 LOG = logging.getLogger(__name__)
 
 DEFAULT_DATA = Path(
-    "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC"
-    "/bgc_data_subset.zarr"
-)
+    os.environ.get("OCEAN_EMU_DATA_ROOT", ".")
+) / "bgc_data_subset.zarr"
 
 
 def _pick_dim(dims: Iterable[str], candidates: tuple[str, ...]) -> str:

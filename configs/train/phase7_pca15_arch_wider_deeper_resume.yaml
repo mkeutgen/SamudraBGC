@@ -48,8 +48,8 @@ experiment:
   base_output_dir: ./outputs
   wandb:
     mode: offline
-    project: bgc-emulator
-    entity: m2lines
+    project: ''  # Set WANDB_PROJECT env var
+    entity: ''  # Set WANDB_ENTITY env var
     group: phase7-arch
     tags:
     - "phase7-architecture"
@@ -59,7 +59,7 @@ experiment:
     - "resume"
   prognostic_vars_key: helmholtz_log_no_logno3_pca15_all
   boundary_vars_key: minimal_forcing
-  data_root: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz
+  data_root: null  # Set OCEAN_EMU_DATA_ROOT env var
 
 data:
   data_location: bgc_data.zarr

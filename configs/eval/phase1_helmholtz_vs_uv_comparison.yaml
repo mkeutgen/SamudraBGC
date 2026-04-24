@@ -9,7 +9,7 @@ experiments:
   "Phase 1: Full State u,v (Linear BGC)": "outputs/phase1_velocity_nograd_eval/predictions.zarr/"
 
 # Path to ground truth data
-ground_truth_path: "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+ground_truth_path: null  # Set OCEAN_EMU_DATA_ROOT env var
 
 # Output directory for results
 output_dir: "outputs/phase1_helmholtz_vs_uv_comparison"

@@ -65,10 +65,10 @@ mpl.rcParams.update({
 })
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-GT_PATH = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+GT_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
 ML_ENSEMBLE_DIR = Path("outputs/phase5_pca20_helmholtz_grad010_eval_ensemble100_2015")
 ML_HALFBGC_ENSEMBLE_DIR = Path("outputs/phase5_pca20_helmholtz_grad010_eval_ensemble50_halfbgc_2015")
-NUMERICAL_BASE_DIR = Path("/scratch/cimes/maximek/MOM6_Double_Gyre/DG-MOM6-COBALTv2/ice_ocean_SIS2")
+NUMERICAL_BASE_DIR = Path(os.environ.get("MOM6_NUMERICAL_PATH", "."))
 OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig05_panels"
 CACHE_DIR = Path(__file__).resolve().parent / "figures" / "fig05_cache"
 
