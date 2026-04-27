@@ -6,7 +6,7 @@
 
 set -e
 
-source "$(dirname "$0")/env_setup.sh"
+source "${SLURM_SUBMIT_DIR}/scripts/slurm/env_setup.sh"
 
 echo "=== Phase 7: PCA k=15 Architecture Ablation Pipeline ==="
 echo ""

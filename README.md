@@ -4,7 +4,7 @@ A PyTorch-based machine learning system for emulating MOM6-COBALT ocean physics 
 
 ## Model
 
-**Architecture**: ConvNeXt U-Net operating on a 360x180 global grid with 50 vertical depth levels.
+**Architecture**: ConvNeXt U-Net operating on a 362×362 Double Gyre regional grid (~0.11° resolution) with 50 vertical depth levels.
 
 **Prognostic variables** (~401 output channels):
 - Physical: temperature, salinity, streamfunction (psi), velocity potential (phi), SSH

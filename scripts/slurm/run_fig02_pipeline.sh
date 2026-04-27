@@ -5,7 +5,7 @@
 
 set -e
 
-source "$(dirname "$0")/env_setup.sh"
+source "${SLURM_SUBMIT_DIR}/scripts/slurm/env_setup.sh"
 
 echo "=== Fig02 Pipeline: PCA k=20 rollout 2015-2019 → figures ==="
 echo ""

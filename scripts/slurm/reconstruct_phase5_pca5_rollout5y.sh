@@ -16,7 +16,7 @@
 
 set -e
 
-source "$(dirname "$0")/env_setup.sh"
+source "${SLURM_SUBMIT_DIR}/scripts/slurm/env_setup.sh"
 
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
 export MKL_NUM_THREADS=${SLURM_CPUS_PER_TASK}

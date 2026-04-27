@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
-Convert log-transformed predictions back to linear space for comparison.
+Convert log/asinh-transformed predictions back to linear space for comparison.
 
-Transforms: linear_var = exp(log_var) - epsilon
+Transforms:
+    - log variables: linear_var = exp(log_var) - epsilon
+    - asinh variables: linear_var = scale * sinh(asinh_var)
+
+Both transforms include safety clamping to ensure non-negative output.
 
 Usage:
     python scripts/analysis/convert_log_to_linear.py \
@@ -31,6 +35,13 @@ EPSILON_MAP = {
     "o2": 1e-10,    # mol/kg — O2 rarely exactly zero (min ~2e-4)
     "chl": 1e-8,    # µg/kg — 2 orders below min (min ~6e-6)
     "no3": 1e-14,   # mol/kg — below observed min (min ~7e-13)
+}
+
+# Scale values for asinh transformation
+# asinh(x/scale) shifts training distribution to positive values [0, ~7]
+# Inverse: scale * sinh(y) with clamping to ensure non-negative output
+ASINH_SCALE_MAP = {
+    "no3": 1e-7,    # mol/kg — 10th percentile of NO3 values (approx)
 }
 
 # Physical upper bounds (mol/kg) to clamp exp() blowups from autoregressive drift.
@@ -66,12 +77,14 @@ def convert_log_to_linear(input_path: str, output_path: str):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Find log-transformed variables
+    # Find log-transformed and asinh-transformed variables
     log_vars = [v for v in ds.data_vars if v.startswith('log_')]
+    asinh_vars = [v for v in ds.data_vars if v.startswith('asinh_')]
     logger.info(f"\nFound {len(log_vars)} log-transformed variables")
+    logger.info(f"Found {len(asinh_vars)} asinh-transformed variables")
 
     # Convert each log variable to linear space
-    logger.info("\nConverting variables:")
+    logger.info("\nConverting log variables:")
     new_vars = {}
 
     for log_var in log_vars:
@@ -90,6 +103,7 @@ def convert_log_to_linear(input_path: str, output_path: str):
         # Clamp to physical bounds to catch autoregressive drift blowups
         raw = ds[log_var]
         linear_data = np.exp(raw) - epsilon
+        linear_data = linear_data.clip(min=0)  # Safety clamp to non-negative
         linear_data = linear_data.where(raw != 0)
 
         phys_max = PHYSICAL_MAX.get(base_var)
@@ -105,10 +119,46 @@ def convert_log_to_linear(input_path: str, output_path: str):
 
         new_vars[linear_var_name] = (ds[log_var].dims, linear_data, attrs)
 
-    # Copy non-log variables as-is
-    logger.info("\nCopying non-log variables:")
+    # Convert each asinh variable to linear space
+    if asinh_vars:
+        logger.info("\nConverting asinh variables:")
+
+    for asinh_var in asinh_vars:
+        # Extract base variable name and level (e.g., "asinh_no3_0" -> "no3", "0")
+        base_var = asinh_var.replace('asinh_', '').rsplit('_', 1)[0]
+        level = asinh_var.rsplit('_', 1)[1] if '_' in asinh_var.replace('asinh_', '') else None
+        linear_var_name = asinh_var.replace('asinh_', '')
+
+        # Get scale for this variable type
+        scale = ASINH_SCALE_MAP.get(base_var, 1e-7)
+
+        logger.info(f"  {asinh_var} -> {linear_var_name} (scale={scale})")
+
+        # Transform: linear = scale * sinh(asinh_value)
+        # Mask land points: where asinh_var == 0, set to NaN (but 0 is valid for asinh!)
+        # For asinh, we use a different masking approach - check if the original was masked
+        raw = ds[asinh_var]
+        linear_data = scale * np.sinh(raw)
+        linear_data = linear_data.clip(min=0)  # Safety clamp to non-negative
+
+        # Clamp to physical bounds
+        phys_max = PHYSICAL_MAX.get(base_var)
+        if phys_max is not None:
+            n_clamped = (linear_data > phys_max).sum().values
+            if n_clamped > 0:
+                logger.warning(f"    Clamping {int(n_clamped)} values above {phys_max:.1e} for {linear_var_name}")
+            linear_data = linear_data.clip(max=phys_max)
+
+        # Copy attributes
+        attrs = ds[asinh_var].attrs.copy()
+        attrs['transformation'] = f'Converted from asinh space: {scale} * sinh(asinh_{base_var})'
+
+        new_vars[linear_var_name] = (ds[asinh_var].dims, linear_data, attrs)
+
+    # Copy non-transformed variables as-is
+    logger.info("\nCopying non-transformed variables:")
     for var in ds.data_vars:
-        if not var.startswith('log_'):
+        if not var.startswith('log_') and not var.startswith('asinh_'):
             logger.info(f"  {var}")
             # Extract data, dims, and attrs properly
             new_vars[var] = (ds[var].dims, ds[var].data, ds[var].attrs)
@@ -125,6 +175,7 @@ def convert_log_to_linear(input_path: str, output_path: str):
     # Add metadata about conversion
     ds_linear.attrs['log_to_linear_conversion'] = 'true'
     ds_linear.attrs['epsilon_values'] = str(EPSILON_MAP)
+    ds_linear.attrs['asinh_scale_values'] = str(ASINH_SCALE_MAP)
 
     logger.info(f"  Output dataset: {len(ds_linear.data_vars)} variables")
 
@@ -138,12 +189,20 @@ def convert_log_to_linear(input_path: str, output_path: str):
     logger.info("\n" + "="*80)
     logger.info("Conversion complete!")
     logger.info("="*80)
-    logger.info(f"\nConverted variables:")
+    logger.info(f"\nConverted log variables:")
     for log_var in sorted(log_vars)[:10]:
         linear_var = log_var.replace('log_', '')
         logger.info(f"  {log_var} -> {linear_var}")
     if len(log_vars) > 10:
         logger.info(f"  ... and {len(log_vars) - 10} more")
+
+    if asinh_vars:
+        logger.info(f"\nConverted asinh variables:")
+        for asinh_var in sorted(asinh_vars)[:10]:
+            linear_var = asinh_var.replace('asinh_', '')
+            logger.info(f"  {asinh_var} -> {linear_var}")
+        if len(asinh_vars) > 10:
+            logger.info(f"  ... and {len(asinh_vars) - 10} more")
 
 
 def main():

@@ -336,6 +336,15 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
         for j in [str(i) for i in range(10)]
     ]
     + ["SSH"],
+    # asinh-transformed NO3 (shifts training distribution to positive values)
+    # Model learns to predict y in [0, ~7] instead of [-28, -10] for log
+    # Predicting y < 0 requires crossing zero — further from training distribution
+    "helmholtz_log_asinh_no3_all": [
+        k + str(j)
+        for k in ["log_dic_", "log_o2_", "asinh_no3_", "log_chl_", "temp_", "salt_", "psi_", "phi_"]
+        for j in DEPTH_I_LEVELS
+    ]
+    + ["SSH"],
 }
 
 BoundaryVarNames = list[str]

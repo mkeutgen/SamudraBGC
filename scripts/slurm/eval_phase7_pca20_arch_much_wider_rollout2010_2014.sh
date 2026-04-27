@@ -15,7 +15,7 @@
 
 set -e
 
-source "$(dirname "$0")/env_setup.sh"
+source "${SLURM_SUBMIT_DIR}/scripts/slurm/env_setup.sh"
 
 
 CONFIG=configs/eval/phase7_pca20_arch_much_wider_eval_rollout2010_2014.yaml

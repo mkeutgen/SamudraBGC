@@ -15,7 +15,7 @@
 
 set -e
 
-source "$(dirname "$0")/env_setup.sh"
+source "${SLURM_SUBMIT_DIR}/scripts/slurm/env_setup.sh"
 
 
 SRC_DIR=${OCEAN_EMU_DATA_ROOT}

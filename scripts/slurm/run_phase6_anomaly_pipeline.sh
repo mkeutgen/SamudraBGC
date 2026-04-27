@@ -5,7 +5,7 @@
 
 set -e
 
-source "$(dirname "$0")/env_setup.sh"
+source "${SLURM_SUBMIT_DIR}/scripts/slurm/env_setup.sh"
 
 echo "=== Phase 6: PCA k=15 Anomaly Pipeline ==="
 

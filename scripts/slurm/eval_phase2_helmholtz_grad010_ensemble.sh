@@ -16,7 +16,7 @@
 
 set -e
 
-source "$(dirname "$0")/env_setup.sh"
+source "${SLURM_SUBMIT_DIR}/scripts/slurm/env_setup.sh"
 
 
 CONFIG=configs/eval/phase2_helmholtz_grad010_ensemble_eval.yaml

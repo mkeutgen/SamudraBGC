@@ -15,7 +15,7 @@
 
 set -e
 
-source "$(dirname "$0")/env_setup.sh"
+source "${SLURM_SUBMIT_DIR}/scripts/slurm/env_setup.sh"
 
 
 echo "Starting 1-year rollout (1990) for phase2_helmholtz_grad010"
