@@ -38,30 +38,30 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # ── Ablation tree data ────────────────────────────────────────────────────────
 TREE_LEVELS = [
     {"header": "Ocean Circulation\nRepresentation", "nodes": [
-        {"label": "Helmholtz", "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": True},
-        {"label": "Velocity",  "r2": -0.0659, "nrmse": 0.1896, "nmae": 0.1442, "nbias": -0.0189, "champion": False},
+        {"label": "M1 Helmholtz", "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": True},
+        {"label": "M2 Velocity",  "r2": -0.0659, "nrmse": 0.1896, "nmae": 0.1442, "nbias": -0.0189, "champion": False},
     ]},
     {"header": "Biogeochemistry\nRepresentation", "nodes": [
-        {"label": "Log BGC",     "r2": 0.6345, "nrmse": 0.1052, "nmae": 0.0714, "nbias": 0.0052, "champion": True},
-        {"label": "Linear BGC",  "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": False},
+        {"label": "M3 Log BGC",     "r2": 0.6345, "nrmse": 0.1052, "nmae": 0.0714, "nbias": 0.0052, "champion": True},
+        {"label": "M4 Linear BGC",  "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": False},
     ]},
     {"header": "Fine-scale Dynamics\n(gradient weight in loss)", "nodes": [
-        {"label": "Grad Weight 0.10", "r2": 0.7954, "nrmse": 0.0828, "nmae": 0.0527, "nbias": 0.0049, "champion": True},
-        {"label": "Grad Weight 0",    "r2": 0.7489, "nrmse": 0.0903, "nmae": 0.0591, "nbias": 0.0026, "champion": False},
-        {"label": "Grad Weight 0.25", "r2": 0.7720, "nrmse": 0.0848, "nmae": 0.0556, "nbias": 0.0019, "champion": False},
-        {"label": "Grad Weight 0.50", "r2": 0.7791, "nrmse": 0.0837, "nmae": 0.0539, "nbias": 0.0047, "champion": False},
+        {"label": "M5 Grad Weight 0.10", "r2": 0.7954, "nrmse": 0.0828, "nmae": 0.0527, "nbias": 0.0049, "champion": True},
+        {"label": "M6 Grad Weight 0",    "r2": 0.7489, "nrmse": 0.0903, "nmae": 0.0591, "nbias": 0.0026, "champion": False},
+        {"label": "M7 Grad Weight 0.25", "r2": 0.7720, "nrmse": 0.0848, "nmae": 0.0556, "nbias": 0.0019, "champion": False},
+        {"label": "M8 Grad Weight 0.50", "r2": 0.7791, "nrmse": 0.0837, "nmae": 0.0539, "nbias": 0.0047, "champion": False},
     ]},
     {"header": "Vertical Structure\n(PCA)", "nodes": [
-        {"label": "20 components", "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010, "champion": True},
-        {"label": "15 components", "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias": 0.0016, "champion": False},
-        {"label": "10 components", "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias": 0.0046, "champion": False},
-        {"label": "5 components",  "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
+        {"label": "M9 20 components", "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010, "champion": True},
+        {"label": "M10 15 components", "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias": 0.0016, "champion": False},
+        {"label": "M11 10 components", "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias": 0.0046, "champion": False},
+        {"label": "M12 5 components",  "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
     ]},
     {"header": "ML Architecture", "nodes": [
-        {"label": "Best Model",   "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010,  "champion": True},
-        {"label": "Wider",        "r2": 0.8084, "nrmse": 0.0791, "nmae": 0.0515, "nbias": -0.0046, "champion": False},
-        {"label": "Much Wider",   "r2": 0.7832, "nrmse": 0.0842, "nmae": 0.0565, "nbias": 0.0002,  "champion": False},
-        {"label": "Wider+Deeper", "r2": 0.8144, "nrmse": 0.0768, "nmae": 0.0500, "nbias": 0.0042,  "champion": False, "no_star": ("r2", "nmae")},
+        {"label": "M9 SamudraBGC",   "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010,  "champion": True},
+        {"label": "M13 Wider",        "r2": 0.8084, "nrmse": 0.0791, "nmae": 0.0515, "nbias": -0.0046, "champion": False},
+        {"label": "M14 Much Wider",   "r2": 0.7832, "nrmse": 0.0842, "nmae": 0.0565, "nbias": 0.0002,  "champion": False},
+        {"label": "M15 Wider+Deeper", "r2": 0.8144, "nrmse": 0.0768, "nmae": 0.0500, "nbias": 0.0042,  "champion": False, "no_star": ("r2", "nmae")},
     ]},
 ]
 
@@ -75,9 +75,9 @@ C = {
     "norm_txt":  "#3C3C3C",
     # Connector lines
     "edge":      "#2E7D46",  "edge_lw":   1.6,
-    # Final champion (Best Model) — deep blue to distinguish from stage champions
-    "final_bg":  "#E8EEF8",  "final_bd":  "#1B4F8A",  "final_hd":  "#C4D5ED",
-    "final_txt": "#0F3666",
+    # Final champion (SamudraBGC) — green interior with orange border
+    "final_bg":  "#E8F4EC",  "final_bd":  "#E07000",  "final_hd":  "#C8E6D0",
+    "final_txt": "#1B5E30",
     # Accents
     "star":      "#D47A00",  # amber for best-per-metric
     "bad_txt":   "#A12828",  # red for badly degraded metrics

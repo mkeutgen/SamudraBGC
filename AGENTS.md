@@ -367,7 +367,7 @@ When a training job fails:
 
 **Ablation-figure experiment labels must match the ablation tree verbatim**:
 - `fig03_ablation_tree.py` TREE_LEVELS is the canonical source for every experiment name. Any other paper figure (fig04, fig04_bis, SI variants) that references the same experiments MUST spell them exactly the same way, character for character
-- Current canonical set: `"Ground Truth"`, `"Helmholtz"`, `"Velocity"`, `"Log BGC"`, `"Linear BGC"`, `"Grad Weight 0"`, `"Grad Weight 0.10"`, `"Grad Weight 0.25"`, `"Grad Weight 0.50"`, `"5 components"`, `"10 components"`, `"15 components"`, `"20 components"`, `"Best Model"`
+- Current canonical set: `"Ground Truth"`, `"M1 Helmholtz"`, `"M2 Velocity"`, `"M3 Log BGC"`, `"M4 Linear BGC"`, `"M5 Grad Weight 0.10"`, `"M6 Grad Weight 0"`, `"M7 Grad Weight 0.25"`, `"M8 Grad Weight 0.50"`, `"M9 20 components"`, `"M10 15 components"`, `"M11 10 components"`, `"M12 5 components"`, `"M9 SamudraBGC"`, `"M13 Wider"`, `"M14 Much Wider"`, `"M15 Wider+Deeper"`
 - `"Ground Truth"` itself is not a tree node — it comes from the naming-convention rule above (never `"MOM6-DG"`, `"MOM6-DG (truth)"`, etc.)
 - Do NOT embed parenthetical context like `"(log BGC)"` or `"(no transform)"` in ablation-line labels — the tree is the single place where rationale is spelled out; figures just use the names
 

@@ -37,13 +37,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from ocean_emulators.constants import DEPTH_THICKNESS
 
 mpl.rcParams.update({
-    "font.family": "sans-serif", "font.size": 18,
-    "axes.labelsize": 17, "axes.titlesize": 20,
-    "xtick.labelsize": 15, "ytick.labelsize": 15,
-    "legend.fontsize": 15, "figure.dpi": 150,
+    "font.family": "sans-serif", "font.size": 22,
+    "axes.labelsize": 21, "axes.titlesize": 24,
+    "xtick.labelsize": 19, "ytick.labelsize": 19,
+    "legend.fontsize": 19, "figure.dpi": 150,
     "savefig.dpi": 300, "savefig.bbox": "tight",
-    "axes.linewidth": 1.2, "xtick.major.width": 1.2, "xtick.major.size": 4,
-    "ytick.major.width": 1.2, "ytick.major.size": 4,
+    "axes.linewidth": 1.6, "xtick.major.width": 1.6, "xtick.major.size": 5,
+    "ytick.major.width": 1.6, "ytick.major.size": 5,
     "axes.spines.top": False, "axes.spines.right": False,
 })
 
@@ -56,10 +56,10 @@ DX_KM       = 9.0
 SNAP_DATE_STR = "2014-03-21"
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-GT_PATH       = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
-LINEAR_PATH   = "outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
-VELOCITY_PATH = "outputs/phase1_velocity_nograd_eval/predictions.zarr"
-BEST_PATH     = "outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr"
+GT_PATH       = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+LINEAR_PATH   = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
+VELOCITY_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_velocity_nograd_eval/predictions.zarr"
+BEST_PATH     = "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr"
 
 HELM_MODELS = {
     "gt":   GT_PATH,
@@ -72,15 +72,15 @@ HELM_MODELS = {
 # step + ML Architecture champion). Ground Truth per AGENTS.md convention.
 HELM_LABELS = {
     "gt":   "Ground Truth",
-    "helm": "Helmholtz",
-    "vel":  "Velocity",
-    "best": "Best Model",
+    "helm": "M1 Helmholtz",
+    "vel":  "M2 Velocity",
+    "best": "M9 SamudraBGC",
 }
 HELM_COLORS = {
     "gt":   "#000000",
     "helm": "#0072B2",   # Wong blue
-    "vel":  "#D55E00",   # Wong vermillion
-    "best": "#009E73",   # Wong bluish green
+    "vel":  "#009E73",   # Wong bluish green
+    "best": "#E07000",   # Orange (SamudraBGC)
 }
 
 # ── Variants (same 6 as v6) ──────────────────────────────────────────────────
@@ -255,8 +255,8 @@ def draw_snapshot_panel(axes_maps, cax, snap_data, var_label, units):
     cb.set_label(f"{var_label} ({units})", fontsize=17)
     cb.ax.tick_params(labelsize=15)
 
-    ax_gt.text(-0.12, 1.12,
-               f"(a) Ocean Circulation Representation — {var_label}",
+    ax_gt.text(-0.12, 1.18,
+               f"(a) Ocean Circulation Representation\n{var_label}",
                transform=ax_gt.transAxes, fontsize=20, fontweight="bold")
 
 
@@ -273,7 +273,7 @@ def draw_spectrum_panel(ax_spec, snap_data, var_label, title_y=1.02):
     ax_spec.set_xlabel("Wavelength (km)", fontsize=17)
     ax_spec.set_ylabel("Power spectral density", fontsize=17)
     ax_spec.set_xlim(wl.max(), max(DX_KM * 2.5, wl.min()))
-    ax_spec.text(0.0, title_y, f"(b) Power spectrum — {var_label}",
+    ax_spec.text(0.0, title_y + 0.06, f"(b) Power Spectrum\n{var_label}",
                  transform=ax_spec.transAxes, fontsize=20, fontweight="bold",
                  ha="left", va="bottom")
     ax_spec.legend(fontsize=15, loc="lower left", framealpha=0.80, ncol=1)
@@ -290,15 +290,15 @@ def render_variant(variant, snap_data, output_dir):
     units     = variant["units"]
     suffix    = variant["suffix"]
 
-    fig = plt.figure(figsize=(22, 10))
+    fig = plt.figure(figsize=(18, 8))
     outer = mgridspec.GridSpec(1, 2, figure=fig,
-                               width_ratios=[1.0, 0.85], wspace=0.38)
+                               width_ratios=[1.0, 0.85], wspace=0.42)
 
     # (a) 2×2 snapshot maps + shared colorbar on the right of the block.
     maps_gs = mgridspec.GridSpecFromSubplotSpec(
         2, 3, subplot_spec=outer[0],
         width_ratios=[1.0, 1.0, 0.045],
-        hspace=0.25, wspace=0.10)
+        hspace=0.30, wspace=0.15)
     ax_gt   = fig.add_subplot(maps_gs[0, 0])
     ax_helm = fig.add_subplot(maps_gs[0, 1])
     ax_vel  = fig.add_subplot(maps_gs[1, 0])

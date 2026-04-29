@@ -61,33 +61,33 @@ GROUPS = [
     {
         "header": "Dynamics\nRepresentation",
         "rows": [                             # ordered worst → best
-            {"label": "Velocity  (u, v)",     "rmse": 17.2, "acc": 0.73},
-            {"label": "Helmholtz  (ψ, φ)",    "rmse": 14.8, "acc": 0.80},  # ← G2 Linear BGC baseline
+            {"label": "M2 Velocity",          "rmse": 17.2, "acc": 0.73},
+            {"label": "M1 Helmholtz",         "rmse": 14.8, "acc": 0.80},  # ← G2 Linear BGC baseline
         ],
     },
     {
         "header": "BGC\nRepresentation",
         "rows": [
-            {"label": "Linear BGC",           "rmse": 14.8, "acc": 0.80},  # = G1 champion (same model)
-            {"label": "Log BGC  ★",           "rmse": 13.1, "acc": 0.84},  # ← G3 Grad=0 baseline
+            {"label": "M4 Linear BGC",        "rmse": 14.8, "acc": 0.80},  # = G1 champion (same model)
+            {"label": "M3 Log BGC  ★",        "rmse": 13.1, "acc": 0.84},  # ← G3 Grad=0 baseline
         ],
     },
     {
         "header": "Gradient\nWeight",
         "rows": [
-            {"label": "Grad = 0",             "rmse": 13.1, "acc": 0.84},  # = G2 champion (same model)
-            {"label": "Grad = 0.10",          "rmse": 12.3, "acc": 0.86},
-            {"label": "Grad = 0.50",          "rmse": 12.6, "acc": 0.85},  # overweighting penalty
-            {"label": "Grad = 0.25  ★",       "rmse": 11.6, "acc": 0.88},  # ← G4 Baseline
+            {"label": "M6 Grad Weight 0",     "rmse": 13.1, "acc": 0.84},  # = G2 champion (same model)
+            {"label": "M5 Grad Weight 0.10",  "rmse": 12.3, "acc": 0.86},
+            {"label": "M8 Grad Weight 0.50",  "rmse": 12.6, "acc": 0.85},  # overweighting penalty
+            {"label": "M7 Grad Weight 0.25 ★","rmse": 11.6, "acc": 0.88},  # ← G4 Baseline
         ],
     },
     {
         "header": "Architecture",
         "rows": [
             {"label": "Baseline",             "rmse": 11.6, "acc": 0.88},  # = G3 champion (same model)
-            {"label": "Wide",                 "rmse": 11.1, "acc": 0.89},
-            {"label": "Deep",                 "rmse": 10.8, "acc": 0.90},
-            {"label": "Wide + Deep  ★",       "rmse": 10.2, "acc": 0.91},  # best overall
+            {"label": "M13 Wider",            "rmse": 11.1, "acc": 0.89},
+            {"label": "Deeper",               "rmse": 10.8, "acc": 0.90},
+            {"label": "M15 Wider+Deeper ★",   "rmse": 10.2, "acc": 0.91},  # best overall
         ],
     },
 ]

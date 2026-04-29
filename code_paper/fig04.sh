@@ -18,8 +18,9 @@
 
 set -e
 
-source "$(dirname "$0")/env_setup.sh"
+source "${SLURM_SUBMIT_DIR}/code_paper/env_setup.sh"
 
+echo "OCEAN_EMU_DATA_ROOT=$OCEAN_EMU_DATA_ROOT"
 
 mkdir -p logs
 

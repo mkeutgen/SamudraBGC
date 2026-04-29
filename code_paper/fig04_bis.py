@@ -41,13 +41,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from ocean_emulators.constants import DEPTH_THICKNESS, DEPTH_LEVELS
 
 mpl.rcParams.update({
-    "font.family": "sans-serif", "font.size": 18,
-    "axes.labelsize": 17, "axes.titlesize": 20,
-    "xtick.labelsize": 15, "ytick.labelsize": 15,
-    "legend.fontsize": 15, "figure.dpi": 150,
+    "font.family": "sans-serif", "font.size": 22,
+    "axes.labelsize": 21, "axes.titlesize": 24,
+    "xtick.labelsize": 19, "ytick.labelsize": 19,
+    "legend.fontsize": 19, "figure.dpi": 150,
     "savefig.dpi": 300, "savefig.bbox": "tight",
-    "axes.linewidth": 1.2, "xtick.major.width": 1.2, "xtick.major.size": 4,
-    "ytick.major.width": 1.2, "ytick.major.size": 4,
+    "axes.linewidth": 1.6, "xtick.major.width": 1.6, "xtick.major.size": 5,
+    "ytick.major.width": 1.6, "ytick.major.size": 5,
     "axes.spines.top": False, "axes.spines.right": False,
 })
 
@@ -85,23 +85,23 @@ ALL_MODELS = {
 
 # ── Color / linestyle / label scheme — labels match fig03_ablation_tree.py ──
 C = {
-    "gt":       ("#000000", "-",  2.0),
-    "best":     ("#009E73", "-",  2.5),   # Wong bluish green
-    "linear":   ("#D55E00", "--", 1.4),   # Wong vermillion
-    "log":      ("#CC79A7", ":",  1.4),   # Wong reddish purple
-    "alpha0":   ("#BCBDDC", "-",  1.4),   # light purple
-    "alpha025": ("#807DBA", "-",  1.4),   # medium purple
-    "alpha050": ("#4A1486", "-",  1.4),   # dark purple
+    "gt":       ("#000000", "-",  2.5),
+    "best":     ("#E07000", "-",  3.2),   # Orange (SamudraBGC)
+    "linear":   ("#CC79A7", "--", 2.0),   # Purple, dashed
+    "log":      ("#CC79A7", ":",  2.0),   # Purple, dotted (same color as linear)
+    "alpha0":   ("#BCBDDC", "-",  2.0),   # light purple
+    "alpha025": ("#807DBA", "-",  2.0),   # medium purple
+    "alpha050": ("#4A1486", "-",  2.0),   # dark purple
 }
 
 LABELS = {
     "gt":       "Ground Truth",
-    "best":     "Best Model",
-    "linear":   "Linear BGC",
-    "log":      "Log BGC",
-    "alpha0":   "Grad Weight 0",
-    "alpha025": "Grad Weight 0.25",
-    "alpha050": "Grad Weight 0.50",
+    "best":     "M9 SamudraBGC",
+    "linear":   "M4 Linear BGC",
+    "log":      "M3 Log BGC",
+    "alpha0":   r"M6 $\alpha = 0$",
+    "alpha025": r"M7 $\alpha = 0.25$",
+    "alpha050": r"M8 $\alpha = 0.50$",
 }
 
 # ── PCA variants for panel (b) ───────────────────────────────────────────────
@@ -113,16 +113,23 @@ PCA_PATHS = {
     "20 components": "outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
 }
 PCA_COLORS = {
-    "All 50 levels": "#D55E00",
-    "5 components":  "#CC79A7",
-    "10 components": "#56B4E9",
-    "15 components": "#0072B2",
-    "20 components": "#009E73",
+    "All 50 levels": "#B2E2E2",      # lightest teal
+    "5 components":  "#66C2A4",      # light teal
+    "10 components": "#2CA25F",      # medium teal
+    "15 components": "#238B45",      # dark teal
+    "20 components": "#E07000",      # orange (M9 SamudraBGC)
 }
-PCA_LWS = {"All 50 levels": 1.3, "5 components": 1.3, "10 components": 1.3,
-           "15 components": 1.3, "20 components": 2.4}
+PCA_LWS = {"All 50 levels": 2.5, "5 components": 2.5, "10 components": 2.5,
+           "15 components": 2.5, "20 components": 3.8}
 PCA_LST = {"All 50 levels": "--", "5 components": ":", "10 components": "-.",
            "15 components": "-", "20 components": "-"}
+PCA_LABELS = {
+    "All 50 levels": "M5 no PCA",
+    "5 components":  "M12 5 PCs",
+    "10 components": "M11 10 PCs",
+    "15 components": "M10 15 PCs",
+    "20 components": "M9 20 PCs",
+}
 
 # ── Variants (same 6 as v6) ──────────────────────────────────────────────────
 VARIANTS = [
@@ -360,7 +367,7 @@ def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units):
     ax_ts.set_ylabel(f"{var_label}\n({units})", fontsize=17)
     ax_ts.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax_ts.xaxis.set_major_locator(mdates.YearLocator())
-    ax_ts.legend(fontsize=15, framealpha=0.80, loc="lower left", ncol=1)
+    ax_ts.legend(fontsize=15, framealpha=0.80, loc="lower left", ncol=2)
     ax_ts.tick_params(labelsize=15)
     plt.setp(ax_ts.get_xticklabels(), visible=False)
 
@@ -386,15 +393,15 @@ def draw_pca_panel(axes_rmse, pca_data, var_label):
     for ax, vd in zip(axes_rmse, pca_data["vars"]):
         for exp_label in PCA_PATHS.keys():
             is_best = (exp_label == "20 components")
-            label = f"{exp_label} (best)" if is_best else exp_label
+            display_label = PCA_LABELS[exp_label]
             ax.plot(vd["rmse"][exp_label], depth,
                     color=PCA_COLORS[exp_label],
                     lw=PCA_LWS[exp_label],
                     ls=PCA_LST[exp_label],
-                    label=label, alpha=0.9,
+                    label=display_label, alpha=0.9,
                     zorder=3 if is_best else 2)
         ax.set_ylim(500, 0)
-        ax.set_xlabel(f"RMSE ({vd['label']})", fontsize=17)
+        ax.set_xlabel(f"RMSE\n{vd['label']}", fontsize=17)
         ax.tick_params(labelsize=15)
         ax.grid(True, axis="x", alpha=0.20, lw=0.6)
         ax.grid(True, axis="y", alpha=0.12, lw=0.5)
@@ -415,7 +422,7 @@ def render_variant(variant, ts_dict, times_dt, pca_data, output_dir):
     suffix     = variant["suffix"]
     var_prefix = variant["var"]
 
-    fig = plt.figure(figsize=(22, 10))
+    fig = plt.figure(figsize=(18, 8))
     outer = mgridspec.GridSpec(1, 2, figure=fig,
                                width_ratios=[1.0, 0.80], wspace=0.22)
 

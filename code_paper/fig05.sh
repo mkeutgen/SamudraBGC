@@ -12,7 +12,7 @@
 
 set -e
 
-source "$(dirname "$0")/env_setup.sh"
+source "${SLURM_SUBMIT_DIR}/code_paper/env_setup.sh"
 
 
 

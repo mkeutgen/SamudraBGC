@@ -73,24 +73,24 @@ TREE_LEVELS = [
     {
         "header": "Dynamics\nRepresentation",
         "nodes": [
-            {"label": "Velocity (u, v)",    "r2": 0.5198, "champion": False},
-            {"label": "Helmholtz (ψ, φ)",   "r2": 0.5559, "champion": True},
+            {"label": "M2 Velocity",        "r2": 0.5198, "champion": False},
+            {"label": "M1 Helmholtz",       "r2": 0.5559, "champion": True},
         ],
     },
     {
         "header": "BGC\nRepresentation",
         "nodes": [
-            {"label": "Linear BGC",         "r2": 0.5559, "champion": False},
-            {"label": "Log BGC",            "r2": 0.5870, "champion": True},
+            {"label": "M4 Linear BGC",      "r2": 0.5559, "champion": False},
+            {"label": "M3 Log BGC",         "r2": 0.5870, "champion": True},
         ],
     },
     {
         "header": "Gradient\nWeight",
         "nodes": [
-            {"label": "α = 0",             "r2": 0.7404, "champion": False},
-            {"label": "α = 0.10",          "r2": 0.7481, "champion": True},
-            {"label": "α = 0.25",          "r2": 0.7398, "champion": False},
-            {"label": "α = 0.50",          "r2": 0.7538, "champion": False},
+            {"label": "M6 Grad Weight 0",      "r2": 0.7404, "champion": False},
+            {"label": "M5 Grad Weight 0.10",   "r2": 0.7481, "champion": True},
+            {"label": "M7 Grad Weight 0.25",   "r2": 0.7398, "champion": False},
+            {"label": "M8 Grad Weight 0.50",   "r2": 0.7538, "champion": False},
         ],
     },
     {
@@ -471,9 +471,9 @@ def draw_helmholtz_panel(axes, helm_data):
                np.nanpercentile(helm_data["vel_snap"], 98))
 
     for ax, field, title in [
-        (ax_gt,   helm_data["gt_snap"],   "MOM6-DG"),
-        (ax_helm, helm_data["helm_snap"], "Helmholtz (ψ, φ)"),
-        (ax_vel,  helm_data["vel_snap"],  "Velocity (u, v)"),
+        (ax_gt,   helm_data["gt_snap"],   "Ground Truth"),
+        (ax_helm, helm_data["helm_snap"], "M1 Helmholtz"),
+        (ax_vel,  helm_data["vel_snap"],  "M2 Velocity"),
     ]:
         im = ax.imshow(field, origin="lower", cmap="plasma",
                         vmin=vmin, vmax=vmax, aspect="auto")
@@ -492,9 +492,9 @@ def draw_helmholtz_panel(axes, helm_data):
     wl = helm_data["wavelength_km"]
     clrs = {"gt": "#333333", "helm": "#4878CF", "vel": "#E07B39"}
 
-    ax_spec.loglog(wl, helm_data["gt_spec"],   color=clrs["gt"],   lw=1.8, label="MOM6-DG")
-    ax_spec.loglog(wl, helm_data["helm_spec"], color=clrs["helm"], lw=1.5, label="Helmholtz (ψ, φ)")
-    ax_spec.loglog(wl, helm_data["vel_spec"],  color=clrs["vel"],  lw=1.5, ls="--", label="Velocity (u, v)")
+    ax_spec.loglog(wl, helm_data["gt_spec"],   color=clrs["gt"],   lw=1.8, label="Ground Truth")
+    ax_spec.loglog(wl, helm_data["helm_spec"], color=clrs["helm"], lw=1.5, label="M1 Helmholtz")
+    ax_spec.loglog(wl, helm_data["vel_spec"],  color=clrs["vel"],  lw=1.5, ls="--", label="M2 Velocity")
 
     ax_spec.set_xlabel("Wavelength (km)", fontsize=10)
     ax_spec.set_ylabel("Power spectral density", fontsize=10)

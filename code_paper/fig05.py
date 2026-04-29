@@ -87,11 +87,11 @@ DEPTH_CENTERS = [
 
 PHYSICAL_FILE_PATTERN = "hist_control_3d__{year}_{month:02d}.nc"
 
-# Wong colorblind-safe palette
-ML_ENVELOPE_COLOR = "#66c2a5"
-ML_MEAN_COLOR = "#009E73"
-PHYS_ENVELOPE_COLOR = "#E69F00"
-PHYS_MEAN_COLOR = "#D55E00"
+# Wong colorblind-safe palette — SamudraBGC in orange, Physical in blue
+ML_ENVELOPE_COLOR = "#FFDAB9"    # light orange (peach)
+ML_MEAN_COLOR = "#E07000"        # orange
+PHYS_ENVELOPE_COLOR = "#56B4E9"  # sky blue
+PHYS_MEAN_COLOR = "#0072B2"      # Wong blue
 GT_COLOR = "#000000"
 
 # Biome definitions (latitude ranges)
@@ -414,18 +414,20 @@ def bias_correct_to_gt(ts_2d, gt_mean):
 # =============================================================================
 mpl.rcParams.update({
     "font.family": "sans-serif",
-    "font.size": 16,
-    "axes.labelsize": 15,
-    "axes.titlesize": 17,
-    "xtick.labelsize": 13,
-    "ytick.labelsize": 13,
-    "legend.fontsize": 13,
+    "font.size": 22,
+    "axes.labelsize": 21,
+    "axes.titlesize": 24,
+    "xtick.labelsize": 19,
+    "ytick.labelsize": 19,
+    "legend.fontsize": 19,
     "figure.dpi": 150,
     "savefig.dpi": 300,
     "savefig.bbox": "tight",
     "axes.spines.top": False,
     "axes.spines.right": False,
-    "axes.linewidth": 1.2,
+    "axes.linewidth": 1.6,
+    "xtick.major.width": 1.6, "xtick.major.size": 5,
+    "ytick.major.width": 1.6, "ytick.major.size": 5,
 })
 
 
@@ -444,20 +446,20 @@ def _plot_maps_row(fig, gs_row, lat, lon, phys_spread, ml_spread, n_phys, n_ml,
                            cmap="cividis", shading="auto")
         ax.set_aspect("equal")
         ax.set_facecolor("#cccccc")
-        ax.set_title(title, fontsize=17, fontweight="bold", pad=10)
-        ax.set_xlabel("Longitude (°E)", fontsize=15)
-        ax.tick_params(labelsize=13)
+        ax.set_title(title, fontsize=20, fontweight="bold", pad=10)
+        ax.set_xlabel("Longitude (°E)", fontsize=17)
+        ax.tick_params(labelsize=15)
 
         if probe_indices is not None:
             for pkey, (ilat, ilon) in probe_indices.items():
                 ax.plot(lon[ilon], lat[ilat], marker="o",
                         mfc="white", mec="k", ms=8, mew=1.4, zorder=10)
 
-    ax_phys.set_ylabel("Latitude (°N)", fontsize=15)
+    ax_phys.set_ylabel("Latitude (°N)", fontsize=17)
 
     cbar = fig.colorbar(im, cax=cax, extend="max")
-    cbar.set_label(f"Spread σ ({vc.units})", fontsize=15)
-    cbar.ax.tick_params(labelsize=13)
+    cbar.set_label(f"Spread σ ({vc.units})", fontsize=17)
+    cbar.ax.tick_params(labelsize=15)
 
     return ax_phys, ax_ml
 
@@ -474,7 +476,7 @@ def _plot_fan_chart(ax, ml_arr, phys_arr, gt_ts, ml_times, phys_times, gt_times,
                         color=ML_ENVELOPE_COLOR, alpha=0.20, lw=0, zorder=2)
         ax.fill_between(t_ml, ml_mean - ml_std, ml_mean + ml_std,
                         color=ML_MEAN_COLOR, alpha=0.35, lw=0, zorder=3)
-        ax.plot(t_ml, ml_mean, color=ML_MEAN_COLOR, lw=2.0, zorder=5)
+        ax.plot(t_ml, ml_mean, color=ML_MEAN_COLOR, lw=2.8, zorder=5)
 
     if phys_arr_bc.size and phys_arr_bc.shape[0] > 0:
         t_ph = phys_times[:phys_arr_bc.shape[1]]
@@ -484,13 +486,13 @@ def _plot_fan_chart(ax, ml_arr, phys_arr, gt_ts, ml_times, phys_times, gt_times,
                         color=PHYS_ENVELOPE_COLOR, alpha=0.22, lw=0, zorder=2)
         ax.fill_between(t_ph, ph_mean - ph_std, ph_mean + ph_std,
                         color=PHYS_MEAN_COLOR, alpha=0.38, lw=0, zorder=3)
-        ax.plot(t_ph, ph_mean, color=PHYS_MEAN_COLOR, lw=2.0, zorder=5)
+        ax.plot(t_ph, ph_mean, color=PHYS_MEAN_COLOR, lw=2.8, zorder=5)
 
     ax.plot(gt_times[:len(gt_ts)], gt_ts, color=GT_COLOR, lw=2.0, zorder=6)
-    ax.set_title(title, fontsize=17, fontweight="bold", pad=10)
+    ax.set_title(title, fontsize=20, fontweight="bold", pad=10)
     ax.xaxis.set_major_locator(mdates.MonthLocator(bymonth=[1, 4, 7, 10]))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
-    ax.tick_params(labelsize=13)
+    ax.tick_params(labelsize=15)
     ax.grid(True, alpha=0.15, lw=0.7)
 
 
@@ -517,7 +519,7 @@ def plot_pointwise_figure(
     phys_probe_ts = extract_probe_ts(phys_stack, probe_indices)
     gt_probe_ts = {pkey: gt_field[:, ilat, ilon] for pkey, (ilat, ilon) in probe_indices.items()}
 
-    fig = plt.figure(figsize=(14, 10))
+    fig = plt.figure(figsize=(18, 10))
     outer_gs = GridSpec(
         2, 1, figure=fig,
         height_ratios=[1.15, 1.0],
@@ -543,25 +545,23 @@ def plot_pointwise_figure(
             f"{panel_labels[col]} {pinfo['label']} ({lat[ilat]:.1f}°N, {lon[ilon]:.1f}°E)",
         )
         if col == 0:
-            ax.set_ylabel(f"{vc.label} ({vc.units})", fontsize=15)
+            ax.set_ylabel(f"{vc.label} ({vc.units})", fontsize=17)
 
     n_ml = ml_stack.shape[0]
     n_ph = phys_stack.shape[0]
     legend_handles = [
-        Patch(facecolor=ML_ENVELOPE_COLOR, alpha=0.35, label=f"SamudraBGC Ensembles min–max (n={n_ml})"),
-        Patch(facecolor=ML_MEAN_COLOR, alpha=0.55, label="SamudraBGC Ensembles ±1σ"),
-        Line2D([0], [0], color=ML_MEAN_COLOR, lw=2.0, label="SamudraBGC Ensembles mean"),
-        Patch(facecolor=PHYS_ENVELOPE_COLOR, alpha=0.40, label=f"Physical Ensembles min–max (n={n_ph})"),
-        Patch(facecolor=PHYS_MEAN_COLOR, alpha=0.60, label="Physical Ensembles ±1σ"),
-        Line2D([0], [0], color=PHYS_MEAN_COLOR, lw=2.0, label="Physical Ensembles mean"),
+        Patch(facecolor=ML_ENVELOPE_COLOR, alpha=0.35, label=f"SamudraBGC (n={n_ml})"),
+        Line2D([0], [0], color=ML_MEAN_COLOR, lw=2.8, label="SamudraBGC mean"),
+        Patch(facecolor=PHYS_ENVELOPE_COLOR, alpha=0.40, label=f"Physical (n={n_ph})"),
+        Line2D([0], [0], color=PHYS_MEAN_COLOR, lw=2.8, label="Physical mean"),
         Line2D([0], [0], color=GT_COLOR, lw=2.0, label="Ground Truth"),
     ]
-    fig.legend(handles=legend_handles, loc="upper center",
-               bbox_to_anchor=(0.5, 0.14), ncol=4, fontsize=11, framealpha=0.90)
+    fig.legend(handles=legend_handles, loc="lower center",
+               bbox_to_anchor=(0.5, 0.02), ncol=5, fontsize=15, framealpha=0.90)
 
     fig.suptitle(
         f"{vc.label} — ensemble spread and pointwise trajectories ({YEAR})",
-        fontsize=18, fontweight="bold", y=0.995,
+        fontsize=20, fontweight="bold", y=0.995,
     )
 
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -593,7 +593,7 @@ def plot_biomes_figure(
     gt_biome_ts = {bkey: np.nansum(gt_field * bw[None, :, :], axis=(1, 2))
                    for bkey, bw in biome_weights.items()}
 
-    fig = plt.figure(figsize=(16, 10))
+    fig = plt.figure(figsize=(18, 10))
     outer_gs = GridSpec(
         2, 1, figure=fig,
         height_ratios=[1.0, 1.0],
@@ -617,25 +617,23 @@ def plot_biomes_figure(
             f"{panel_labels[col]} {binfo['label']}",
         )
         if col == 0:
-            ax.set_ylabel(f"{vc.label} ({vc.units})", fontsize=15)
+            ax.set_ylabel(f"{vc.label} ({vc.units})", fontsize=17)
 
     n_ml = ml_stack.shape[0]
     n_ph = phys_stack.shape[0]
     legend_handles = [
-        Patch(facecolor=ML_ENVELOPE_COLOR, alpha=0.35, label=f"SamudraBGC Ensembles min–max (n={n_ml})"),
-        Patch(facecolor=ML_MEAN_COLOR, alpha=0.55, label="SamudraBGC Ensembles ±1σ"),
-        Line2D([0], [0], color=ML_MEAN_COLOR, lw=2.0, label="SamudraBGC Ensembles mean"),
-        Patch(facecolor=PHYS_ENVELOPE_COLOR, alpha=0.40, label=f"Physical Ensembles min–max (n={n_ph})"),
-        Patch(facecolor=PHYS_MEAN_COLOR, alpha=0.60, label="Physical Ensembles ±1σ"),
-        Line2D([0], [0], color=PHYS_MEAN_COLOR, lw=2.0, label="Physical Ensembles mean"),
+        Patch(facecolor=ML_ENVELOPE_COLOR, alpha=0.35, label=f"SamudraBGC (n={n_ml})"),
+        Line2D([0], [0], color=ML_MEAN_COLOR, lw=2.8, label="SamudraBGC mean"),
+        Patch(facecolor=PHYS_ENVELOPE_COLOR, alpha=0.40, label=f"Physical (n={n_ph})"),
+        Line2D([0], [0], color=PHYS_MEAN_COLOR, lw=2.8, label="Physical mean"),
         Line2D([0], [0], color=GT_COLOR, lw=2.0, label="Ground Truth"),
     ]
-    fig.legend(handles=legend_handles, loc="upper center",
-               bbox_to_anchor=(0.5, 0.10), ncol=4, fontsize=11, framealpha=0.90)
+    fig.legend(handles=legend_handles, loc="lower center",
+               bbox_to_anchor=(0.5, 0.02), ncol=5, fontsize=15, framealpha=0.90)
 
     fig.suptitle(
         f"{vc.label} — ensemble spread and biome-averaged trajectories ({YEAR})",
-        fontsize=18, fontweight="bold", y=0.995,
+        fontsize=20, fontweight="bold", y=0.995,
     )
 
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
