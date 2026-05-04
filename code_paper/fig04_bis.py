@@ -40,14 +40,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from ocean_emulators.constants import DEPTH_THICKNESS, DEPTH_LEVELS
 
+# GRL-native sizing: 6.85" full width, fonts at 1:1 print scale
+# GRL font floors (at rendered size):
+#   - Panel labels: 9pt bold minimum
+#   - Axis labels: 8pt minimum
+#   - Tick labels: 7pt minimum
+#   - Legend: 7pt minimum
+GRL_WIDTH = 6.85  # inches (full page width for GRL)
+
 mpl.rcParams.update({
-    "font.family": "sans-serif", "font.size": 22,
-    "axes.labelsize": 21, "axes.titlesize": 24,
-    "xtick.labelsize": 19, "ytick.labelsize": 19,
-    "legend.fontsize": 19, "figure.dpi": 150,
+    "font.family": "sans-serif", "font.size": 9,
+    "axes.labelsize": 9, "axes.titlesize": 10,
+    "xtick.labelsize": 8, "ytick.labelsize": 8,
+    "legend.fontsize": 8, "figure.dpi": 150,
     "savefig.dpi": 300, "savefig.bbox": "tight",
-    "axes.linewidth": 1.6, "xtick.major.width": 1.6, "xtick.major.size": 5,
-    "ytick.major.width": 1.6, "ytick.major.size": 5,
+    "axes.linewidth": 0.8, "xtick.major.width": 0.8, "xtick.major.size": 3,
+    "ytick.major.width": 0.8, "ytick.major.size": 3,
     "axes.spines.top": False, "axes.spines.right": False,
 })
 
@@ -96,12 +104,12 @@ C = {
 
 LABELS = {
     "gt":       "Ground Truth",
-    "best":     "M9 SamudraBGC",
-    "linear":   "M4 Linear BGC",
-    "log":      "M3 Log BGC",
-    "alpha0":   r"M6 $\alpha = 0$",
-    "alpha025": r"M7 $\alpha = 0.25$",
-    "alpha050": r"M8 $\alpha = 0.50$",
+    "best":     "#9 SamudraBGC",
+    "linear":   "#4 Linear BGC",
+    "log":      "#3 Log BGC",
+    "alpha0":   "#6 Grad Weight 0",
+    "alpha025": "#7 Grad Weight 0.25",
+    "alpha050": "#8 Grad Weight 0.50",
 }
 
 # ── PCA variants for panel (b) ───────────────────────────────────────────────
@@ -124,11 +132,11 @@ PCA_LWS = {"All 50 levels": 2.5, "5 components": 2.5, "10 components": 2.5,
 PCA_LST = {"All 50 levels": "--", "5 components": ":", "10 components": "-.",
            "15 components": "-", "20 components": "-"}
 PCA_LABELS = {
-    "All 50 levels": "M5 no PCA",
-    "5 components":  "M12 5 PCs",
-    "10 components": "M11 10 PCs",
-    "15 components": "M10 15 PCs",
-    "20 components": "M9 20 PCs",
+    "All 50 levels": "#5 50 components",
+    "5 components":  "#12 5 components",
+    "10 components": "#11 10 components",
+    "15 components": "#10 15 components",
+    "20 components": "#9 20 components",
 }
 
 # ── Variants (same 6 as v6) ──────────────────────────────────────────────────
@@ -347,15 +355,27 @@ def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units):
     gt_ts = ts_dict["gt"]
     # Draw baselines first, then gradient variants, then best on top.
     draw_order = ("gt", "linear", "log", "alpha0", "alpha025", "alpha050", "best")
+
+    # Shorter legend labels to fit in 2 columns
+    short_labels = {
+        "gt":       "GT",
+        "best":     "#9 SamudraBGC",
+        "linear":   "#4 Lin",
+        "log":      "#3 Log",
+        "alpha0":   "#6 GW0",
+        "alpha025": "#7 GW0.25",
+        "alpha050": "#8 GW0.50",
+    }
+
     for key in draw_order:
         if key not in ts_dict:
             continue
         col, ls, lw = C[key]
         ts = ts_dict[key]
-        ax_ts.plot(times_dt, ts, color=col, ls=ls, lw=lw,
-                   label=LABELS[key], alpha=0.9)
+        ax_ts.plot(times_dt, ts, color=col, ls=ls, lw=lw * 0.5,
+                   label=short_labels[key], alpha=0.9)
         if key != "gt":
-            ax_bias.plot(times_dt, ts - gt_ts, color=col, ls=ls, lw=lw,
+            ax_bias.plot(times_dt, ts - gt_ts, color=col, ls=ls, lw=lw * 0.5,
                          alpha=0.9)
 
     _all_ts = np.concatenate([ts_dict[k] for k in draw_order if k in ts_dict])
@@ -364,14 +384,15 @@ def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units):
     _margin = (_ymax - _ymin) * 0.15
     ax_ts.set_ylim(_ymin - _margin, _ymax + _margin)
 
-    ax_ts.set_ylabel(f"{var_label}\n({units})", fontsize=17)
+    ax_ts.set_ylabel(f"{var_label}\n({units})", fontsize=8)
     ax_ts.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax_ts.xaxis.set_major_locator(mdates.YearLocator())
-    ax_ts.legend(fontsize=15, framealpha=0.80, loc="lower left", ncol=2)
-    ax_ts.tick_params(labelsize=15)
+    # Place legend inside upper portion of ts panel to avoid overlap with panel b y-axis
+    ax_ts.legend(fontsize=6, framealpha=0.80, loc="upper right", ncol=2)
+    ax_ts.tick_params(labelsize=7)
     plt.setp(ax_ts.get_xticklabels(), visible=False)
 
-    ax_bias.axhline(0, color="#aaaaaa", lw=0.9, ls="--")
+    ax_bias.axhline(0, color="#aaaaaa", lw=0.5, ls="--")
     _bias_vals = np.concatenate([ts_dict[k] - gt_ts for k in draw_order
                                  if k in ts_dict and k != "gt"])
     _bmin = np.nanpercentile(_bias_vals, 1)
@@ -379,35 +400,47 @@ def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units):
     _bmargin = max((_bmax - _bmin) * 0.15, abs(_bmin) * 0.05, abs(_bmax) * 0.05)
     ax_bias.set_ylim(_bmin - _bmargin, _bmax + _bmargin)
 
-    ax_bias.set_ylabel(f"Bias ({units})", fontsize=17)
-    ax_bias.set_xlabel("Year", fontsize=17)
+    ax_bias.set_ylabel(f"Bias ({units})", fontsize=8)
+    ax_bias.set_xlabel("Year", fontsize=8)
     ax_bias.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax_bias.xaxis.set_major_locator(mdates.YearLocator())
-    ax_bias.tick_params(labelsize=15)
+    ax_bias.tick_params(labelsize=7)
 
 
 def draw_pca_panel(axes_rmse, pca_data, var_label):
     """Panel (b): RMSE vs depth for temperature and variant variable."""
     depth = pca_data["depth_centers"]
 
+    # Shorter legend labels for PCA variants - include "PCs" for clarity
+    short_pca_labels = {
+        "All 50 levels": "All 50 PCs",
+        "5 components":  "#12 5 PCs",
+        "10 components": "#11 10 PCs",
+        "15 components": "#10 15 PCs",
+        "20 components": "#9 20 PCs",
+    }
+
     for ax, vd in zip(axes_rmse, pca_data["vars"]):
         for exp_label in PCA_PATHS.keys():
             is_best = (exp_label == "20 components")
-            display_label = PCA_LABELS[exp_label]
+            display_label = short_pca_labels[exp_label]
             ax.plot(vd["rmse"][exp_label], depth,
                     color=PCA_COLORS[exp_label],
-                    lw=PCA_LWS[exp_label],
+                    lw=PCA_LWS[exp_label] * 0.5,
                     ls=PCA_LST[exp_label],
                     label=display_label, alpha=0.9,
                     zorder=3 if is_best else 2)
         ax.set_ylim(500, 0)
-        ax.set_xlabel(f"RMSE\n{vd['label']}", fontsize=17)
-        ax.tick_params(labelsize=15)
-        ax.grid(True, axis="x", alpha=0.20, lw=0.6)
-        ax.grid(True, axis="y", alpha=0.12, lw=0.5)
+        # Shorter x-axis labels
+        var_short = vd['label'].replace("Temperature", "Temp").replace("µmol kg⁻¹", "")
+        ax.set_xlabel(f"RMSE\n{var_short}", fontsize=7)
+        ax.tick_params(labelsize=7)
+        ax.grid(True, axis="x", alpha=0.20, lw=0.4)
+        ax.grid(True, axis="y", alpha=0.12, lw=0.3)
 
-    axes_rmse[0].set_ylabel("Depth (m)", fontsize=17)
-    axes_rmse[0].legend(fontsize=15, framealpha=0.80, loc="lower left")
+    axes_rmse[0].set_ylabel("Depth (m)", fontsize=8)
+    # Smaller legend
+    axes_rmse[0].legend(fontsize=6, framealpha=0.80, loc="lower left", ncol=1)
     for ax in axes_rmse[1:]:
         ax.set_yticklabels([])
 
@@ -422,9 +455,11 @@ def render_variant(variant, ts_dict, times_dt, pca_data, output_dir):
     suffix     = variant["suffix"]
     var_prefix = variant["var"]
 
-    fig = plt.figure(figsize=(18, 8))
+    # Increased height (4.0 -> 4.5) and wspace (0.22 -> 0.28) to prevent
+    # title and label collisions. Width ratio adjusted for better balance.
+    fig = plt.figure(figsize=(GRL_WIDTH, 4.5))
     outer = mgridspec.GridSpec(1, 2, figure=fig,
-                               width_ratios=[1.0, 0.80], wspace=0.22)
+                               width_ratios=[1.0, 0.85], wspace=0.28)
 
     # (a) Ablation comparison: time series + bias
     abl_gs = mgridspec.GridSpecFromSubplotSpec(
@@ -446,13 +481,14 @@ def render_variant(variant, ts_dict, times_dt, pca_data, output_dir):
     # Figure-level titles anchored at a shared y above both panels so that
     # (a) and (b) captions land on the same horizontal line regardless of the
     # nested-GridSpec row heights.
+    # Shortened titles to prevent horizontal overlap.
     pos_a = ax_ts.get_position()
     pos_b = ax_rmse[0].get_position()
-    title_y = max(pos_a.y1, pos_b.y1) + 0.015
-    fig.text(pos_a.x0, title_y, f"(a) Ablation comparison — {var_label}",
-             fontsize=20, fontweight="bold", ha="left", va="bottom")
-    fig.text(pos_b.x0, title_y, "(b) Vertical Structure Representation",
-             fontsize=20, fontweight="bold", ha="left", va="bottom")
+    title_y = max(pos_a.y1, pos_b.y1) + 0.02
+    fig.text(pos_a.x0, title_y, f"(a) Ablation — {var_label}",
+             fontsize=10, fontweight="bold", ha="left", va="bottom")
+    fig.text(pos_b.x0, title_y, "(b) RMSE vs Depth",
+             fontsize=10, fontweight="bold", ha="left", va="bottom")
 
     out = Path(output_dir) / f"fig04_bis_{suffix}.png"
     fig.savefig(out, dpi=300, bbox_inches="tight")

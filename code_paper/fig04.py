@@ -36,14 +36,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from ocean_emulators.constants import DEPTH_THICKNESS
 
+# GRL-native sizing: 6.85" full width, fonts at 1:1 print scale
+# GRL font floors (at rendered size):
+#   - Panel labels: 9pt bold minimum
+#   - Axis labels: 8pt minimum
+#   - Tick labels: 7pt minimum
+#   - Legend: 7pt minimum
+GRL_WIDTH = 6.85  # inches (full page width for GRL)
+
 mpl.rcParams.update({
-    "font.family": "sans-serif", "font.size": 22,
-    "axes.labelsize": 21, "axes.titlesize": 24,
-    "xtick.labelsize": 19, "ytick.labelsize": 19,
-    "legend.fontsize": 19, "figure.dpi": 150,
+    "font.family": "sans-serif", "font.size": 9,
+    "axes.labelsize": 9, "axes.titlesize": 10,
+    "xtick.labelsize": 8, "ytick.labelsize": 8,
+    "legend.fontsize": 7, "figure.dpi": 150,
     "savefig.dpi": 300, "savefig.bbox": "tight",
-    "axes.linewidth": 1.6, "xtick.major.width": 1.6, "xtick.major.size": 5,
-    "ytick.major.width": 1.6, "ytick.major.size": 5,
+    "axes.linewidth": 0.8, "xtick.major.width": 0.8, "xtick.major.size": 3,
+    "ytick.major.width": 0.8, "ytick.major.size": 3,
     "axes.spines.top": False, "axes.spines.right": False,
 })
 
@@ -72,9 +80,9 @@ HELM_MODELS = {
 # step + ML Architecture champion). Ground Truth per AGENTS.md convention.
 HELM_LABELS = {
     "gt":   "Ground Truth",
-    "helm": "M1 Helmholtz",
-    "vel":  "M2 Velocity",
-    "best": "M9 SamudraBGC",
+    "helm": "#1 Helmholtz",
+    "vel":  "#2 Velocity",
+    "best": "#9 SamudraBGC",
 }
 HELM_COLORS = {
     "gt":   "#000000",
@@ -222,7 +230,7 @@ def load_helmholtz_snap_data(var_prefix, depth_indices, scale_factor):
 # DRAWING
 # ═══════════════════════════════════════════════════════════════════════════
 
-def draw_snapshot_panel(axes_maps, cax, snap_data, var_label, units):
+def draw_snapshot_panel(axes_maps, cax, snap_data, var_label, units, fig):
     """Panel (a): 2×2 snapshot maps (GT, Helmholtz, Velocity, Best Model)."""
     ax_gt, ax_helm, ax_vel, ax_best = axes_maps
 
@@ -240,45 +248,51 @@ def draw_snapshot_panel(axes_maps, cax, snap_data, var_label, units):
                            vmin=vmin, vmax=vmax, shading="auto")
         ax.set_facecolor("#cccccc")
         ax.set_aspect("equal")
+        # Use full labels from HELM_LABELS
         ax.text(0.5, 0.97, HELM_LABELS[key], transform=ax.transAxes,
-                fontsize=16, fontweight="bold", ha="center", va="top",
-                bbox=dict(fc="white", ec="none", alpha=0.80, pad=2.0),
+                fontsize=8, fontweight="bold", ha="center", va="top",
+                bbox=dict(fc="white", ec="none", alpha=0.80, pad=1),
                 color=HELM_COLORS[key])
-        ax.tick_params(labelsize=15)
+        ax.tick_params(labelsize=7)
 
+    # Recipe 5: Only left column gets y-labels, only bottom row gets x-labels
     for ax in (ax_gt, ax_vel):
-        ax.set_ylabel("Latitude (°N)", fontsize=17)
+        ax.set_ylabel("Lat (°N)", fontsize=8)
+    for ax in (ax_helm, ax_best):
+        ax.set_yticklabels([])
+        ax.set_ylabel("")
     for ax in (ax_vel, ax_best):
-        ax.set_xlabel("Longitude (°E)", fontsize=17)
+        ax.set_xlabel("Lon (°E)", fontsize=8)
+    for ax in (ax_gt, ax_helm):
+        ax.set_xticklabels([])
+        ax.set_xlabel("")
 
     cb = plt.colorbar(im, cax=cax)
-    cb.set_label(f"{var_label} ({units})", fontsize=17)
-    cb.ax.tick_params(labelsize=15)
+    # Colorbar label includes variable name and units
+    cb.set_label(f"{var_label} ({units})", fontsize=7)
+    cb.ax.tick_params(labelsize=7)
 
-    ax_gt.text(-0.12, 1.18,
-               f"(a) Ocean Circulation Representation\n{var_label}",
-               transform=ax_gt.transAxes, fontsize=20, fontweight="bold")
+    # Return ax_gt position for figure-level title placement (avoid overflow)
+    return ax_gt
 
 
-def draw_spectrum_panel(ax_spec, snap_data, var_label, title_y=1.02):
+def draw_spectrum_panel(ax_spec, snap_data, var_label):
     """Panel (b): azimuthally-averaged power spectrum of each snapshot."""
     snaps = {k: snap_data[k] for k in ("gt", "helm", "vel", "best")}
     for key in ("gt", "helm", "vel", "best"):
         col = HELM_COLORS[key]
-        lw  = 2.4 if key == "best" else 1.7
+        lw  = 1.2 if key == "best" else 1.0
         wl, sp = _azimuthal_power_spectrum(snaps[key], DX_KM)
         ax_spec.loglog(wl, sp, color=col, lw=lw, ls="-",
                        label=HELM_LABELS[key])
 
-    ax_spec.set_xlabel("Wavelength (km)", fontsize=17)
-    ax_spec.set_ylabel("Power spectral density", fontsize=17)
+    ax_spec.set_xlabel("Wavelength (km)", fontsize=8)
+    ax_spec.set_ylabel("Power spectral density", fontsize=8)
     ax_spec.set_xlim(wl.max(), max(DX_KM * 2.5, wl.min()))
-    ax_spec.text(0.0, title_y + 0.06, f"(b) Power Spectrum\n{var_label}",
-                 transform=ax_spec.transAxes, fontsize=20, fontweight="bold",
-                 ha="left", va="bottom")
-    ax_spec.legend(fontsize=15, loc="lower left", framealpha=0.80, ncol=1)
-    ax_spec.tick_params(labelsize=15)
-    ax_spec.grid(True, which="both", alpha=0.15, lw=0.5)
+    # Legend at lower right to avoid overlap with y-axis labels on the left
+    ax_spec.legend(fontsize=6, loc="lower right", framealpha=0.80, ncol=1)
+    ax_spec.tick_params(labelsize=7)
+    ax_spec.grid(True, which="both", alpha=0.15, lw=0.4)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -290,29 +304,45 @@ def render_variant(variant, snap_data, output_dir):
     units     = variant["units"]
     suffix    = variant["suffix"]
 
-    fig = plt.figure(figsize=(18, 8))
+    # Two-panel layout per cookbook Recipe 6
+    # Maps get 70% of width (1.4 / 2.0), spectrum gets 30% (0.6 / 2.0)
+    # wspace=0.50 to prevent colorbar label colliding with spectrum y-label
+    fig = plt.figure(figsize=(GRL_WIDTH, 4.5))
     outer = mgridspec.GridSpec(1, 2, figure=fig,
-                               width_ratios=[1.0, 0.85], wspace=0.42)
+                               width_ratios=[1.4, 0.6], wspace=0.50)
 
     # (a) 2×2 snapshot maps + shared colorbar on the right of the block.
+    # Recipe 5: thinner colorbar (0.04), tighter map spacing (wspace=0.15)
     maps_gs = mgridspec.GridSpecFromSubplotSpec(
         2, 3, subplot_spec=outer[0],
-        width_ratios=[1.0, 1.0, 0.045],
-        hspace=0.30, wspace=0.15)
+        width_ratios=[1.0, 1.0, 0.04],
+        hspace=0.35, wspace=0.15)
     ax_gt   = fig.add_subplot(maps_gs[0, 0])
     ax_helm = fig.add_subplot(maps_gs[0, 1])
     ax_vel  = fig.add_subplot(maps_gs[1, 0])
     ax_best = fig.add_subplot(maps_gs[1, 1])
     cax     = fig.add_subplot(maps_gs[:, 2])
     draw_snapshot_panel((ax_gt, ax_helm, ax_vel, ax_best), cax,
-                        snap_data, var_label, units)
+                        snap_data, var_label, units, fig)
 
     # (b) Power spectrum
-    # Title y-offset: ax_gt is in a 2-row grid (hspace=0.25), so its height is
-    # ~1/(2+0.25) ≈ 0.44 of the maps block. Panel (a) title at y=1.12 above ax_gt
-    # means 0.12*0.44 ≈ 0.053 above its top. For ax_spec (full height), y≈1.05.
     ax_spec = fig.add_subplot(outer[1])
-    draw_spectrum_panel(ax_spec, snap_data, var_label, title_y=1.05)
+    draw_spectrum_panel(ax_spec, snap_data, var_label)
+
+    # Force layout computation to get accurate axes positions
+    fig.canvas.draw()
+
+    # Place figure-level titles using fig.text() at consistent y-level
+    # to avoid overflow from ax.text() positioned relative to small panels
+    pos_a = ax_gt.get_position()
+    pos_b = ax_spec.get_position()
+    title_y = max(pos_a.y1, pos_b.y1) + 0.02
+    # Shorter titles to prevent horizontal overlap
+    # Panel titles 8pt per font proportionality rule (only 1pt larger than 7pt legends)
+    fig.text(pos_a.x0, title_y, f"(a) {var_label}",
+             fontsize=8, fontweight="bold", ha="left", va="bottom")
+    fig.text(pos_b.x0, title_y, "(b) Spectrum",
+             fontsize=8, fontweight="bold", ha="left", va="bottom")
 
     out = Path(output_dir) / f"fig04_{suffix}.png"
     fig.savefig(out, dpi=300, bbox_inches="tight")

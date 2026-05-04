@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
-Figure 5 — Physical vs SamudraBGC ensemble spread comparison (2015)
+Figure 5 — Ground Truth vs SamudraBGC ensemble spread comparison (2015)
 =======================================================================
 
 For each of 6 variables, produces TWO figures:
 
-  Variant A: Pointwise trajectories (fig05_{var}_pointwise.png)
-    Row 1 (maps):      (a) Physical σ (n=30) | (b) SamudraBGC σ (n=50)
-    Row 2 (fan charts): 3 probes at 28°N, 40°N, 50°N
+  Variant A: Pointwise (fig05_{var}_pointwise.png)
+    Row 1 (maps):          (a) Ground Truth σ (n=50) | (b) SamudraBGC σ (n=50)
+    Row 2 (mirror-spread): 3 probes at 27°N, 42°N, 53°N — ensemble spread growth
+                           mirrored around zero (Ground Truth up, SamudraBGC down)
 
-  Variant B: Biome trajectories (fig05_{var}_biomes.png)
-    Row 1 (maps):      (a) Physical σ (n=30) | (b) SamudraBGC σ (n=50)
-    Row 2 (fan charts): 4 biomes — Subtropical, Jet, Subpolar, Full Domain
+  Variant B: Biome (fig05_{var}_biomes.png)
+    Row 1 (maps):          (a) Ground Truth σ (n=50) | (b) SamudraBGC σ (n=50)
+    Rows 2-3 (mirror-spread): 4 biomes in 2x2 grid — Subtropical, Jet, Subpolar, Full Domain
+                              with adaptive Y-axis precision for small spread values
 
 Variables:
     temp_surface   Temp (surface)
@@ -46,7 +48,8 @@ import cftime
 import zarr
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
+import matplotlib.patches as mpatches
+from matplotlib.ticker import FixedLocator
 
 from ocean_emulators.constants import DEPTH_THICKNESS
 from ocean_emulators.pca import load_pca_params, inverse_transform
@@ -93,6 +96,12 @@ ML_MEAN_COLOR = "#E07000"        # orange
 PHYS_ENVELOPE_COLOR = "#56B4E9"  # sky blue
 PHYS_MEAN_COLOR = "#0072B2"      # Wong blue
 GT_COLOR = "#000000"
+
+# Mirror-spread palette
+PHYS_FILL = '#6aaed6'
+PHYS_LINE = '#1a5fa8'
+ML_FILL   = '#f4a46a'
+ML_LINE   = '#b85010'
 
 # Biome definitions (latitude ranges)
 BIOMES = OrderedDict([
@@ -413,87 +422,153 @@ def bias_correct_to_gt(ts_2d, gt_mean):
 # PLOTTING
 # =============================================================================
 mpl.rcParams.update({
-    "font.family": "sans-serif",
-    "font.size": 22,
-    "axes.labelsize": 21,
-    "axes.titlesize": 24,
-    "xtick.labelsize": 19,
-    "ytick.labelsize": 19,
-    "legend.fontsize": 19,
-    "figure.dpi": 150,
-    "savefig.dpi": 300,
-    "savefig.bbox": "tight",
-    "axes.spines.top": False,
-    "axes.spines.right": False,
-    "axes.linewidth": 1.6,
-    "xtick.major.width": 1.6, "xtick.major.size": 5,
-    "ytick.major.width": 1.6, "ytick.major.size": 5,
+    'font.family':       'sans-serif',
+    'font.sans-serif':   ['Helvetica', 'Arial', 'DejaVu Sans'],
+    'font.size':         7,
+    'axes.labelsize':    7,
+    'axes.titlesize':    8,
+    'xtick.labelsize':   6.5,
+    'ytick.labelsize':   6.5,
+    'xtick.major.size':  3,
+    'ytick.major.size':  3,
+    'xtick.major.width': 0.6,
+    'ytick.major.width': 0.6,
+    'axes.linewidth':    0.7,
+    'lines.linewidth':   1.0,
+    'patch.linewidth':   0.5,
+    'legend.fontsize':   7,
+    'legend.framealpha': 0.95,
+    'legend.edgecolor':  '0.75',
+    'figure.dpi':        300,
+    'savefig.dpi':       300,
 })
 
 
 def _plot_maps_row(fig, gs_row, lat, lon, phys_spread, ml_spread, n_phys, n_ml,
                    vc, vmax, probe_indices=None):
-    row = gs_row.subgridspec(1, 3, width_ratios=[1.0, 1.0, 0.06], wspace=0.18)
+    row = gs_row.subgridspec(1, 3, width_ratios=[1.0, 1.0, 0.045], wspace=0.14)
     ax_phys = fig.add_subplot(row[0, 0])
-    ax_ml = fig.add_subplot(row[0, 1])
-    cax = fig.add_subplot(row[0, 2])
+    ax_ml   = fig.add_subplot(row[0, 1])
+    cax     = fig.add_subplot(row[0, 2])
 
     for ax, spread, title in [
-        (ax_phys, phys_spread, f"(a) Physical Ensembles (n={n_phys})"),
-        (ax_ml, ml_spread, f"(b) SamudraBGC Ensembles (n={n_ml})"),
+        (ax_phys, phys_spread, f"(a) Ground Truth Ensemble (n={n_phys})"),
+        (ax_ml,   ml_spread,   f"(b) SamudraBGC Ensemble (n={n_ml})"),
     ]:
         im = ax.pcolormesh(lon, lat, spread, vmin=0.0, vmax=vmax,
-                           cmap="cividis", shading="auto")
+                           cmap="cividis", shading="auto", rasterized=True)
         ax.set_aspect("equal")
-        ax.set_facecolor("#cccccc")
-        ax.set_title(title, fontsize=20, fontweight="bold", pad=10)
-        ax.set_xlabel("Longitude (°E)", fontsize=17)
-        ax.tick_params(labelsize=15)
+        ax.set_facecolor("#e5e5e5")
+        ax.set_title(title, fontsize=8, fontweight="bold", pad=3)
+        ax.set_xlabel("Longitude (°W)", fontsize=7)
+        ax.tick_params(labelsize=6.5)
 
         if probe_indices is not None:
             for pkey, (ilat, ilon) in probe_indices.items():
                 ax.plot(lon[ilon], lat[ilat], marker="o",
-                        mfc="white", mec="k", ms=8, mew=1.4, zorder=10)
+                        mfc="white", mec="k", ms=4, mew=0.8, zorder=10)
 
-    ax_phys.set_ylabel("Latitude (°N)", fontsize=17)
+    ax_phys.set_ylabel("Latitude (°N)", fontsize=7)
+    ax_ml.set_yticklabels([])
 
     cbar = fig.colorbar(im, cax=cax, extend="max")
-    cbar.set_label(f"Spread σ ({vc.units})", fontsize=17)
-    cbar.ax.tick_params(labelsize=15)
+    cbar.set_label(f"Spread σ ({vc.units})", fontsize=7)
+    cbar.ax.tick_params(labelsize=6.5)
 
     return ax_phys, ax_ml
 
 
-def _plot_fan_chart(ax, ml_arr, phys_arr, gt_ts, ml_times, phys_times, gt_times, title):
-    gt_mean = float(np.nanmean(gt_ts))
-    phys_arr_bc = bias_correct_to_gt(phys_arr, gt_mean)
+def _plot_mirror_spread(ax, ml_arr, phys_arr, title, vc_units):
+    """Plot mirror-spread diagnostic: Ground Truth up, SamudraBGC down."""
+    # Month labels for x-axis
+    month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan']
+    month_ticks = np.linspace(0, 12, 13)
 
+    # Compute spread statistics for ML
     if ml_arr.size and ml_arr.shape[0] > 0:
-        t_ml = ml_times[:ml_arr.shape[1]]
-        ml_mean = np.nanmean(ml_arr, axis=0)
-        ml_std = np.nanstd(ml_arr, axis=0)
-        ax.fill_between(t_ml, np.nanmin(ml_arr, axis=0), np.nanmax(ml_arr, axis=0),
-                        color=ML_ENVELOPE_COLOR, alpha=0.20, lw=0, zorder=2)
-        ax.fill_between(t_ml, ml_mean - ml_std, ml_mean + ml_std,
-                        color=ML_MEAN_COLOR, alpha=0.35, lw=0, zorder=3)
-        ax.plot(t_ml, ml_mean, color=ML_MEAN_COLOR, lw=2.8, zorder=5)
+        sigma_ml = np.nanstd(ml_arr, axis=0)
+        mm_ml = np.nanmax(ml_arr, axis=0) - np.nanmin(ml_arr, axis=0)
+        # Anchor to 0 at t=0
+        sigma_ml = sigma_ml - sigma_ml[0]
+        mm_ml = mm_ml - mm_ml[0]
+        sigma_ml = np.clip(sigma_ml, 0, None)
+        mm_ml = np.clip(mm_ml, 0, None)
+        n_time_ml = len(sigma_ml)
+        months_ml = np.linspace(0, 12, n_time_ml)
+    else:
+        sigma_ml = mm_ml = months_ml = np.array([])
 
-    if phys_arr_bc.size and phys_arr_bc.shape[0] > 0:
-        t_ph = phys_times[:phys_arr_bc.shape[1]]
-        ph_mean = np.nanmean(phys_arr_bc, axis=0)
-        ph_std = np.nanstd(phys_arr_bc, axis=0)
-        ax.fill_between(t_ph, np.nanmin(phys_arr_bc, axis=0), np.nanmax(phys_arr_bc, axis=0),
-                        color=PHYS_ENVELOPE_COLOR, alpha=0.22, lw=0, zorder=2)
-        ax.fill_between(t_ph, ph_mean - ph_std, ph_mean + ph_std,
-                        color=PHYS_MEAN_COLOR, alpha=0.38, lw=0, zorder=3)
-        ax.plot(t_ph, ph_mean, color=PHYS_MEAN_COLOR, lw=2.8, zorder=5)
+    # Compute spread statistics for Ground Truth (physical ensemble)
+    if phys_arr.size and phys_arr.shape[0] > 0:
+        sigma_phys = np.nanstd(phys_arr, axis=0)
+        mm_phys = np.nanmax(phys_arr, axis=0) - np.nanmin(phys_arr, axis=0)
+        # Anchor to 0 at t=0
+        sigma_phys = sigma_phys - sigma_phys[0]
+        mm_phys = mm_phys - mm_phys[0]
+        sigma_phys = np.clip(sigma_phys, 0, None)
+        mm_phys = np.clip(mm_phys, 0, None)
+        n_time_phys = len(sigma_phys)
+        months_phys = np.linspace(0, 12, n_time_phys)
+    else:
+        sigma_phys = mm_phys = months_phys = np.array([])
 
-    ax.plot(gt_times[:len(gt_ts)], gt_ts, color=GT_COLOR, lw=2.0, zorder=6)
-    ax.set_title(title, fontsize=20, fontweight="bold", pad=10)
-    ax.xaxis.set_major_locator(mdates.MonthLocator(bymonth=[1, 4, 7, 10]))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
-    ax.tick_params(labelsize=15)
-    ax.grid(True, alpha=0.15, lw=0.7)
+    # Upper half — Ground Truth (positive)
+    if len(sigma_phys) > 0:
+        ax.fill_between(months_phys, 0, mm_phys, color=PHYS_FILL, alpha=0.30, lw=0)
+        ax.fill_between(months_phys, 0, sigma_phys, color=PHYS_FILL, alpha=0.65, lw=0)
+        ax.plot(months_phys, mm_phys, color=PHYS_LINE, lw=0.6, alpha=0.7, ls='--')
+        ax.plot(months_phys, sigma_phys, color=PHYS_LINE, lw=1.0)
+
+    # Lower half — SamudraBGC (mirrored, negative)
+    if len(sigma_ml) > 0:
+        ax.fill_between(months_ml, 0, -mm_ml, color=ML_FILL, alpha=0.30, lw=0)
+        ax.fill_between(months_ml, 0, -sigma_ml, color=ML_FILL, alpha=0.65, lw=0)
+        ax.plot(months_ml, -mm_ml, color=ML_LINE, lw=0.6, alpha=0.7, ls='--')
+        ax.plot(months_ml, -sigma_ml, color=ML_LINE, lw=1.0)
+
+    # Mirror axis
+    ax.axhline(0, color='k', lw=0.8, zorder=5)
+
+    # Set axes
+    y_max_candidates = []
+    if len(mm_phys) > 0:
+        y_max_candidates.append(np.nanmax(mm_phys))
+    if len(mm_ml) > 0:
+        y_max_candidates.append(np.nanmax(mm_ml))
+    y_max = max(y_max_candidates) * 1.18 if y_max_candidates else 1.0
+
+    ax.set_xlim(0, 12)
+    ax.set_ylim(-y_max, y_max)
+    ax.set_xticks(month_ticks[::2])
+    ax.set_xticklabels(month_labels[::2])
+
+    # Symmetric y-ticks with adaptive precision for small spread values
+    raw = np.linspace(0, y_max, 4)
+    sym = np.concatenate([-raw[1:][::-1], raw])
+    ax.yaxis.set_major_locator(FixedLocator(sym))
+    # Adaptive formatting: more decimals for small spreads
+    if y_max < 0.1:
+        fmt = ".3f"
+    elif y_max < 1.0:
+        fmt = ".2f"
+    else:
+        fmt = ".1f"
+    ax.set_yticklabels([f'{abs(v):{fmt}}' for v in sym])
+
+    ax.set_title(title, fontsize=7.5, fontweight='bold', pad=4, loc='left')
+    ax.spines[['top', 'right']].set_visible(False)
+    ax.tick_params(direction='out', pad=2)
+    ax.grid(axis='y', lw=0.4, alpha=0.25, color='0.4')
+    ax.grid(axis='x', lw=0.3, alpha=0.20, color='0.4')
+
+    # In-panel labels
+    ax.text(0.02, 0.80, 'Ground Truth',
+            transform=ax.transAxes, fontsize=6.5,
+            color=PHYS_LINE, fontweight='bold', va='top')
+    ax.text(0.02, 0.20, 'SamudraBGC',
+            transform=ax.transAxes, fontsize=6.5,
+            color=ML_LINE, fontweight='bold', va='bottom')
 
 
 def plot_pointwise_figure(
@@ -502,29 +577,23 @@ def plot_pointwise_figure(
     lat, lon, wet, probe_indices,
     vc: VarConfig, output_path,
 ):
-    dec_slice = slice(-DEC_DAYS, None)
-    ml_dec = np.nanmean(ml_stack[:, dec_slice, :, :], axis=1)
-    phys_dec = np.nanmean(phys_stack[:, dec_slice, :, :], axis=1)
+    dec_slice  = slice(-DEC_DAYS, None)
+    ml_spread  = np.nanstd(np.nanmean(ml_stack[:, dec_slice], axis=1), axis=0)
+    phys_spread = np.nanstd(np.nanmean(phys_stack[:, dec_slice], axis=1), axis=0)
 
-    ml_spread = np.nanstd(ml_dec, axis=0)
-    phys_spread = np.nanstd(phys_dec, axis=0)
-
-    finite = np.concatenate([
-        ml_spread[np.isfinite(ml_spread)],
-        phys_spread[np.isfinite(phys_spread)],
-    ])
+    finite = np.concatenate([ml_spread[np.isfinite(ml_spread)],
+                              phys_spread[np.isfinite(phys_spread)]])
     vmax = float(np.nanpercentile(finite, 98)) if finite.size else 1.0
 
-    ml_probe_ts = extract_probe_ts(ml_stack, probe_indices)
+    ml_probe_ts   = extract_probe_ts(ml_stack, probe_indices)
     phys_probe_ts = extract_probe_ts(phys_stack, probe_indices)
-    gt_probe_ts = {pkey: gt_field[:, ilat, ilon] for pkey, (ilat, ilon) in probe_indices.items()}
 
-    fig = plt.figure(figsize=(18, 10))
+    fig = plt.figure(figsize=(7.48, 5.4))
     outer_gs = GridSpec(
         2, 1, figure=fig,
-        height_ratios=[1.15, 1.0],
-        hspace=0.38,
-        left=0.06, right=0.95, top=0.93, bottom=0.22,
+        height_ratios=[1.1, 1.0],
+        hspace=0.42,
+        left=0.07, right=0.96, top=0.93, bottom=0.16,
     )
 
     _plot_maps_row(fig, outer_gs[0], lat, lon, phys_spread, ml_spread,
@@ -532,37 +601,41 @@ def plot_pointwise_figure(
                    probe_indices=probe_indices)
 
     panel_labels = ["(c)", "(d)", "(e)"]
-    row2 = outer_gs[1].subgridspec(1, 3, wspace=0.30)
+    row2  = outer_gs[1].subgridspec(1, 3, wspace=0.32)
+    ax_ts = []
 
     for col, pkey in enumerate(["subtropical", "jet", "subpolar"]):
         ax = fig.add_subplot(row2[0, col])
+        ax_ts.append(ax)
         pinfo = PROBES[pkey]
         ilat, ilon = probe_indices[pkey]
 
-        _plot_fan_chart(
-            ax, ml_probe_ts[pkey], phys_probe_ts[pkey], gt_probe_ts[pkey],
-            ml_times, phys_times, gt_times,
-            f"{panel_labels[col]} {pinfo['label']} ({lat[ilat]:.1f}°N, {lon[ilon]:.1f}°E)",
+        _plot_mirror_spread(
+            ax, ml_probe_ts[pkey], phys_probe_ts[pkey],
+            f"{panel_labels[col]} {pinfo['label']} ({lat[ilat]:.1f}°N, {abs(lon[ilon]):.1f}°W)",
+            vc.units,
         )
-        if col == 0:
-            ax.set_ylabel(f"{vc.label} ({vc.units})", fontsize=17)
 
-    n_ml = ml_stack.shape[0]
-    n_ph = phys_stack.shape[0]
-    legend_handles = [
-        Patch(facecolor=ML_ENVELOPE_COLOR, alpha=0.35, label=f"SamudraBGC (n={n_ml})"),
-        Line2D([0], [0], color=ML_MEAN_COLOR, lw=2.8, label="SamudraBGC mean"),
-        Patch(facecolor=PHYS_ENVELOPE_COLOR, alpha=0.40, label=f"Physical (n={n_ph})"),
-        Line2D([0], [0], color=PHYS_MEAN_COLOR, lw=2.8, label="Physical mean"),
-        Line2D([0], [0], color=GT_COLOR, lw=2.0, label="Ground Truth"),
+    ax_ts[0].set_ylabel(f'Ensemble spread  ({vc.units})', labelpad=4)
+    ax_ts[1].set_xlabel('Month (2015)', labelpad=4)
+
+    legend_elements = [
+        mpatches.Patch(facecolor=PHYS_FILL, alpha=0.65, edgecolor=PHYS_LINE,
+                       lw=0.5, label='Ground Truth — σ (1 std)'),
+        mpatches.Patch(facecolor=PHYS_FILL, alpha=0.30, edgecolor=PHYS_LINE,
+                       lw=0.5, label='Ground Truth — min–max range'),
+        mpatches.Patch(facecolor=ML_FILL,   alpha=0.65, edgecolor=ML_LINE,
+                       lw=0.5, label='SamudraBGC — σ (1 std)'),
+        mpatches.Patch(facecolor=ML_FILL,   alpha=0.30, edgecolor=ML_LINE,
+                       lw=0.5, label='SamudraBGC — min–max range'),
     ]
-    fig.legend(handles=legend_handles, loc="lower center",
-               bbox_to_anchor=(0.5, 0.02), ncol=5, fontsize=15, framealpha=0.90)
+    fig.legend(handles=legend_elements, loc='lower center', ncol=4,
+               fontsize=6.5, frameon=True, handlelength=1.4, handleheight=0.9,
+               columnspacing=1.0, handletextpad=0.5, edgecolor='0.75',
+               bbox_to_anchor=(0.5, 0.02))
 
-    fig.suptitle(
-        f"{vc.label} — ensemble spread and pointwise trajectories ({YEAR})",
-        fontsize=20, fontweight="bold", y=0.995,
-    )
+    fig.suptitle(f"{vc.label} — Ensemble Variability Analysis ({YEAR})",
+                 fontsize=8, fontweight="bold", y=0.98)
 
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Wrote: {output_path}")
@@ -575,66 +648,65 @@ def plot_biomes_figure(
     lat, lon, wet, probe_indices, biome_weights,
     vc: VarConfig, output_path,
 ):
-    dec_slice = slice(-DEC_DAYS, None)
-    ml_dec = np.nanmean(ml_stack[:, dec_slice, :, :], axis=1)
-    phys_dec = np.nanmean(phys_stack[:, dec_slice, :, :], axis=1)
+    dec_slice  = slice(-DEC_DAYS, None)
+    ml_spread  = np.nanstd(np.nanmean(ml_stack[:, dec_slice], axis=1), axis=0)
+    phys_spread = np.nanstd(np.nanmean(phys_stack[:, dec_slice], axis=1), axis=0)
 
-    ml_spread = np.nanstd(ml_dec, axis=0)
-    phys_spread = np.nanstd(phys_dec, axis=0)
-
-    finite = np.concatenate([
-        ml_spread[np.isfinite(ml_spread)],
-        phys_spread[np.isfinite(phys_spread)],
-    ])
+    finite = np.concatenate([ml_spread[np.isfinite(ml_spread)],
+                              phys_spread[np.isfinite(phys_spread)]])
     vmax = float(np.nanpercentile(finite, 98)) if finite.size else 1.0
 
-    ml_biome_ts = extract_biome_ts(ml_stack, biome_weights)
+    ml_biome_ts   = extract_biome_ts(ml_stack, biome_weights)
     phys_biome_ts = extract_biome_ts(phys_stack, biome_weights)
-    gt_biome_ts = {bkey: np.nansum(gt_field * bw[None, :, :], axis=(1, 2))
-                   for bkey, bw in biome_weights.items()}
 
-    fig = plt.figure(figsize=(18, 10))
+    # 3x2 grid layout: maps in row 1, biomes in 2x2 grid in rows 2-3
+    fig = plt.figure(figsize=(7.48, 8.5))
     outer_gs = GridSpec(
-        2, 1, figure=fig,
-        height_ratios=[1.0, 1.0],
-        hspace=0.40,
-        left=0.05, right=0.95, top=0.93, bottom=0.18,
+        3, 2, figure=fig,
+        height_ratios=[1.0, 0.8, 0.8],
+        hspace=0.35, wspace=0.25,
+        left=0.10, right=0.90, top=0.94, bottom=0.12,
     )
 
-    _plot_maps_row(fig, outer_gs[0], lat, lon, phys_spread, ml_spread,
+    # Row 1: Maps (spanning both columns)
+    _plot_maps_row(fig, outer_gs[0, :], lat, lon, phys_spread, ml_spread,
                    phys_stack.shape[0], ml_stack.shape[0], vc, vmax)
 
+    # Rows 2-3: Biomes in 2x2 grid
+    biome_keys = ["subtropical", "jet", "subpolar", "domain"]
     panel_labels = ["(c)", "(d)", "(e)", "(f)"]
-    row2 = outer_gs[1].subgridspec(1, 4, wspace=0.28)
+    ax_ts = []
 
-    for col, bkey in enumerate(["subtropical", "jet", "subpolar", "domain"]):
-        ax = fig.add_subplot(row2[0, col])
+    for i, bkey in enumerate(biome_keys):
+        row_idx, col_idx = divmod(i, 2)
+        ax = fig.add_subplot(outer_gs[row_idx + 1, col_idx])
+        ax_ts.append(ax)
         binfo = BIOMES[bkey]
 
-        _plot_fan_chart(
-            ax, ml_biome_ts[bkey], phys_biome_ts[bkey], gt_biome_ts[bkey],
-            ml_times, phys_times, gt_times,
-            f"{panel_labels[col]} {binfo['label']}",
+        _plot_mirror_spread(
+            ax, ml_biome_ts[bkey], phys_biome_ts[bkey],
+            f"{panel_labels[i]} {binfo['label']}",
+            vc.units,
         )
-        if col == 0:
-            ax.set_ylabel(f"{vc.label} ({vc.units})", fontsize=17)
 
-    n_ml = ml_stack.shape[0]
-    n_ph = phys_stack.shape[0]
-    legend_handles = [
-        Patch(facecolor=ML_ENVELOPE_COLOR, alpha=0.35, label=f"SamudraBGC (n={n_ml})"),
-        Line2D([0], [0], color=ML_MEAN_COLOR, lw=2.8, label="SamudraBGC mean"),
-        Patch(facecolor=PHYS_ENVELOPE_COLOR, alpha=0.40, label=f"Physical (n={n_ph})"),
-        Line2D([0], [0], color=PHYS_MEAN_COLOR, lw=2.8, label="Physical mean"),
-        Line2D([0], [0], color=GT_COLOR, lw=2.0, label="Ground Truth"),
+        # Only left column gets y-label
+        if col_idx == 0:
+            ax.set_ylabel(f'Ensemble spread ({vc.units})', labelpad=4)
+
+    # Legend at bottom
+    legend_elements = [
+        mpatches.Patch(facecolor=PHYS_FILL, alpha=0.65, edgecolor=PHYS_LINE,
+                       lw=0.5, label='Ground Truth σ (1 std)'),
+        mpatches.Patch(facecolor=ML_FILL,   alpha=0.65, edgecolor=ML_LINE,
+                       lw=0.5, label='SamudraBGC σ (1 std)'),
     ]
-    fig.legend(handles=legend_handles, loc="lower center",
-               bbox_to_anchor=(0.5, 0.02), ncol=5, fontsize=15, framealpha=0.90)
+    fig.legend(handles=legend_elements, loc='lower center', ncol=2,
+               fontsize=7, frameon=True, handlelength=1.4, handleheight=0.9,
+               columnspacing=1.5, handletextpad=0.5, edgecolor='0.75',
+               bbox_to_anchor=(0.5, 0.04))
 
-    fig.suptitle(
-        f"{vc.label} — ensemble spread and biome-averaged trajectories ({YEAR})",
-        fontsize=20, fontweight="bold", y=0.995,
-    )
+    fig.suptitle(f"{vc.label} — Ensemble Variability Analysis ({YEAR})",
+                 fontsize=10, fontweight="bold", y=0.98)
 
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Wrote: {output_path}")

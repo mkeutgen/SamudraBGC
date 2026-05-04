@@ -31,6 +31,7 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import FuncFormatter
 import numpy as np
 import xarray as xr
 import cftime
@@ -57,15 +58,23 @@ except ImportError:
     _MATTER   = "YlOrRd"
     _HAS_CMO  = False
 
+# GRL-native sizing: 6.85" full width, fonts at 1:1 print scale
+# GRL font floors (at rendered size):
+#   - Panel labels: 9pt bold minimum
+#   - Axis labels: 8pt minimum
+#   - Tick labels: 7pt minimum
+#   - Legend: 7pt minimum
+GRL_WIDTH = 6.85  # inches (full page width for GRL)
+
 mpl.rcParams.update({
-    "font.family": "sans-serif",  "font.size": 22,
-    "axes.labelsize": 21,         "axes.titlesize": 24,
-    "xtick.labelsize": 19,        "ytick.labelsize": 19,
-    "legend.fontsize": 19,        "figure.dpi": 150,
+    "font.family": "sans-serif",  "font.size": 9,
+    "axes.labelsize": 9,          "axes.titlesize": 10,
+    "xtick.labelsize": 8,         "ytick.labelsize": 8,
+    "legend.fontsize": 8,         "figure.dpi": 150,
     "savefig.dpi": 300,           "savefig.bbox": "tight",
     "axes.spines.top": False,     "axes.spines.right": False,
-    "axes.linewidth": 1.6,        "xtick.major.width": 1.6, "xtick.major.size": 5,
-    "ytick.major.width": 1.6,     "ytick.major.size": 5,
+    "axes.linewidth": 0.8,        "xtick.major.width": 0.8, "xtick.major.size": 3,
+    "ytick.major.width": 0.8,     "ytick.major.size": 3,
 })
 
 # ── Config ─────────────────────────────────────────────────────────────────
@@ -408,27 +417,31 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times, var_set, var_
 
 def _render_one_snap(args):
     date_str, gt_chl, pred_chl, lat, lon, cmap_name, cmap, norm, snap_dir = args
-    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(18, 5.5),
-                                      gridspec_kw={"wspace": 0.06})
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(GRL_WIDTH, 2.2),
+                                      gridspec_kw={"wspace": 0.12})
 
     im = ax_a.pcolormesh(lon, lat, pred_chl, cmap=cmap, norm=norm, shading="auto")
     ax_a.set_aspect("equal"); ax_a.set_facecolor("#cccccc")
-    ax_a.set_title(f"(a) SamudraBGC — Surface Chl  |  {date_str}", fontsize=20, fontweight="bold")
-    ax_a.set_ylabel("Latitude (°N)", fontsize=17)
-    ax_a.set_xlabel("Longitude (°E)", fontsize=17)
-    ax_a.tick_params(labelsize=15)
+    ax_a.set_title("(a) SamudraBGC", fontsize=17, fontweight="bold", pad=16)
+    ax_a.text(0.5, 1.01, f"Surface Chl | {date_str}", transform=ax_a.transAxes,
+              ha="center", va="bottom", fontsize=12, style="italic", color="0.3")
+    ax_a.set_ylabel("Latitude (°N)", fontsize=15)
+    ax_a.set_xlabel("Longitude (°E)", fontsize=15)
+    ax_a.tick_params(labelsize=13)
 
     ax_b.pcolormesh(lon, lat, gt_chl, cmap=cmap, norm=norm, shading="auto")
     ax_b.set_aspect("equal"); ax_b.set_facecolor("#cccccc")
-    ax_b.set_title(f"(b) Ground Truth — Surface Chl  |  {date_str}", fontsize=20, fontweight="bold")
-    ax_b.set_xlabel("Longitude (°E)", fontsize=17)
+    ax_b.set_title("(b) Ground Truth", fontsize=17, fontweight="bold", pad=16)
+    ax_b.text(0.5, 1.01, f"Surface Chl | {date_str}", transform=ax_b.transAxes,
+              ha="center", va="bottom", fontsize=12, style="italic", color="0.3")
+    ax_b.set_xlabel("Longitude (°E)", fontsize=15)
     ax_b.set_yticklabels([])
-    ax_b.tick_params(labelsize=15)
+    ax_b.tick_params(labelsize=13)
 
     cbar = fig.colorbar(im, ax=[ax_a, ax_b], shrink=0.55, pad=0.02,
                         extend="both", aspect=25)
-    cbar.set_label("Chlorophyll (mg m⁻³)", fontsize=17)
-    cbar.ax.tick_params(labelsize=15)
+    cbar.set_label("Chlorophyll (mg m⁻³)", fontsize=15)
+    cbar.ax.tick_params(labelsize=13)
 
     out = Path(snap_dir) / f"fig02_snap_chl_{date_str}_{cmap_name}.png"
     fig.savefig(out, dpi=200, bbox_inches="tight")
@@ -504,7 +517,7 @@ def plot_dic_zonal_mean(gt_zonal, pred_zonal, gt_temp_zonal, pred_temp_zonal,
     temp_levels = np.arange(0, 30, 2)  # 0, 2, 4, ..., 28 °C
 
     for cmap_name, cmap in COLORMAPS_DIC:
-        fig, (ax_c, ax_d) = plt.subplots(1, 2, figsize=(18, 6),
+        fig, (ax_c, ax_d) = plt.subplots(1, 2, figsize=(GRL_WIDTH, 2.5),
                                           gridspec_kw={"wspace": 0.10})
 
         zonal_subtitle = "2015–2019 zonal mean"
@@ -513,27 +526,27 @@ def plot_dic_zonal_mean(gt_zonal, pred_zonal, gt_temp_zonal, pred_temp_zonal,
                            levels=levels_contour, cmap=cmap, extend="both")
         cs_temp_gt = ax_c.contour(lat, depth_arr, gt_temp_zonal.T,
                      levels=temp_levels, colors="k", linewidths=0.6, alpha=0.5)
-        ax_c.clabel(cs_temp_gt, inline=True, fontsize=13, fmt="%.0f°C")
+        ax_c.clabel(cs_temp_gt, inline=True, fontsize=11, fmt="%.0f°C")
         ax_c.invert_yaxis()
-        ax_c.set_xlabel("Latitude (°N)", fontsize=17)
-        ax_c.set_ylabel("Depth (m)", fontsize=17)
-        ax_c.set_title("(c) Ground Truth — DIC", fontsize=20, fontweight="bold", pad=24)
+        ax_c.set_xlabel("Latitude (°N)", fontsize=15)
+        ax_c.set_ylabel("Depth (m)", fontsize=15)
+        ax_c.set_title("(c) Ground Truth — DIC", fontsize=17, fontweight="bold", pad=18)
         ax_c.text(0.5, 1.01, zonal_subtitle, transform=ax_c.transAxes,
-                  ha="center", va="bottom", fontsize=16, style="italic", color="0.3")
-        ax_c.tick_params(labelsize=15)
+                  ha="center", va="bottom", fontsize=13, style="italic", color="0.3")
+        ax_c.tick_params(labelsize=13)
 
         ax_d.contourf(lat, depth_arr, pred_disp.T,
                       levels=levels_contour, cmap=cmap, extend="both")
         cs_temp = ax_d.contour(lat, depth_arr, pred_temp_zonal.T,
                                levels=temp_levels, colors="k", linewidths=0.6, alpha=0.5)
-        ax_d.clabel(cs_temp, inline=True, fontsize=13, fmt="%.0f°C")
+        ax_d.clabel(cs_temp, inline=True, fontsize=11, fmt="%.0f°C")
         ax_d.invert_yaxis()
-        ax_d.set_xlabel("Latitude (°N)", fontsize=17)
-        ax_d.set_title("(d) SamudraBGC — DIC", fontsize=20, fontweight="bold", pad=24)
+        ax_d.set_xlabel("Latitude (°N)", fontsize=15)
+        ax_d.set_title("(d) SamudraBGC — DIC", fontsize=17, fontweight="bold", pad=18)
         ax_d.text(0.5, 1.01, zonal_subtitle, transform=ax_d.transAxes,
-                  ha="center", va="bottom", fontsize=16, style="italic", color="0.3")
+                  ha="center", va="bottom", fontsize=13, style="italic", color="0.3")
         ax_d.set_yticklabels([])
-        ax_d.tick_params(labelsize=15)
+        ax_d.tick_params(labelsize=13)
 
         # ── RMSE + R² annotation on panel d (4-line layout to avoid overflow) ─
         ax_d.text(0.97, 0.03,
@@ -541,13 +554,13 @@ def plot_dic_zonal_mean(gt_zonal, pred_zonal, gt_temp_zonal, pred_temp_zonal,
                   f"DIC R² = {r2_dic:.3f}\n"
                   f"Temp RMSE = {rmse_temp:.2f} °C\n"
                   f"Temp R² = {r2_temp:.3f}",
-                  transform=ax_d.transAxes, fontsize=15, va="bottom", ha="right",
+                  transform=ax_d.transAxes, fontsize=13, va="bottom", ha="right",
                   bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="0.7", alpha=0.88))
 
         cbar = fig.colorbar(cf, ax=[ax_c, ax_d], shrink=0.65, pad=0.02,
                             extend="both", aspect=20)
-        cbar.set_label("DIC (µmol kg⁻¹)", fontsize=17)
-        cbar.ax.tick_params(labelsize=15)
+        cbar.set_label("DIC (µmol kg⁻¹)", fontsize=15)
+        cbar.ax.tick_params(labelsize=13)
 
         out = output_dir / f"fig02_zonal_dic_{cmap_name}.png"
         fig.savefig(out, dpi=200, bbox_inches="tight")
@@ -557,85 +570,77 @@ def plot_dic_zonal_mean(gt_zonal, pred_zonal, gt_temp_zonal, pred_temp_zonal,
 
     print(f"  Done in {time.time() - t0:.1f}s")
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # STAGE 6 — TIME SERIES + PDFs  (panels e + f)
 # ═══════════════════════════════════════════════════════════════════════════
-
 def plot_ts_pdf(ts_gt, ts_pred, ts_met, pdf_hists, times_plot,
                var_set, var_set_name, output_dir):
     t0 = time.time()
     n_vars = len(var_set)
-    print(f"\n  Plotting ts+pdf '{var_set_name}' ({n_vars} vars)...")
+    
+    # 1. INCREASE TOTAL FIGURE HEIGHT: 
+    # Changed from 1.1 to 1.6 to provide enough physical space for labels.
+    fig = plt.figure(figsize=(GRL_WIDTH, 1.6 * n_vars + 0.5))
+    
+    gs = GridSpec(1, 2, figure=fig, wspace=0.35, left=0.12, right=0.95,
+                  top=0.90, bottom=0.10)
 
-    fig = plt.figure(figsize=(18, 2.8 * n_vars + 0.8))
-    gs = GridSpec(1, 2, figure=fig, wspace=0.30, left=0.08, right=0.96,
-                  top=0.92, bottom=0.10)
-
-    gs_ts  = GridSpecFromSubplotSpec(n_vars, 1, subplot_spec=gs[0], hspace=0.10)
-    gs_pdf = GridSpecFromSubplotSpec(n_vars, 1, subplot_spec=gs[1], hspace=0.55)
+    gs_ts  = GridSpecFromSubplotSpec(n_vars, 1, subplot_spec=gs[0], hspace=0.25)
+    
+    # 2. INCREASE HSPACE FOR PDFs: 
+    # Bumped to 1.2 to prevent the x-axis labels from hitting the next panel.
+    gs_pdf = GridSpecFromSubplotSpec(n_vars, 1, subplot_spec=gs[1], hspace=1.2)
 
     ax_ts  = [fig.add_subplot(gs_ts[i])  for i in range(n_vars)]
     ax_pdf = [fig.add_subplot(gs_pdf[i]) for i in range(n_vars)]
 
     for i, (v, label, units, color) in enumerate(var_set):
+        # --- Time Series Panel ---
         ax = ax_ts[i]
-        ax.plot(times_plot, ts_gt[v],   color="k",   lw=2.5, label="Ground Truth")
-        ax.plot(times_plot, ts_pred[v], color=color, lw=2.8, ls="--",
-                label="SamudraBGC", alpha=0.95)
-        ax.set_ylabel(f"{label}\n({units})", fontsize=17, color="black",
-                      fontweight="normal")
-        ax.grid(True, alpha=0.15, lw=0.7)
-        ax.tick_params(labelsize=15)
-        # Short stacked rows → cap ticks so labels like 2140/2160 don't overlap.
-        ax.yaxis.set_major_locator(MaxNLocator(nbins=3, prune="both"))
-        ydata = np.concatenate([ts_gt[v], ts_pred[v]])
-        _ymin, _ymax = np.nanmin(ydata), np.nanmax(ydata)
-        _margin = (_ymax - _ymin) * 0.15
-        ax.set_ylim(_ymin - _margin, _ymax + _margin)
+        ax.plot(times_plot, ts_gt[v],   color="k",   lw=1.8, label="Ground Truth")
+        ax.plot(times_plot, ts_pred[v], color=color, lw=2.0, ls="--", label="SamudraBGC")
+        
+        # 3. LEGEND FIX: Move legend for panel (e) to the top right of the FIRST panel
+        if i == 0:
+            ax.legend(loc="upper right", fontsize=10, frameon=False)
+            ax.set_title("(e) Domain-averaged time series", fontsize=14, fontweight="bold", pad=12)
+
+        ax.set_ylabel(f"{label}\n({units})", fontsize=10)
+        ax.tick_params(labelsize=9)
+        
         if i < n_vars - 1:
             ax.set_xticklabels([])
         else:
-            ax.xaxis.set_major_locator(mdates.YearLocator())
             ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-        m = ts_met[v]
-        ax.text(0.02, 0.08, f"R²={m['R2']:.3f}  RMSE={m['RMSE']:.2f} {units}",
-                transform=ax.transAxes, fontsize=16,
-                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
 
+        # --- PDF Panel ---
         ap = ax_pdf[i]
         h = pdf_hists[v]
-        ap.fill_between(h["centers"], h["gt"],   color="k",   alpha=0.15)
-        ap.plot(h["centers"], h["gt"],            color="k",   lw=2.5, label="Ground Truth")
-        ap.fill_between(h["centers"], h["pred"], color=color, alpha=0.25)
-        ap.plot(h["centers"], h["pred"],          color=color, lw=2.5, ls="--", label="SamudraBGC")
-        if h["log"]:
-            ap.set_xscale("log")
-        ap.set_title(f"{label} ({units})", fontsize=16, fontweight="bold",
-                     color="black")
-        ap.set_ylabel("Density", fontsize=16)
-        ap.grid(True, alpha=0.15, lw=0.7)
-        ap.tick_params(labelsize=15)
-        ap.text(0.02, 0.92, f"KS={h['ks_stat']:.3f}",
-                transform=ap.transAxes, fontsize=15,
-                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
+        ap.fill_between(h["centers"], h["gt"], color="k", alpha=0.1)
+        ap.plot(h["centers"], h["gt"], color="k", lw=1.5)
+        ap.fill_between(h["centers"], h["pred"], color=color, alpha=0.2)
+        ap.plot(h["centers"], h["pred"], color=color, lw=1.5, ls="--")
+        
+        if h["log"]: ap.set_xscale("log")
+        
+        # 4. REMOVE INTERNAL TITLES: Use xlabel instead to save vertical space.
+        ap.set_xlabel(f"{label} ({units})", fontsize=10)
+        ap.set_ylabel("Density", fontsize=10)
+        ap.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: f"{x:.2g}"))
+        ap.tick_params(labelsize=9)
+        
+        # Label panel (f) only on the top plot
+        if i == 0:
+            ap.annotate("(f) PDFs", xy=(0.5, 1.2), xycoords="axes fraction", 
+                        ha="center", fontsize=14, fontweight="bold")
 
-    ax_ts[0].set_title("(e) Domain-averaged time series (2015–2019)",
-                       fontsize=20, fontweight="bold", pad=6)
-    # Mirror the PDF legend pattern: only the last row shows a per-panel
-    # legend, picking up the actual plotted styles — Ground Truth solid black
-    # and SamudraBGC in that row's variable color, dashed.
-    ax_ts[-1].legend(loc="lower right", fontsize=15, frameon=False)
-    ax_pdf[0].annotate("(f) Probability density functions (2015–2019)",
-                       xy=(0.5, 1.0), xycoords="axes fraction",
-                       xytext=(0, 30), textcoords="offset points",
-                       ha="center", fontsize=20, fontweight="bold")
-    ax_pdf[-1].legend(loc="lower right", fontsize=15, frameon=False)
+    # 5. VERTICAL ALIGNMENT: Forces all 'Density' labels into a straight vertical line.
+    fig.align_ylabels(ax_pdf)
+    fig.align_ylabels(ax_ts)
 
     out = output_dir / f"fig02_ts_pdf_{var_set_name}.png"
-    fig.savefig(out, dpi=250, bbox_inches="tight")
+    fig.savefig(out, dpi=300, bbox_inches="tight")
     plt.close(fig)
-    print(f"  ✓ Saved {out.name}  ({time.time() - t0:.1f}s)")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -693,118 +698,126 @@ def plot_fig02_main(gt_ds, pred_ds, chl_snapshots, gt_zonal, pred_zonal,
     temp_levels = np.arange(0, 30, 2)  # temperature contour levels (°C)
 
     # ── Figure layout ────────────────────────────────────────────────────
-    # 2 rows: [a O2 100-200m ML | b O2 100-200m GT | c DIC zonal GT | d DIC zonal ML] / [e TS | f PDF]
-    row2_height = 2.8 * n_vars
-    fig = plt.figure(figsize=(22, 5.5 + row2_height))
+    # 2 sections: [a,b O2 maps | c,d DIC zonal] / [e TS | f PDF]
+    # Row 1 has all 4 data panels with horizontal colorbars below each pair.
+    row2_height = 1.1 * n_vars
+    fig = plt.figure(figsize=(GRL_WIDTH, 3.2 + row2_height + 0.4))
     outer = GridSpec(2, 1, figure=fig,
-                     height_ratios=[5.5, row2_height],
-                     hspace=0.38)
+                     height_ratios=[3.2, row2_height],
+                     hspace=0.35)
 
-    # ── Row 1: all 4 snapshot panels side by side ─────────────────────────
-    # Width ratios: maps get slightly more space than sections
-    row1_gs = GridSpecFromSubplotSpec(1, 4, subplot_spec=outer[0],
-                                      wspace=0.18,
-                                      width_ratios=[2, 2, 1.5, 1.5])
-    ax_a = fig.add_subplot(row1_gs[0])
-    ax_b = fig.add_subplot(row1_gs[1])
-    ax_c = fig.add_subplot(row1_gs[2])
-    ax_d = fig.add_subplot(row1_gs[3])
+    # ── Row 1: O2 snapshots (a, b) + DIC zonal (c, d) with bottom colorbars ──
+    # 2 columns: [a,b with cbar] | [c,d with cbar]
+    # AB wider (square subplots), CD narrower (depth sections)
+    row1_gs = GridSpecFromSubplotSpec(1, 2, subplot_spec=outer[0],
+                                      wspace=0.20,
+                                      width_ratios=[1.15, 1.05])
+
+    # Left block: O2 snapshots (a, b) with colorbar below
+    ab_gs = GridSpecFromSubplotSpec(2, 2, subplot_spec=row1_gs[0],
+                                    height_ratios=[1.0, 0.06], hspace=0.25,
+                                    wspace=0.05)
+    ax_a = fig.add_subplot(ab_gs[0, 0])
+    ax_b = fig.add_subplot(ab_gs[0, 1])
+    cax_o2 = fig.add_subplot(ab_gs[1, :])
+
+    # Right block: DIC zonal (c, d) with colorbar below
+    cd_gs = GridSpecFromSubplotSpec(2, 2, subplot_spec=row1_gs[1],
+                                    height_ratios=[1.0, 0.06],
+                                      hspace=0.25, wspace=0.05)
+    ax_c = fig.add_subplot(cd_gs[0, 0])
+    ax_d = fig.add_subplot(cd_gs[0, 1])
+    cax_dic = fig.add_subplot(cd_gs[1, :])
 
     snap_date_str = "2015-04-01"
 
     # (a) Ground Truth O₂ 100–200 m
     im_o2_snap = ax_a.pcolormesh(lon, lat, gt_o2_snap, cmap=cmap_snap,
                                   vmin=vmin_snap, vmax=vmax_snap, shading="auto")
+    ax_a.set_aspect("equal")
     ax_a.set_facecolor("#cccccc")
-    ax_a.set_title("(a) Ground Truth", fontsize=20, fontweight="bold", pad=24)
-    ax_a.text(0.5, 1.01, f"O₂ 100–200 m  |  {snap_date_str}",
-              transform=ax_a.transAxes,
-              ha="center", va="bottom", fontsize=15, style="italic", color="0.3")
-    ax_a.set_ylabel("Latitude (°N)", fontsize=17)
-    ax_a.set_xlabel("Longitude (°E)", fontsize=17)
-    ax_a.tick_params(labelsize=15)
+    ax_a.set_title("(a) Ground Truth", fontsize=8, fontweight="bold")
+    ax_a.set_ylabel("Lat (°N)", fontsize=8)
+    ax_a.set_xlabel("Lon (°E)", fontsize=8)
+    ax_a.tick_params(labelsize=7)
 
     # (b) SamudraBGC O₂ 100–200 m
     ax_b.pcolormesh(lon, lat, pred_o2_snap, cmap=cmap_snap,
                     vmin=vmin_snap, vmax=vmax_snap, shading="auto")
+    ax_b.set_aspect("equal")
     ax_b.set_facecolor("#cccccc")
-    ax_b.set_title("(b) SamudraBGC", fontsize=20, fontweight="bold", pad=24)
-    ax_b.text(0.5, 1.01, f"O₂ 100–200 m  |  {snap_date_str}",
-              transform=ax_b.transAxes,
-              ha="center", va="bottom", fontsize=15, style="italic", color="0.3")
-    ax_b.set_xlabel("Longitude (°E)", fontsize=17)
+    ax_b.set_title("(b) SamudraBGC", fontsize=8, fontweight="bold")
+    ax_b.set_xlabel("Lon (°E)", fontsize=8)
     ax_b.set_yticklabels([])
-    ax_b.tick_params(labelsize=15)
+    ax_b.tick_params(labelsize=7)
     ax_b.text(0.97, 0.03,
-              f"RMSE = {rmse_o2:.1f} µmol kg⁻¹\nR² = {r2_o2:.3f}",
-              transform=ax_b.transAxes, fontsize=15, va="bottom", ha="right",
-              bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="0.7", alpha=0.88))
+              f"RMSE={rmse_o2:.1f}\nR²={r2_o2:.3f}",
+              transform=ax_b.transAxes, fontsize=7, va="bottom", ha="right",
+              bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", alpha=0.88))
 
-    cbar_snap = fig.colorbar(im_o2_snap, ax=[ax_a, ax_b], shrink=0.60, pad=0.02,
-                              extend="both", aspect=25, location="right")
-    cbar_snap.set_label("O₂ (µmol kg⁻¹)", fontsize=17)
-    cbar_snap.ax.tick_params(labelsize=15)
-
-    zonal_subtitle = "2015–2019 zonal mean"
+    cbar_snap = fig.colorbar(im_o2_snap, cax=cax_o2, orientation="horizontal", extend="both")
+    cbar_snap.set_label("O₂ (µmol kg⁻¹)", fontsize=8)
+    cbar_snap.ax.tick_params(labelsize=7)
 
     # (c) Ground Truth DIC zonal mean
     cf = ax_c.contourf(lat, depth_arr, gt_disp.T,
                        levels=levels_contour, cmap=cmap_dic, extend="both")
     cs_temp_gt = ax_c.contour(lat, depth_arr, gt_temp_zonal.T,
-                 levels=temp_levels, colors="k", linewidths=0.6, alpha=0.5)
-    ax_c.clabel(cs_temp_gt, inline=True, fontsize=13, fmt="%.0f°C")
+                 levels=temp_levels, colors="k", linewidths=0.5, alpha=0.5)
+    ax_c.clabel(cs_temp_gt, inline=True, fontsize=6, fmt="%.0f°C")
     ax_c.invert_yaxis()
-    ax_c.set_xlabel("Latitude (°N)", fontsize=17)
-    ax_c.set_ylabel("Depth (m)", fontsize=17)
-    ax_c.set_title("(c) Ground Truth", fontsize=20, fontweight="bold", pad=24)
-    ax_c.text(0.5, 1.01, f"DIC  |  {zonal_subtitle}", transform=ax_c.transAxes,
-              ha="center", va="bottom", fontsize=15, style="italic", color="0.3")
-    ax_c.tick_params(labelsize=15)
+    ax_c.set_xlabel("Lat (°N)", fontsize=8)
+    ax_c.set_ylabel("Depth (m)", fontsize=8)
+    ax_c.set_title("(c) Ground Truth", fontsize=8, fontweight="bold", loc="left")
+    ax_c.tick_params(labelsize=7)
 
     # (d) SamudraBGC DIC zonal mean
     ax_d.contourf(lat, depth_arr, pred_disp.T,
                   levels=levels_contour, cmap=cmap_dic, extend="both")
     cs_temp = ax_d.contour(lat, depth_arr, pred_temp_zonal.T,
-                           levels=temp_levels, colors="k", linewidths=0.6, alpha=0.5)
-    ax_d.clabel(cs_temp, inline=True, fontsize=13, fmt="%.0f°C")
+                           levels=temp_levels, colors="k", linewidths=0.5, alpha=0.5)
+    ax_d.clabel(cs_temp, inline=True, fontsize=6, fmt="%.0f°C")
     ax_d.invert_yaxis()
-    ax_d.set_xlabel("Latitude (°N)", fontsize=17)
-    ax_d.set_title("(d) SamudraBGC", fontsize=20, fontweight="bold", pad=24)
-    ax_d.text(0.5, 1.01, f"DIC  |  {zonal_subtitle}", transform=ax_d.transAxes,
-              ha="center", va="bottom", fontsize=15, style="italic", color="0.3")
+    ax_d.set_xlabel("Lat (°N)", fontsize=8)
+    ax_d.set_title("(d) SamudraBGC", fontsize=8, fontweight="bold", loc="left")
     ax_d.set_yticklabels([])
-    ax_d.tick_params(labelsize=15)
-    # 4-line layout to keep annotation inside the panel
-    ax_d.text(0.97, 0.05,
-              f"DIC RMSE = {rmse_dic:.1f} µmol kg⁻¹\n"
-              f"DIC R² = {r2_dic:.3f}\n"
-              f"Temp RMSE = {rmse_temp:.2f} °C\n"
-              f"Temp R² = {r2_temp:.3f}",
-              transform=ax_d.transAxes, fontsize=13, va="bottom", ha="right",
-              bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.7", alpha=0.88))
+    ax_d.tick_params(labelsize=7)
+    ax_d.text(0.95, 0.05,
+              f"DIC RMSE={rmse_dic:.1f}\nDIC R²={r2_dic:.3f}\n"
+              f"Temp RMSE={rmse_temp:.2f}\nTemp R²={r2_temp:.3f}",
+              transform=ax_d.transAxes, fontsize=6, va="bottom", ha="right",
+              bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="0.7", alpha=0.88))
 
-    cbar_dic = fig.colorbar(cf, ax=[ax_c, ax_d], shrink=0.65, pad=0.02,
-                             extend="both", aspect=20, location="right")
-    cbar_dic.set_label("DIC (µmol kg⁻¹)", fontsize=17)
-    cbar_dic.ax.yaxis.set_major_locator(mpl.ticker.MaxNLocator(nbins=5, prune="both"))
-    cbar_dic.ax.tick_params(labelsize=15)
+    cbar_dic = fig.colorbar(cf, cax=cax_dic, orientation="horizontal", extend="both")
+    cbar_dic.set_label("DIC (µmol kg⁻¹)", fontsize=8)
+    cbar_dic.ax.xaxis.set_major_locator(mpl.ticker.MaxNLocator(nbins=5, prune="both"))
+    cbar_dic.ax.tick_params(labelsize=7)
 
     # ── Row 2: Time series (e) + PDFs (f) — DIC, O₂, NO₃, Chl ──────────
-    row2_inner = GridSpecFromSubplotSpec(1, 2, subplot_spec=outer[1], wspace=0.30)
-    ts_gs  = GridSpecFromSubplotSpec(n_vars, 1, subplot_spec=row2_inner[0], hspace=0.10)
-    pdf_gs = GridSpecFromSubplotSpec(n_vars, 1, subplot_spec=row2_inner[1], hspace=0.55)
+    # Large wspace to prevent legend/y-axis overlap between panels e and f
+    row2_inner = GridSpecFromSubplotSpec(1, 2, subplot_spec=outer[1], wspace=0.50)
+    ts_gs  = GridSpecFromSubplotSpec(n_vars, 1, subplot_spec=row2_inner[0], hspace=0.22)
+    pdf_gs = GridSpecFromSubplotSpec(n_vars, 1, subplot_spec=row2_inner[1], hspace=0.70)
     ax_ts  = [fig.add_subplot(ts_gs[i])  for i in range(n_vars)]
     ax_pdf = [fig.add_subplot(pdf_gs[i]) for i in range(n_vars)]
 
+    # Abbreviated variable labels for compact y-axis display
+    short_labels = {
+        "temp_surf": "Temp",
+        "dic_100_200m": "DIC",
+        "o2_100_200m": "O₂",
+        "chl_surf": "Chl",
+        "no3_surf": "NO₃",
+    }
     for i, (v, label, units, color) in enumerate(BGC_VARS_V1):
         ax = ax_ts[i]
-        ax.plot(times_plot_no3, ts_gt_no3[v],   color="k",   lw=2.5, label="Ground Truth")
-        ax.plot(times_plot_no3, ts_pred_no3[v], color=color, lw=2.8, ls="--",
+        ax.plot(times_plot_no3, ts_gt_no3[v],   color="k",   lw=1.0, label="Ground Truth")
+        ax.plot(times_plot_no3, ts_pred_no3[v], color=color, lw=1.2, ls="--",
                 label="SamudraBGC", alpha=0.95)
-        ax.set_ylabel(f"{label}\n({units})", fontsize=17, color="black",
-                      fontweight="normal")
-        ax.grid(True, alpha=0.15, lw=0.7)
-        ax.tick_params(labelsize=15)
+        # Two-line y-label: variable name then units
+        ax.set_ylabel(f"{short_labels.get(v, label)}\n({units})", fontsize=8)
+        ax.grid(True, alpha=0.15, lw=0.4)
+        ax.tick_params(labelsize=7)
         ax.yaxis.set_major_locator(MaxNLocator(nbins=3, prune="both"))
         ydata = np.concatenate([ts_gt_no3[v], ts_pred_no3[v]])
         _ymin, _ymax = np.nanmin(ydata), np.nanmax(ydata)
@@ -815,45 +828,217 @@ def plot_fig02_main(gt_ds, pred_ds, chl_snapshots, gt_zonal, pred_zonal,
         else:
             ax.xaxis.set_major_locator(mdates.YearLocator())
             ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-            ax.set_xlabel("Year", fontsize=17)
+            ax.set_xlabel("Year", fontsize=8)
         m = ts_met_no3[v]
-        ax.text(0.02, 0.08, f"R²={m['R2']:.3f}  RMSE={m['RMSE']:.2f} {units}",
-                transform=ax.transAxes, fontsize=16,
-                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
+        ax.text(0.02, 0.08, f"R²={m['R2']:.3f}  RMSE={m['RMSE']:.2f}",
+                transform=ax.transAxes, fontsize=7,
+                bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="0.8", alpha=0.85))
 
         ap = ax_pdf[i]
         h = pdf_hists_no3[v]
         ap.fill_between(h["centers"], h["gt"],   color="k",   alpha=0.15)
-        ap.plot(h["centers"], h["gt"],            color="k",   lw=2.5, label="Ground Truth")
+        ap.plot(h["centers"], h["gt"],            color="k",   lw=1.0, label="Ground Truth")
         ap.fill_between(h["centers"], h["pred"], color=color, alpha=0.25)
-        ap.plot(h["centers"], h["pred"],          color=color, lw=2.5, ls="--", label="SamudraBGC")
+        ap.plot(h["centers"], h["pred"],          color=color, lw=1.0, ls="--", label="SamudraBGC")
         if h["log"]:
             ap.set_xscale("log")
-        ap.set_title(f"{label} ({units})", fontsize=16, fontweight="bold",
-                     color="black")
-        ap.set_ylabel("Density", fontsize=16)
-        ap.grid(True, alpha=0.15, lw=0.7)
-        ap.tick_params(labelsize=15)
-        ap.text(0.02, 0.92, f"KS={h['ks_stat']:.3f}",
-                transform=ap.transAxes, fontsize=15,
-                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.85))
+        # Variable name as xlabel — NOT set_title — so it never clips
+        ap.set_xlabel(f"{short_labels.get(v, label)} ({units})", fontsize=8)
+        ap.set_ylabel("Density", fontsize=8)
+        ap.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: f"{x:.2g}"))
+        ap.grid(True, alpha=0.15, lw=0.4)
+        ap.tick_params(labelsize=7)
+        ap.text(0.02, 0.85, f"KS={h['ks_stat']:.3f}",
+                transform=ap.transAxes, fontsize=6,
+                bbox=dict(boxstyle="round,pad=0.1", fc="white", ec="0.8", alpha=0.85))
 
-    ax_ts[0].set_title("(e) Domain-averaged time series (2015–2019)",
-                       fontsize=20, fontweight="bold", pad=6)
-    # Mirror the PDF legend pattern: only the last row shows a per-panel
-    # legend, picking up the actual plotted styles — Ground Truth solid black
-    # and SamudraBGC in that row's variable color, dashed.
-    ax_ts[-1].legend(loc="lower right", fontsize=15, frameon=False)
-    ax_pdf[0].annotate("(f) Probability density functions (2015–2019)",
+    ax_ts[0].set_title("(e) Time series",
+                       fontsize=8, fontweight="bold", pad=2)
+    ax_pdf[0].annotate("(f) PDFs",
                        xy=(0.5, 1.0), xycoords="axes fraction",
-                       xytext=(0, 30), textcoords="offset points",
-                       ha="center", fontsize=20, fontweight="bold")
-    ax_pdf[-1].legend(loc="lower right", fontsize=15, frameon=False)
+                       xytext=(0, 14), textcoords="offset points",
+                       ha="center", fontsize=8, fontweight="bold")
+    ax_pdf[-1].legend(loc="lower right", fontsize=7, frameon=False)
+
+    # Vertical alignment: forces all y-labels into straight vertical lines
+    fig.align_ylabels(ax_ts)
+    fig.align_ylabels(ax_pdf)
 
     out = output_dir / "fig02_main.png"
     fig.savefig(out, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"✓ fig02_main saved  ({time.time() - t0:.1f}s)  →  {out}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STAGE 7b — STANDALONE PANEL PDFs (for Illustrator compositing)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _panel_rcparams():
+    """Temporary rcParams for standalone panels — matches main figure sizes."""
+    return {
+        "font.size": 9, "axes.labelsize": 9, "axes.titlesize": 10,
+        "xtick.labelsize": 8, "ytick.labelsize": 8, "legend.fontsize": 8,
+    }
+
+
+def export_panel_ab(gt_o2, pred_o2, lat, lon, wet, rmse, r2, date_str, out_dir):
+    """O₂ snapshots (a,b) with shared horizontal colorbar at bottom. Square subplots."""
+    with mpl.rc_context(_panel_rcparams()):
+        vals = np.concatenate([gt_o2[wet], pred_o2[wet]])
+        vmin, vmax = np.nanpercentile(vals, 2), np.nanpercentile(vals, 98)
+        fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(3.8, 3.0),
+                                          gridspec_kw={"wspace": 0.08})
+        fig.subplots_adjust(bottom=0.18, top=0.88, left=0.10, right=0.98)
+        im = ax_a.pcolormesh(lon, lat, gt_o2, cmap="RdBu_r", vmin=vmin, vmax=vmax, shading="auto")
+        ax_a.set_aspect("equal")
+        ax_a.set_facecolor("#cccccc"); ax_a.set_ylabel("Lat (°N)"); ax_a.set_xlabel("Lon (°E)")
+        ax_a.set_title("(a) Ground Truth", fontweight="bold", fontsize=9)
+        ax_a.text(0.5, 1.01, f"O₂ 100–200 m | {date_str}", transform=ax_a.transAxes,
+                  ha="center", va="bottom", fontsize=7, style="italic", color="0.4")
+
+        ax_b.pcolormesh(lon, lat, pred_o2, cmap="RdBu_r", vmin=vmin, vmax=vmax, shading="auto")
+        ax_b.set_aspect("equal")
+        ax_b.set_facecolor("#cccccc"); ax_b.set_xlabel("Lon (°E)"); ax_b.set_yticklabels([])
+        ax_b.set_title("(b) SamudraBGC", fontweight="bold", fontsize=9)
+        ax_b.text(0.5, 1.01, f"O₂ 100–200 m | {date_str}", transform=ax_b.transAxes,
+                  ha="center", va="bottom", fontsize=7, style="italic", color="0.4")
+        ax_b.text(0.03, 0.03, f"RMSE={rmse:.1f}\nR²={r2:.3f}", transform=ax_b.transAxes,
+                  fontsize=7, va="bottom", ha="left",
+                  bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", alpha=0.88))
+
+        cb = fig.colorbar(im, ax=[ax_a, ax_b], orientation="horizontal",
+                          shrink=0.7, pad=0.10, extend="both", aspect=25)
+        cb.set_label("O₂ (µmol kg⁻¹)")
+        out = out_dir / "fig02_panel_ab.pdf"
+        fig.savefig(out); plt.close(fig)
+        print(f"  ✓ {out.name}")
+
+def export_panel_cd(gt_dic, pred_dic, gt_temp, pred_temp, lat, depth_arr,
+                    rmse_dic, r2_dic, rmse_temp, r2_temp, out_dir):
+    """DIC zonal-mean sections (c,d) with temperature contours."""
+    with mpl.rc_context(_panel_rcparams()):
+        vmin = np.nanpercentile(gt_dic[np.isfinite(gt_dic)], 2)
+        vmax = np.nanpercentile(gt_dic[np.isfinite(gt_dic)], 98)
+        levels = np.linspace(vmin, vmax, 21)
+        temp_levels = np.arange(0, 30, 2)
+
+        fig, (ax_c, ax_d) = plt.subplots(1, 2, figsize=(4.5, 2.6),
+                                          gridspec_kw={"wspace": 0.35})
+        
+        # Adjusting margins to make room for the colorbar and labels
+        fig.subplots_adjust(bottom=0.22, top=0.85, left=0.12, right=0.95)
+
+        # --- Panel C ---
+        cf = ax_c.contourf(lat, depth_arr, gt_dic.T, levels=levels, cmap=_HALINE_R, extend="both")
+        cs = ax_c.contour(lat, depth_arr, gt_temp.T, levels=temp_levels, colors="k", linewidths=0.5, alpha=0.5)
+        ax_c.clabel(cs, inline=True, fontsize=6, fmt="%.0f°C")
+        ax_c.invert_yaxis()
+        ax_c.set_xlabel("Lat (°N)")
+        ax_c.set_ylabel("Depth (m)")
+        # CHANGE: Changed loc to "center" to avoid title overlap at the edges
+        ax_c.set_title("(c) Ground Truth", fontsize=9, fontweight="bold", loc="center")        
+        ax_c.text(0.5, 1.02, "DIC | 2015–2019 zonal mean", transform=ax_c.transAxes,
+                  ha="center", va="bottom", fontsize=7, style="italic", color="0.4")
+
+        # --- Panel D ---
+        ax_d.contourf(lat, depth_arr, pred_dic.T, levels=levels, cmap=_HALINE_R, extend="both")
+        cs2 = ax_d.contour(lat, depth_arr, pred_temp.T, levels=temp_levels, colors="k", linewidths=0.5, alpha=0.5)
+        ax_d.clabel(cs2, inline=True, fontsize=6, fmt="%.0f°C")
+        ax_d.invert_yaxis()
+        ax_d.set_xlabel("Lat (°N)")
+        ax_d.set_yticklabels([]) # Keep Y-ticks hidden for shared feel
+        # CHANGE: Changed loc to "center"
+        ax_d.set_title("(d) SamudraBGC", fontsize=9, fontweight="bold", loc="center")
+        ax_d.text(0.5, 1.02, "DIC | 2015–2019 zonal mean", transform=ax_d.transAxes,
+                  ha="center", va="bottom", fontsize=7, style="italic", color="0.4")
+        
+        # Metrics box
+        ax_d.text(0.96, 0.04, f"DIC RMSE={rmse_dic:.1f}\nDIC R²={r2_dic:.3f}\n"
+                  f"Temp RMSE={rmse_temp:.2f}\nTemp R²={r2_temp:.3f}",
+                  transform=ax_d.transAxes, fontsize=6, va="bottom", ha="right",
+                  bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="0.7", alpha=0.88))
+
+        # Colorbar adjustment
+        cb = fig.colorbar(cf, ax=[ax_c, ax_d], orientation="horizontal",
+                          shrink=0.6, pad=0.15, extend="both", aspect=30)
+        cb.set_label("DIC (µmol kg⁻¹)")
+        
+        out = out_dir / "fig02_panel_cd.pdf"
+        fig.savefig(out)
+        plt.close(fig)
+        print(f"  ✓ {out.name}")
+
+
+
+def export_panel_e(ts_gt, ts_pred, ts_met, times_plot, var_set, out_dir):
+    """Time series (e): 5 stacked subplots."""
+    short = {"temp_surf": "Temp", "dic_100_200m": "DIC",
+             "o2_100_200m": "O₂", "chl_surf": "Chl", "no3_surf": "NO₃"}
+    n = len(var_set)
+    with mpl.rc_context(_panel_rcparams()):
+        fig, axes = plt.subplots(n, 1, figsize=(3.1, 5.0), sharex=True,
+                                  gridspec_kw={"hspace": 0.22})
+        fig.subplots_adjust(left=0.20, right=0.98, top=0.94, bottom=0.08)
+        for i, (v, label, units, color) in enumerate(var_set):
+            ax = axes[i]
+            ax.plot(times_plot, ts_gt[v], color="k", lw=1.0, label="Ground Truth")
+            ax.plot(times_plot, ts_pred[v], color=color, lw=1.2, ls="--",
+                    label="SamudraBGC", alpha=0.95)
+            ax.set_ylabel(f"{short.get(v, label)} ({units})", fontsize=8)
+            ax.grid(True, alpha=0.15, lw=0.4)
+            ax.yaxis.set_major_locator(MaxNLocator(nbins=3, prune="both"))
+            ydata = np.concatenate([ts_gt[v], ts_pred[v]])
+            margin = (np.nanmax(ydata) - np.nanmin(ydata)) * 0.15
+            ax.set_ylim(np.nanmin(ydata) - margin, np.nanmax(ydata) + margin)
+            m = ts_met[v]
+            ax.text(0.02, 0.08, f"R²={m['R2']:.3f}  RMSE={m['RMSE']:.2f}",
+                    transform=ax.transAxes, fontsize=7,
+                    bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="0.8", alpha=0.85))
+        axes[-1].xaxis.set_major_locator(mdates.YearLocator())
+        axes[-1].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        axes[-1].set_xlabel("Year")
+        fig.align_ylabels(axes)
+        axes[0].set_title("(e) Time series", fontweight="bold", fontsize=10, pad=4)
+        axes[-1].legend(loc="lower left", fontsize=7, frameon=False)
+        out = out_dir / "fig02_panel_e.pdf"
+        fig.savefig(out); plt.close(fig)
+        print(f"  ✓ {out.name}")
+
+
+def export_panel_f(pdf_hists, var_set, out_dir):
+    """PDFs (f): 5 stacked subplots. Variable name as annotation to match panel_e row heights."""
+    short = {"temp_surf": "Temp", "dic_100_200m": "DIC",
+             "o2_100_200m": "O₂", "chl_surf": "Chl", "no3_surf": "NO₃"}
+    n = len(var_set)
+    with mpl.rc_context(_panel_rcparams()):
+        fig, axes = plt.subplots(n, 1, figsize=(3.1, 5.0),
+                                  gridspec_kw={"hspace": 0.22})
+        fig.subplots_adjust(left=0.20, right=0.98, top=0.94, bottom=0.08)
+        for i, (v, label, units, color) in enumerate(var_set):
+            ap = axes[i]
+            h = pdf_hists[v]
+            ap.fill_between(h["centers"], h["gt"], color="k", alpha=0.15)
+            ap.plot(h["centers"], h["gt"], color="k", lw=1.0, label="Ground Truth")
+            ap.fill_between(h["centers"], h["pred"], color=color, alpha=0.25)
+            ap.plot(h["centers"], h["pred"], color=color, lw=1.0, ls="--", label="SamudraBGC")
+            if h["log"]:
+                ap.set_xscale("log")
+            ap.set_ylabel("Density", fontsize=8)
+            ap.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: f"{x:.2g}"))
+            ap.grid(True, alpha=0.15, lw=0.4)
+            ap.tick_params(labelbottom=(i == n - 1))
+            ap.text(0.98, 0.85, f"{short.get(v, label)} ({units})",
+                    transform=ap.transAxes, fontsize=7, ha="right",
+                    bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="0.7", alpha=0.9))
+            ap.text(0.02, 0.85, f"KS={h['ks_stat']:.3f}", transform=ap.transAxes,
+                    fontsize=7, bbox=dict(boxstyle="round,pad=0.1", fc="white", ec="0.8", alpha=0.85))
+        fig.align_ylabels(axes)
+        axes[0].set_title("(f) PDFs", fontweight="bold", fontsize=10, pad=4)
+        axes[-1].legend(loc="lower right", fontsize=7, frameon=False)
+        out = out_dir / "fig02_panel_f.pdf"
+        fig.savefig(out); plt.close(fig)
+        print(f"  ✓ {out.name}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -900,8 +1085,9 @@ def main():
 
         # Per-level metrics (expensive — reads every depth level). Precompute
         # here so they land in the cache alongside the stage-1/2 arrays.
-        per_level_metrics = _fig02_base.compute_per_level_metrics(
-            gt_ds, pred_ds, lat, wet, pred_times)
+        # DISABLED: SI panels are commented out, and compute_per_level_metrics
+        # function doesn't exist in this module.
+        per_level_metrics = None
 
         print(f"\n[cache] Writing {CACHE_FILE}...")
         t0 = time.time()
@@ -952,6 +1138,35 @@ def main():
         ts_gt_n, ts_pred_n, ts_met_n, pdf_n, times_n,
         OUTPUT_DIR,
     )
+
+    # ── Stage 7b: Standalone panel PDFs for Illustrator compositing ───────
+    print("\n" + "=" * 70)
+    print("STAGE 7b: EXPORTING STANDALONE PANEL PDFs")
+    print("=" * 70)
+    snap_idx = _find_snap_idx(pred_times, "2015-04-01")
+    gt_o2_snap   = to_display(gt_arrays["o2_100_200m"][snap_idx], "o2_100_200m")
+    pred_o2_snap = to_display(pred_arrays["o2_100_200m"][snap_idx], "o2_100_200m")
+    gt_o2_snap   = np.where(wet, gt_o2_snap, np.nan).astype(np.float32)
+    pred_o2_snap = np.where(wet, pred_o2_snap, np.nan).astype(np.float32)
+    _gt_f = gt_o2_snap[wet]; _pr_f = pred_o2_snap[wet]
+    _fin = np.isfinite(_gt_f) & np.isfinite(_pr_f)
+    _d = _pr_f[_fin] - _gt_f[_fin]
+    rmse_o2 = float(np.sqrt(np.mean(_d**2)))
+    r2_o2 = float(1.0 - np.sum(_d**2) / np.sum((_gt_f[_fin] - np.mean(_gt_f[_fin]))**2))
+
+    depth_arr = np.array(DEPTH_LEVELS[:47])
+    gt_disp_z = gt_zonal * MOL_TO_UMOL
+    pred_disp_z = pred_zonal * MOL_TO_UMOL
+    rmse_dic, r2_dic = zonal_metrics(gt_disp_z, pred_disp_z)
+    rmse_temp, r2_temp = zonal_metrics(gt_temp_zonal, pred_temp_zonal)
+
+    export_panel_ab(gt_o2_snap, pred_o2_snap, lat, lon, wet,
+                    rmse_o2, r2_o2, "2015-04-01", OUTPUT_DIR)
+    export_panel_cd(gt_disp_z, pred_disp_z, gt_temp_zonal, pred_temp_zonal,
+                    lat, depth_arr, rmse_dic, r2_dic, rmse_temp, r2_temp, OUTPUT_DIR)
+    export_panel_e(ts_gt_n, ts_pred_n, ts_met_n, times_n, BGC_VARS_V1, OUTPUT_DIR)
+    export_panel_f(pdf_n, BGC_VARS_V1, OUTPUT_DIR)
+    print("  ✓ All panel PDFs exported → Illustrator-ready")
 
     # ── Stage 8-9: SI panels (DISABLED - var_set mismatch needs fixing)
     # TODO: fix SI_BASE_VARS vs gt_arrays key mismatch (temp vs temp_0_100m)
