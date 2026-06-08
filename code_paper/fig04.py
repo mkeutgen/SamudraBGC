@@ -82,7 +82,7 @@ HELM_LABELS = {
     "gt":   "Ground Truth",
     "helm": "#1 Helmholtz",
     "vel":  "#2 Velocity",
-    "best": "#9 SamudraBGC",
+    "best": "#8 SamudraBGC",
 }
 HELM_COLORS = {
     "gt":   "#000000",
@@ -114,30 +114,63 @@ def _depth_avg_var(ds, var_prefix, depth_indices, scale_factor=1.0):
         acc = vals * dz[j] if acc is None else acc + vals * dz[j]
     return (acc / dz.sum()) * scale_factor
 
-
-def _azimuthal_power_spectrum(field_2d, dx_km):
+def _azimuthal_spectrum(field_2d, dx_km, check_parseval=False):
+    """
+    1D radial energy spectrum E(k) via azimuthal integration of the 2D
+    periodogram. Parseval-normalized: Σ E(k) = Var(field), with Hanning
+    window variance correction. Returns (wavelength_km, E_k).
+    """
     ny, nx = field_2d.shape
     f = field_2d.copy()
     f[np.isnan(f)] = 0.0
     f -= f.mean()
-    f *= np.outer(np.hanning(ny), np.hanning(nx))
+    spatial_var = np.var(f)
+
+    # Hanning window to reduce spectral leakage
+    win = np.outer(np.hanning(ny), np.hanning(nx))
+    f *= win
+    var_win = np.var(f)  # actual variance after windowing
+
+    # 2D periodogram: Parseval says Σ|F|²/N² = var_win
+    # We normalize so Σ P = spatial_var (unwindowed)
     F = np.fft.fftshift(np.fft.fft2(f))
-    P = np.abs(F) ** 2
+    P = np.abs(F) ** 2 / (nx * ny) ** 2 * (spatial_var / var_win) if var_win > 0 else np.abs(F) ** 2 / (nx * ny) ** 2
+
+    # Wavenumbers in cycles/km
     ky = np.fft.fftshift(np.fft.fftfreq(ny, d=dx_km))
     kx = np.fft.fftshift(np.fft.fftfreq(nx, d=dx_km))
     KX, KY = np.meshgrid(kx, ky)
     K = np.sqrt(KX ** 2 + KY ** 2)
+
+    # Radial bins
     k_max = min(ky.max(), kx.max())
     n_bins = min(ny, nx) // 2
     k_bins = np.linspace(0, k_max, n_bins + 1)
     k_centers = 0.5 * (k_bins[:-1] + k_bins[1:])
+    dk = k_bins[1] - k_bins[0]
+
+    # E(k): sum over annulus, divide by dk → density in cycles/km
+    # so that ∫E(k)dk recovers total variance
     spectrum = np.zeros(n_bins)
     for i in range(n_bins):
         mask = (K >= k_bins[i]) & (K < k_bins[i + 1])
-        if mask.sum() > 0:
-            spectrum[i] = P[mask].mean()
+        if mask.any():
+            spectrum[i] = P[mask].sum() / dk
+
     valid = k_centers > 0
-    return 1.0 / k_centers[valid], spectrum[valid]
+    wl, sp = 1.0 / k_centers[valid], spectrum[valid]
+
+    if check_parseval:
+        spectral_var = np.sum(spectrum) * dk
+        ratio = spectral_var / spatial_var if spatial_var > 0 else np.nan
+        return wl, sp, {
+            "spatial_var": spatial_var,
+            "var_win": var_win,
+            "spectral_var": spectral_var,
+            "ratio": ratio,
+            "grid": (ny, nx),
+        }
+    return wl, sp
 
 
 def _time_to_num(times):
@@ -276,20 +309,18 @@ def draw_snapshot_panel(axes_maps, cax, snap_data, var_label, units, fig):
     return ax_gt
 
 
-def draw_spectrum_panel(ax_spec, snap_data, var_label):
-    """Panel (b): azimuthally-averaged power spectrum of each snapshot."""
+def draw_spectrum_panel(ax_spec, snap_data, var_label, units):
+    """Panel (b): 1D radial energy spectrum E(k) of each snapshot."""
     snaps = {k: snap_data[k] for k in ("gt", "helm", "vel", "best")}
     for key in ("gt", "helm", "vel", "best"):
         col = HELM_COLORS[key]
         lw  = 1.2 if key == "best" else 1.0
-        wl, sp = _azimuthal_power_spectrum(snaps[key], DX_KM)
+        wl, sp = _azimuthal_spectrum(snaps[key], DX_KM)
         ax_spec.loglog(wl, sp, color=col, lw=lw, ls="-",
                        label=HELM_LABELS[key])
-
     ax_spec.set_xlabel("Wavelength (km)", fontsize=8)
-    ax_spec.set_ylabel("Power spectral density", fontsize=8)
+    ax_spec.set_ylabel(f"E(k)  [({units})²]", fontsize=8)
     ax_spec.set_xlim(wl.max(), max(DX_KM * 2.5, wl.min()))
-    # Legend at lower right to avoid overlap with y-axis labels on the left
     ax_spec.legend(fontsize=6, loc="lower right", framealpha=0.80, ncol=1)
     ax_spec.tick_params(labelsize=7)
     ax_spec.grid(True, which="both", alpha=0.15, lw=0.4)
@@ -327,8 +358,8 @@ def render_variant(variant, snap_data, output_dir):
 
     # (b) Power spectrum
     ax_spec = fig.add_subplot(outer[1])
-    draw_spectrum_panel(ax_spec, snap_data, var_label)
-
+    draw_spectrum_panel(ax_spec, snap_data, var_label, units)
+    
     # Force layout computation to get accurate axes positions
     fig.canvas.draw()
 
@@ -357,7 +388,7 @@ def render_variant(variant, snap_data, output_dir):
 def main():
     t0_total = _time.time()
     print("=" * 60)
-    print("FIGURE 4 v6: OCEAN CIRCULATION + POWER SPECTRUM")
+    print("FIGURE 4 v6: OCEAN CIRCULATION + AZIMUTHAL SPECTRUM")
     print("=" * 60)
 
     print("\n[1/2] Loading snapshot data for all variants...")
@@ -366,6 +397,13 @@ def main():
         snap_all[v["suffix"]] = load_helmholtz_snap_data(
             v["var"], v["depth_idx"], v["scale"])
         print(f"  ✓ {v['suffix']}")
+
+    # Parseval check: verify ∫E(k)dk ≈ Var(field) for GT of all variants
+    print("\n[Parseval check] Ground Truth spectrum normalization:")
+    for v in VARIANTS:
+        gt_field = snap_all[v["suffix"]]["gt"]
+        _, _, p = _azimuthal_spectrum(gt_field, DX_KM, check_parseval=True)
+        print(f"  {v['suffix']}: ratio={p['ratio']:.3f}")
 
     print(f"\n[2/2] Rendering {len(VARIANTS)} variant figures...")
     n_workers = min(len(VARIANTS), 8)

@@ -43,25 +43,25 @@ TREE_LEVELS = [
     ]},
     {"header": "Biogeochemistry\nRepresentation", "nodes": [
         {"label": "#3 Log BGC",     "r2": 0.6345, "nrmse": 0.1052, "nmae": 0.0714, "nbias": 0.0052, "champion": True},
-        {"label": "#4 Linear BGC",  "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": False},
+        {"label": "#1 Linear BGC",  "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": False},
     ]},
     {"header": "Fine-scale Dynamics\n(gradient weight in loss)", "nodes": [
-        {"label": "#5 Grad Weight 0.10", "r2": 0.7954, "nrmse": 0.0828, "nmae": 0.0527, "nbias": 0.0049, "champion": True},
-        {"label": "#6 Grad Weight 0",    "r2": 0.7489, "nrmse": 0.0903, "nmae": 0.0591, "nbias": 0.0026, "champion": False},
-        {"label": "#7 Grad Weight 0.25", "r2": 0.7720, "nrmse": 0.0848, "nmae": 0.0556, "nbias": 0.0019, "champion": False},
-        {"label": "#8 Grad Weight 0.50", "r2": 0.7791, "nrmse": 0.0837, "nmae": 0.0539, "nbias": 0.0047, "champion": False},
+        {"label": "#4 Grad Weight 0.10", "r2": 0.7954, "nrmse": 0.0828, "nmae": 0.0527, "nbias": 0.0049, "champion": True},
+        {"label": "#5 Grad Weight 0",    "r2": 0.7489, "nrmse": 0.0903, "nmae": 0.0591, "nbias": 0.0026, "champion": False},
+        {"label": "#6 Grad Weight 0.25", "r2": 0.7720, "nrmse": 0.0848, "nmae": 0.0556, "nbias": 0.0019, "champion": False},
+        {"label": "#7 Grad Weight 0.50", "r2": 0.7791, "nrmse": 0.0837, "nmae": 0.0539, "nbias": 0.0047, "champion": False},
     ]},
     {"header": "Vertical Structure\n(PCA)", "nodes": [
-        {"label": "#9 20 components", "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010, "champion": True},
-        {"label": "#10 15 components", "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias": 0.0016, "champion": False},
-        {"label": "#11 10 components", "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias": 0.0046, "champion": False},
-        {"label": "#12 5 components",  "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
+        {"label": "#8 20 components", "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010, "champion": True},
+        {"label": "#9 15 components", "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias": 0.0016, "champion": False},
+        {"label": "#10 10 components", "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias": 0.0046, "champion": False},
+        {"label": "#11 5 components",  "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
     ]},
     {"header": "ML Architecture", "nodes": [
-        {"label": "#9 SamudraBGC",   "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010,  "champion": True},
-        {"label": "#13 Wider",        "r2": 0.8084, "nrmse": 0.0791, "nmae": 0.0515, "nbias": -0.0046, "champion": False},
-        {"label": "#14 Much Wider",   "r2": 0.7832, "nrmse": 0.0842, "nmae": 0.0565, "nbias": 0.0002,  "champion": False},
-        {"label": "#15 Wider+Deeper", "r2": 0.8144, "nrmse": 0.0768, "nmae": 0.0500, "nbias": 0.0042,  "champion": False, "no_star": ("r2", "nmae")},
+        {"label": "#8 SamudraBGC",   "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010,  "champion": True},
+        {"label": "#12 Wider",        "r2": 0.8084, "nrmse": 0.0791, "nmae": 0.0515, "nbias": -0.0046, "champion": False},
+        {"label": "#13 Much Wider",   "r2": 0.7832, "nrmse": 0.0842, "nmae": 0.0565, "nbias": 0.0002,  "champion": False},
+        {"label": "#14 Wider+Deeper", "r2": 0.8144, "nrmse": 0.0768, "nmae": 0.0500, "nbias": 0.0042,  "champion": False, "no_star": ("r2", "nmae")},
     ]},
 ]
 
@@ -121,7 +121,7 @@ def _best_flags(nodes):
 
 # ── Main drawing function ────────────────────────────────────────────────────
 
-def draw_ablation_tree(tree_levels=None, output_name="fig03_ablation_tree.png"):
+def draw_ablation_tree(tree_levels=None, output_name="fig03_ablation_tree.pdf"):
     if tree_levels is None:
         tree_levels = TREE_LEVELS
 

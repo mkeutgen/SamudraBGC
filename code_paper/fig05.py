@@ -48,6 +48,9 @@ import cftime
 import zarr
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
+
+# Reference seawater density for unit conversion (kg/kg → mg/m³)
+RHO_0 = 1025.0
 import matplotlib.patches as mpatches
 from matplotlib.ticker import FixedLocator
 
@@ -103,12 +106,21 @@ PHYS_LINE = '#1a5fa8'
 ML_FILL   = '#f4a46a'
 ML_LINE   = '#b85010'
 
-# Biome definitions (latitude ranges)
-BIOMES = OrderedDict([
-    ("subtropical", {"lat_min": 20, "lat_max": 37, "label": "Subtropical Gyre"}),
-    ("jet", {"lat_min": 37, "lat_max": 43, "label": "Jet"}),
-    ("subpolar", {"lat_min": 43, "lat_max": 60, "label": "Subpolar Gyre"}),
-    ("domain", {"lat_min": -90, "lat_max": 90, "label": "Full Domain"}),
+# Boundary exclusions: remove top/bottom of domain
+LAT_MIN = 22.0  # exclude lat < 22°N
+LAT_MAX = 55.0  # exclude lat > 55°N
+
+# Chlorophyll-based biome thresholds (annual surface chl in mg m⁻³)
+CHL_THRESHOLD_SUBTROPICAL = 0.15  # Chl < 0.15 → Subtropical (oligotrophic)
+CHL_THRESHOLD_JET = 0.35          # 0.15 ≤ Chl < 0.35 → Jet (transition)
+                                  # Chl ≥ 0.35 → Subpolar (productive)
+
+# Biome labels for plots
+BIOME_LABELS = OrderedDict([
+    ("subtropical", "Subtropical (Chl < 0.15)"),
+    ("jet", "Jet (0.15 ≤ Chl < 0.35)"),
+    ("subpolar", "Subpolar (Chl ≥ 0.35)"),
+    ("domain", "Full Domain"),
 ])
 
 # Probes at representative locations (from fig05_v2)
@@ -158,7 +170,7 @@ VARIABLES = [
 # =============================================================================
 def load_gt_and_mask():
     print("  Opening GT zarr...")
-    gt_ds = xr.open_zarr(GT_PATH, consolidated=True)
+    gt_ds = xr.open_zarr(GT_PATH, consolidated=False)
     times = gt_ds.time.values
     t_start = cftime.DatetimeNoLeap(YEAR, 1, 1)
     t_end = cftime.DatetimeNoLeap(YEAR + 1, 1, 1)
@@ -212,15 +224,79 @@ def build_probe_indices(lat, lon, wet):
     return indices
 
 
-def build_biome_weights(lat, wet):
+def compute_climatological_chl(gt_store, year_start=2000, year_end=2019):
+    """Compute climatological (multi-year average) surface chlorophyll.
+
+    Uses 20-year average (2000-2019) instead of single year to get robust biome
+    boundaries that reflect persistent oceanographic features rather than
+    interannual variability from ENSO, PDO, or other climate modes.
+    """
+    print(f"  Computing climatological surface chlorophyll ({year_start}-{year_end})...")
+
+    gt_ds = xr.open_zarr(GT_PATH, consolidated=False)
+    times = gt_ds.time.values
+    t_start = cftime.DatetimeNoLeap(year_start, 1, 1)
+    t_end = cftime.DatetimeNoLeap(year_end + 1, 1, 1)
+    mask_period = (times >= t_start) & (times < t_end)
+    idx_period = np.where(mask_period)[0]
+
+    print(f"    Loading {len(idx_period)} timesteps from {year_start}-{year_end}...")
+    chl_surface = gt_store["chl_0"][idx_period].astype(np.float64)
+    chl_surface[chl_surface == 0] = np.nan
+    # Convert from model units (kg/kg) to mg/m³ for threshold comparison
+    climatological_mean = np.nanmean(chl_surface, axis=0) * RHO_0 / 1000.0
+
+    return climatological_mean
+
+
+def build_biome_weights(lat, wet, annual_chl):
+    """Build biome weights based on annual surface chlorophyll thresholds.
+
+    Biomes (within LAT_MIN to LAT_MAX):
+      - Subtropical: Chl < 0.15 mg m⁻³
+      - Jet:         0.15 ≤ Chl < 0.35 mg m⁻³
+      - Subpolar:    Chl ≥ 0.35 mg m⁻³
+      - Domain:      Full domain (for reference)
+    """
+    print(f"  Building chlorophyll-based biome masks (lat: {LAT_MIN}°N to {LAT_MAX}°N)...")
+
+    lat_2d = np.broadcast_to(lat[:, None], wet.shape)
     cos_lat = np.cos(np.deg2rad(lat))
+    cos_lat_2d = np.broadcast_to(cos_lat[:, None], wet.shape)
+
+    # Domain mask (within lat bounds and wet)
+    domain_mask = (lat_2d >= LAT_MIN) & (lat_2d <= LAT_MAX) & wet
+
     biome_weights = {}
-    for bkey, binfo in BIOMES.items():
-        lat_2d = np.broadcast_to(lat[:, None], wet.shape)
-        bmask = (lat_2d >= binfo["lat_min"]) & (lat_2d < binfo["lat_max"]) & wet
-        bw = np.where(bmask, np.broadcast_to(cos_lat[:, None], wet.shape), 0.0)
-        bw_sum = bw.sum()
-        biome_weights[bkey] = bw / bw_sum if bw_sum > 0 else bw
+
+    # Subtropical: Chl < 0.15
+    subtropical_mask = domain_mask & (annual_chl < CHL_THRESHOLD_SUBTROPICAL) & np.isfinite(annual_chl)
+    bw = np.where(subtropical_mask, cos_lat_2d, 0.0)
+    bw_sum = bw.sum()
+    biome_weights['subtropical'] = bw / bw_sum if bw_sum > 0 else bw
+    print(f"    subtropical: {subtropical_mask.sum()} cells")
+
+    # Jet: 0.15 ≤ Chl < 0.35
+    jet_mask = domain_mask & (annual_chl >= CHL_THRESHOLD_SUBTROPICAL) & (annual_chl < CHL_THRESHOLD_JET) & np.isfinite(annual_chl)
+    bw = np.where(jet_mask, cos_lat_2d, 0.0)
+    bw_sum = bw.sum()
+    biome_weights['jet'] = bw / bw_sum if bw_sum > 0 else bw
+    print(f"    jet: {jet_mask.sum()} cells")
+
+    # Subpolar: Chl ≥ 0.35
+    subpolar_mask = domain_mask & (annual_chl >= CHL_THRESHOLD_JET) & np.isfinite(annual_chl)
+    bw = np.where(subpolar_mask, cos_lat_2d, 0.0)
+    bw_sum = bw.sum()
+    biome_weights['subpolar'] = bw / bw_sum if bw_sum > 0 else bw
+    print(f"    subpolar: {subpolar_mask.sum()} cells")
+
+    # Full domain (for reference)
+    full_mask = domain_mask & np.isfinite(annual_chl)
+    bw = np.where(full_mask, cos_lat_2d, 0.0)
+    bw_sum = bw.sum()
+    biome_weights['domain'] = bw / bw_sum if bw_sum > 0 else bw
+    print(f"    domain: {full_mask.sum()} cells")
+
     return biome_weights
 
 
@@ -373,13 +449,14 @@ def load_physical_ensemble_var(wet, vc: VarConfig):
         print(f"    Physical {ens_name} [{vc.key}] loaded", flush=True)
         return ens_name, out
 
-    max_workers = min(len(PHYSICAL_MEMBERS), max(2, _n_workers // 4))
-    print(f"  Loading {len(PHYSICAL_MEMBERS)} physical members for {vc.key} "
-          f"(max {max_workers} concurrent)...")
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        results = list(ex.map(_load_one, PHYSICAL_MEMBERS))
+    # Use sequential loading to avoid NetCDF threading issues / segfaults
+    print(f"  Loading {len(PHYSICAL_MEMBERS)} physical members for {vc.key} (sequential)...")
+    results = []
+    for ens_name in PHYSICAL_MEMBERS:
+        result = _load_one(ens_name)
+        if result is not None:
+            results.append(result)
 
-    results = [r for r in results if r is not None]
     results.sort(key=lambda r: r[0])
     print(f"  Physical members loaded: {len(results)} ({time.time() - t0:.1f}s)")
 
@@ -443,13 +520,15 @@ mpl.rcParams.update({
     'savefig.dpi':       300,
 })
 
-
-def _plot_maps_row(fig, gs_row, lat, lon, phys_spread, ml_spread, n_phys, n_ml,
+def _plot_maps_row(fig, gs_indices, lat, lon, phys_spread, ml_spread, n_phys, n_ml,
                    vc, vmax, probe_indices=None):
-    row = gs_row.subgridspec(1, 3, width_ratios=[1.0, 1.0, 0.045], wspace=0.14)
-    ax_phys = fig.add_subplot(row[0, 0])
-    ax_ml   = fig.add_subplot(row[0, 1])
-    cax     = fig.add_subplot(row[0, 2])
+    """
+    Revised to work with a unified 3-column GridSpec (Map1, Map2, Colorbar).
+    """
+    # gs_indices should be a list/tuple of 3 slots: [ax_a, ax_b, ax_cbar]
+    ax_phys = fig.add_subplot(gs_indices[0])
+    ax_ml   = fig.add_subplot(gs_indices[1])
+    cax     = fig.add_subplot(gs_indices[2])
 
     for ax, spread, title in [
         (ax_phys, phys_spread, f"(a) Ground Truth Ensemble (n={n_phys})"),
@@ -457,10 +536,11 @@ def _plot_maps_row(fig, gs_row, lat, lon, phys_spread, ml_spread, n_phys, n_ml,
     ]:
         im = ax.pcolormesh(lon, lat, spread, vmin=0.0, vmax=vmax,
                            cmap="cividis", shading="auto", rasterized=True)
-        ax.set_aspect("equal")
+        # Use 'equal' but we will fix the row height ratio to minimize gaps
+        ax.set_aspect(0.75) 
         ax.set_facecolor("#e5e5e5")
-        ax.set_title(title, fontsize=8, fontweight="bold", pad=3)
-        ax.set_xlabel("Longitude (°W)", fontsize=7)
+        ax.set_title(title, fontsize=8, fontweight="bold", pad=5)
+        ax.set_xlabel("Longitude (°E)", fontsize=7)
         ax.tick_params(labelsize=6.5)
 
         if probe_indices is not None:
@@ -588,15 +668,16 @@ def plot_pointwise_figure(
     ml_probe_ts   = extract_probe_ts(ml_stack, probe_indices)
     phys_probe_ts = extract_probe_ts(phys_stack, probe_indices)
 
-    fig = plt.figure(figsize=(7.48, 5.4))
+    fig = plt.figure(figsize=(7.48, 7.43))
     outer_gs = GridSpec(
         2, 1, figure=fig,
-        height_ratios=[1.1, 1.0],
+        height_ratios=[1,1],
         hspace=0.42,
         left=0.07, right=0.96, top=0.93, bottom=0.16,
     )
 
-    _plot_maps_row(fig, outer_gs[0], lat, lon, phys_spread, ml_spread,
+    row1 = outer_gs[0].subgridspec(1, 3, width_ratios=[1, 1, 0.04], wspace=0.08)
+    _plot_maps_row(fig, row1, lat, lon, phys_spread, ml_spread,
                    phys_stack.shape[0], ml_stack.shape[0], vc, vmax,
                    probe_indices=probe_indices)
 
@@ -659,59 +740,69 @@ def plot_biomes_figure(
     ml_biome_ts   = extract_biome_ts(ml_stack, biome_weights)
     phys_biome_ts = extract_biome_ts(phys_stack, biome_weights)
 
-    # 3x2 grid layout: maps in row 1, biomes in 2x2 grid in rows 2-3
-    fig = plt.figure(figsize=(7.48, 8.5))
+    # Use layout="constrained" to stop labels from overlapping automatically
+    fig = plt.figure(figsize=(7.48, 9.0), layout="constrained")
+    
+    # We create a 3x3 grid. The 3rd column is dedicated to the colorbar.
+    # We adjust height_ratios: maps usually need LESS height to look 'the same size'
+    # because they are geographically wide.
     outer_gs = GridSpec(
-        3, 2, figure=fig,
-        height_ratios=[1.0, 0.8, 0.8],
-        hspace=0.35, wspace=0.25,
-        left=0.10, right=0.90, top=0.94, bottom=0.12,
+        3, 3, figure=fig,
+        height_ratios=[1.0, 1.0, 1.0], 
+        width_ratios=[1.0, 1.0, 0.05],
     )
 
-    # Row 1: Maps (spanning both columns)
-    _plot_maps_row(fig, outer_gs[0, :], lat, lon, phys_spread, ml_spread,
-                   phys_stack.shape[0], ml_stack.shape[0], vc, vmax)
+    # Row 1: Maps + Colorbar
+    axes_maps = _plot_maps_row(fig, [outer_gs[0, 0], outer_gs[0, 1], outer_gs[0, 2]], 
+                               lat, lon, phys_spread, ml_spread,
+                               phys_stack.shape[0], ml_stack.shape[0], vc, vmax)
 
-    # Rows 2-3: Biomes in 2x2 grid
+    # Rows 2-3: Biomes (Columns 0 and 1 only)
     biome_keys = ["subtropical", "jet", "subpolar", "domain"]
     panel_labels = ["(c)", "(d)", "(e)", "(f)"]
-    ax_ts = []
+    all_ts_axes = []
 
     for i, bkey in enumerate(biome_keys):
         row_idx, col_idx = divmod(i, 2)
         ax = fig.add_subplot(outer_gs[row_idx + 1, col_idx])
-        ax_ts.append(ax)
-        binfo = BIOMES[bkey]
+        all_ts_axes.append(ax)
 
         _plot_mirror_spread(
             ax, ml_biome_ts[bkey], phys_biome_ts[bkey],
-            f"{panel_labels[i]} {binfo['label']}",
+            f"{panel_labels[i]} {BIOME_LABELS[bkey]}",
             vc.units,
         )
 
-        # Only left column gets y-label
         if col_idx == 0:
             ax.set_ylabel(f'Ensemble spread ({vc.units})', labelpad=4)
 
-    # Legend at bottom
+    # Align the Y-labels of the left and right columns perfectly
+    fig.align_ylabels([axes_maps[0], all_ts_axes[0], all_ts_axes[2]])
+
+    # Completed Legend Logic — match pointwise version with σ and min-max
     legend_elements = [
         mpatches.Patch(facecolor=PHYS_FILL, alpha=0.65, edgecolor=PHYS_LINE,
-                       lw=0.5, label='Ground Truth σ (1 std)'),
+                       lw=0.5, label='Ground Truth — σ (1 std)'),
+        mpatches.Patch(facecolor=PHYS_FILL, alpha=0.30, edgecolor=PHYS_LINE,
+                       lw=0.5, label='Ground Truth — min–max range'),
         mpatches.Patch(facecolor=ML_FILL,   alpha=0.65, edgecolor=ML_LINE,
-                       lw=0.5, label='SamudraBGC σ (1 std)'),
+                       lw=0.5, label='SamudraBGC — σ (1 std)'),
+        mpatches.Patch(facecolor=ML_FILL,   alpha=0.30, edgecolor=ML_LINE,
+                       lw=0.5, label='SamudraBGC — min–max range'),
     ]
-    fig.legend(handles=legend_elements, loc='lower center', ncol=2,
-               fontsize=7, frameon=True, handlelength=1.4, handleheight=0.9,
-               columnspacing=1.5, handletextpad=0.5, edgecolor='0.75',
-               bbox_to_anchor=(0.5, 0.04))
+    fig.legend(handles=legend_elements, loc='lower center', ncol=4,
+               fontsize=6.5, frameon=True, handlelength=1.4, handleheight=0.9,
+               columnspacing=1.0, handletextpad=0.5, edgecolor='0.75',
+               bbox_to_anchor=(0.5, 0.02))
 
     fig.suptitle(f"{vc.label} — Ensemble Variability Analysis ({YEAR})",
-                 fontsize=10, fontweight="bold", y=0.98)
+                 fontsize=10, fontweight="bold")
 
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    fig.savefig(output_path, dpi=300)
     print(f"Wrote: {output_path}")
     plt.close(fig)
 
+    
 
 # =============================================================================
 # MAIN
@@ -724,7 +815,10 @@ def main():
     n_lat, n_lon = lat.shape[0], lon.shape[0]
     mask_3d = build_mask_3d(gt_store, n_levels=50, n_lat=n_lat, n_lon=n_lon)
     probe_indices = build_probe_indices(lat, lon, wet)
-    biome_weights = build_biome_weights(lat, wet)
+
+    # Compute climatological chlorophyll for biome classification (10-year average)
+    annual_chl = compute_climatological_chl(gt_store)
+    biome_weights = build_biome_weights(lat, wet, annual_chl)
 
     for pkey, (ilat, ilon) in probe_indices.items():
         print(f"  Probe {pkey}: lat={lat[ilat]:.2f} lon={lon[ilon]:.2f}")

@@ -156,12 +156,104 @@ SI_BASE_VARS = [
 ]
 
 _bc = plt.cm.viridis(np.linspace(0.15, 0.85, 4))
+
+# Chlorophyll-based biome definition (consistent with fig05.py)
+# Boundary exclusions: remove top/bottom of domain
+LAT_MIN = 22.0  # exclude lat < 22°N
+LAT_MAX = 55.0  # exclude lat > 55°N
+
+# Chlorophyll thresholds for biome classification (climatological surface chl in mg m⁻³)
+CHL_THRESHOLD_SUBTROPICAL = 0.15  # Chl < 0.15 → Subtropical (oligotrophic)
+CHL_THRESHOLD_JET = 0.35          # 0.15 ≤ Chl < 0.35 → Jet (transition)
+                                  # Chl ≥ 0.35 → Subpolar (productive)
+
+# Biome metadata (masks built dynamically from chlorophyll)
 BIOMES = OrderedDict([
-    ("subtropical", {"lat_min": 20,  "lat_max": 37,  "label": "Subtropical Gyre", "color": _bc[0]}),
-    ("jet",         {"lat_min": 37,  "lat_max": 43,  "label": "Jet",              "color": _bc[1]}),
-    ("subpolar",    {"lat_min": 43,  "lat_max": 60,  "label": "Subpolar Gyre",    "color": _bc[2]}),
-    ("full",        {"lat_min": -90, "lat_max": 90,  "label": "Full Domain",      "color": _bc[3]}),
+    ("subtropical", {"label": "Subtropical (Chl < 0.15)", "color": _bc[0]}),
+    ("jet",         {"label": "Jet (0.15 ≤ Chl < 0.35)", "color": _bc[1]}),
+    ("subpolar",    {"label": "Subpolar (Chl ≥ 0.35)",   "color": _bc[2]}),
+    ("full",        {"label": "Full Domain",             "color": _bc[3]}),
 ])
+
+
+def compute_climatological_chl(gt_ds, year_start=2000, year_end=2019):
+    """Compute climatological (multi-year average) surface chlorophyll.
+
+    Uses 20-year average (2000-2019) instead of single year to get robust biome
+    boundaries that reflect persistent oceanographic features rather than
+    interannual variability from ENSO, PDO, or other climate modes.
+    """
+    print(f"  Computing climatological surface chlorophyll ({year_start}-{year_end})...")
+
+    times = gt_ds.time.values
+    t_start = cftime.DatetimeNoLeap(year_start, 1, 1)
+    t_end = cftime.DatetimeNoLeap(year_end + 1, 1, 1)
+    mask_period = (times >= t_start) & (times < t_end)
+    idx_period = np.where(mask_period)[0]
+
+    print(f"    Loading {len(idx_period)} timesteps from {year_start}-{year_end}...")
+    chl_surface = gt_ds["chl_0"].isel(time=idx_period).values.astype(np.float64)
+    chl_surface[chl_surface == 0] = np.nan
+    # Convert from model units (kg/kg) to mg/m³ for threshold comparison
+    climatological_mean = np.nanmean(chl_surface, axis=0) * RHO_0 / 1000.0
+
+    return climatological_mean
+
+
+def build_chl_biome_masks(lat, wet, annual_chl):
+    """Build biome masks based on climatological surface chlorophyll thresholds.
+
+    Biomes (within LAT_MIN to LAT_MAX):
+      - Subtropical: Chl < 0.15 mg m⁻³
+      - Jet:         0.15 ≤ Chl < 0.35 mg m⁻³
+      - Subpolar:    Chl ≥ 0.35 mg m⁻³
+      - Full:        All cells within lat bounds (for reference)
+    """
+    print(f"  Building chlorophyll-based biome masks (lat: {LAT_MIN}°N to {LAT_MAX}°N)...")
+
+    lat_2d = np.broadcast_to(lat[:, None], wet.shape)
+    cos_lat = np.cos(np.deg2rad(lat))
+    cos_lat_2d = np.broadcast_to(cos_lat[:, None], wet.shape)
+
+    # Domain mask (within lat bounds and wet)
+    domain_mask = (lat_2d >= LAT_MIN) & (lat_2d <= LAT_MAX) & wet
+
+    biome_masks = {}
+    biome_weights = {}
+
+    # Subtropical: Chl < 0.15
+    subtropical_mask = domain_mask & (annual_chl < CHL_THRESHOLD_SUBTROPICAL) & np.isfinite(annual_chl)
+    biome_masks['subtropical'] = subtropical_mask
+    bw = np.where(subtropical_mask, cos_lat_2d, 0.0)
+    bw_sum = bw.sum()
+    biome_weights['subtropical'] = bw / bw_sum if bw_sum > 0 else bw
+    print(f"    subtropical: {subtropical_mask.sum()} cells")
+
+    # Jet: 0.15 ≤ Chl < 0.35
+    jet_mask = domain_mask & (annual_chl >= CHL_THRESHOLD_SUBTROPICAL) & (annual_chl < CHL_THRESHOLD_JET) & np.isfinite(annual_chl)
+    biome_masks['jet'] = jet_mask
+    bw = np.where(jet_mask, cos_lat_2d, 0.0)
+    bw_sum = bw.sum()
+    biome_weights['jet'] = bw / bw_sum if bw_sum > 0 else bw
+    print(f"    jet: {jet_mask.sum()} cells")
+
+    # Subpolar: Chl ≥ 0.35
+    subpolar_mask = domain_mask & (annual_chl >= CHL_THRESHOLD_JET) & np.isfinite(annual_chl)
+    biome_masks['subpolar'] = subpolar_mask
+    bw = np.where(subpolar_mask, cos_lat_2d, 0.0)
+    bw_sum = bw.sum()
+    biome_weights['subpolar'] = bw / bw_sum if bw_sum > 0 else bw
+    print(f"    subpolar: {subpolar_mask.sum()} cells")
+
+    # Full domain (all cells within lat bounds)
+    full_mask = domain_mask & np.isfinite(annual_chl)
+    biome_masks['full'] = full_mask
+    bw = np.where(full_mask, cos_lat_2d, 0.0)
+    bw_sum = bw.sum()
+    biome_weights['full'] = bw / bw_sum if bw_sum > 0 else bw
+    print(f"    full: {full_mask.sum()} cells")
+
+    return biome_masks, biome_weights
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -366,25 +458,18 @@ def compute_dic_zonal_mean(gt_ds, pred_ds, wet, pred_times):
 # STAGE 3 — PRECOMPUTE TIME SERIES & PDFs
 # ═══════════════════════════════════════════════════════════════════════════
 
-def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times, var_set, var_set_name):
+def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times, var_set, var_set_name,
+               biome_masks, biome_weights):
     t0 = time.time()
     print(f"\nPrecomputing for var_set='{var_set_name}'...")
 
+    # Use ALL wet cells for domain averaging (panels e/f should show full domain)
     cos_lat = np.cos(np.deg2rad(lat))
     w2d = np.where(wet, np.broadcast_to(cos_lat[:, None], mask.shape), 0.0)
     w2d_norm = w2d / w2d.sum()
 
     eval_start = cftime.DatetimeNoLeap(2015, 1, 1, 12, 0, 0)
     eval_idx = int(np.argmin(np.abs(pred_times - eval_start)))
-
-    biome_masks, biome_weights = {}, {}
-    for bkey, binfo in BIOMES.items():
-        lat_2d = np.broadcast_to(lat[:, None], mask.shape)
-        bmask = (lat_2d >= binfo["lat_min"]) & (lat_2d < binfo["lat_max"]) & wet
-        bw = np.where(bmask, np.broadcast_to(cos_lat[:, None], mask.shape), 0.0)
-        bw_sum = bw.sum()
-        biome_masks[bkey]  = bmask
-        biome_weights[bkey] = bw / bw_sum if bw_sum > 0 else bw
 
     ts_gt, ts_pred, ts_met = {}, {}, {}
     PDF_STEP = 20
@@ -403,7 +488,7 @@ def precompute(gt_arrays, pred_arrays, mask, lat, wet, pred_times, var_set, var_
         gt_sub   = gt_d[::PDF_STEP]
         pred_sub = pred_d[::PDF_STEP]
         use_log  = v.startswith("chl")
-        pdf_hists[v] = make_hist(gt_sub, pred_sub, biome_masks["full"], use_log)
+        pdf_hists[v] = make_hist(gt_sub, pred_sub, wet, use_log)
 
     times_plot = [datetime.datetime(t.year, t.month, t.day)
                   for t in pred_times[eval_idx:]]
@@ -641,6 +726,212 @@ def plot_ts_pdf(ts_gt, ts_pred, ts_met, pdf_hists, times_plot,
     out = output_dir / f"fig02_ts_pdf_{var_set_name}.png"
     fig.savefig(out, dpi=300, bbox_inches="tight")
     plt.close(fig)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SI FIGURES — Biome-stratified time series and PDFs by depth range
+# ═══════════════════════════════════════════════════════════════════════════
+
+# SI variable sets mapped to actual array keys
+_si_colors = plt.cm.viridis(np.linspace(0.10, 0.90, 8))
+SI_VARS_SURFACE = [
+    ("temp_surf", "Temp",  "°C",         _si_colors[0]),
+    ("salt_surf", "Salt",  "g kg⁻¹",     _si_colors[1]),
+    ("dic_surf",  "DIC",   "µmol kg⁻¹",  _si_colors[2]),
+    ("o2_surf",   "O₂",    "µmol kg⁻¹",  _si_colors[3]),
+    ("no3_surf",  "NO₃",   "µmol kg⁻¹",  _si_colors[4]),
+    ("chl_surf",  "Chl",   "mg m⁻³",     _si_colors[5]),
+    ("psi_surf",  "ψ",     "m² s⁻¹",     _si_colors[6]),
+    ("phi_surf",  "φ",     "m² s⁻¹",     _si_colors[7]),
+]
+
+SI_VARS_INTERIOR = [
+    ("temp_int", "Temp",  "°C",         _si_colors[0]),
+    ("salt_int", "Salt",  "g kg⁻¹",     _si_colors[1]),
+    ("dic_int",  "DIC",   "µmol kg⁻¹",  _si_colors[2]),
+    ("o2_int",   "O₂",    "µmol kg⁻¹",  _si_colors[3]),
+    ("no3_int",  "NO₃",   "µmol kg⁻¹",  _si_colors[4]),
+    ("psi_int",  "ψ",     "m² s⁻¹",     _si_colors[6]),
+    ("phi_int",  "φ",     "m² s⁻¹",     _si_colors[7]),
+]
+
+# Biome display info for SI plots (includes Full Domain)
+SI_BIOMES = OrderedDict([
+    ("subtropical", {"label": "Subtropical", "color": "#E69F00"}),
+    ("jet",         {"label": "Jet",         "color": "#56B4E9"}),
+    ("subpolar",    {"label": "Subpolar",    "color": "#009E73"}),
+    ("full",        {"label": "Full Domain", "color": "#CC79A7"}),
+])
+
+
+def compute_si_data(gt_arrays, pred_arrays, biome_weights, pred_times, si_vars):
+    """Compute biome-averaged time series and PDFs for SI figures."""
+    eval_start = cftime.DatetimeNoLeap(2015, 1, 1, 12, 0, 0)
+    eval_idx = int(np.argmin(np.abs(pred_times - eval_start)))
+
+    ts_gt_biome = {bkey: {} for bkey in SI_BIOMES}
+    ts_pred_biome = {bkey: {} for bkey in SI_BIOMES}
+    pdf_biome = {bkey: {} for bkey in SI_BIOMES}
+
+    PDF_STEP = 20
+
+    for v, label, units, color in si_vars:
+        if v not in gt_arrays:
+            print(f"    SKIP {v} (not in gt_arrays)")
+            continue
+
+        gt_d = to_display(gt_arrays[v][eval_idx:], v)
+        pred_d = to_display(pred_arrays[v][eval_idx:], v)
+
+        for bkey, binfo in SI_BIOMES.items():
+            bw = biome_weights[bkey]
+            ts_gt_biome[bkey][v] = np.nansum(gt_d * bw[None], axis=(1, 2))
+            ts_pred_biome[bkey][v] = np.nansum(pred_d * bw[None], axis=(1, 2))
+
+            # PDF computation
+            bmask = bw > 0
+            gt_sub = gt_d[::PDF_STEP]
+            pred_sub = pred_d[::PDF_STEP]
+            use_log = v.startswith("chl")
+            pdf_biome[bkey][v] = make_hist(gt_sub, pred_sub, bmask, use_log)
+
+    times_plot = [datetime.datetime(t.year, t.month, t.day)
+                  for t in pred_times[eval_idx:]]
+
+    return ts_gt_biome, ts_pred_biome, pdf_biome, times_plot
+
+
+def plot_si_ts(ts_gt_biome, ts_pred_biome, times_plot, si_vars, depth_label, output_path):
+    """Plot biome-stratified time series for SI figure.
+
+    Each row shares y-axis across biomes for fair comparison.
+    """
+    valid_vars = [(v, l, u, c) for v, l, u, c in si_vars if v in ts_gt_biome["subtropical"]]
+    n_vars = len(valid_vars)
+    n_biomes = len(SI_BIOMES)
+
+    fig, axes = plt.subplots(n_vars, n_biomes, figsize=(3.5 * n_biomes, 1.6 * n_vars),
+                             sharex=True)
+    if n_vars == 1:
+        axes = axes.reshape(1, -1)
+
+    for var_idx, (v, label, units, color) in enumerate(valid_vars):
+        # Compute common y-limits across all biomes for this variable
+        all_vals = []
+        for bkey in SI_BIOMES:
+            all_vals.extend(ts_gt_biome[bkey][v])
+            all_vals.extend(ts_pred_biome[bkey][v])
+        ymin, ymax = np.nanmin(all_vals), np.nanmax(all_vals)
+        ypad = 0.05 * (ymax - ymin)
+
+        for j, (bkey, binfo) in enumerate(SI_BIOMES.items()):
+            ax = axes[var_idx, j]
+
+            ts_gt = ts_gt_biome[bkey][v]
+            ts_pred = ts_pred_biome[bkey][v]
+
+            ax.plot(times_plot, ts_gt, color="k", lw=1.2, label="Ground Truth")
+            ax.plot(times_plot, ts_pred, color=color, lw=1.5, ls="--", label="SamudraBGC")
+
+            # Shared y-axis limits
+            ax.set_ylim(ymin - ypad, ymax + ypad)
+
+            # Metrics
+            r2, r, rmse = ts_metrics(ts_gt, ts_pred)
+            ax.text(0.98, 0.95, f"R²={r2:.3f}", transform=ax.transAxes,
+                    ha="right", va="top", fontsize=8, color="0.3")
+
+            if var_idx == 0:
+                ax.set_title(f"{binfo['label']}", fontsize=11, fontweight="bold")
+            if j == 0:
+                ax.set_ylabel(f"{label}\n({units})", fontsize=9)
+            else:
+                ax.set_yticklabels([])
+            if var_idx == n_vars - 1:
+                ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+            else:
+                ax.set_xticklabels([])
+
+            ax.tick_params(labelsize=8)
+            ax.spines[["top", "right"]].set_visible(False)
+
+    # Legend on first panel
+    axes[0, 0].legend(loc="upper left", fontsize=8, frameon=False)
+
+    fig.suptitle(f"Biome-Stratified Time Series — {depth_label}",
+                 fontsize=12, fontweight="bold", y=0.98)
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  ✓ {output_path.name}")
+
+
+def plot_si_pdfs(pdf_biome, si_vars, depth_label, output_path):
+    """Plot biome-stratified PDFs for SI figure.
+
+    Each row shares x-axis across biomes for fair comparison.
+    """
+    valid_vars = [(v, l, u, c) for v, l, u, c in si_vars if v in pdf_biome["subtropical"]]
+    n_vars = len(valid_vars)
+    n_biomes = len(SI_BIOMES)
+
+    fig, axes = plt.subplots(n_vars, n_biomes, figsize=(3.5 * n_biomes, 1.6 * n_vars))
+    if n_vars == 1:
+        axes = axes.reshape(1, -1)
+
+    for var_idx, (v, label, units, color) in enumerate(valid_vars):
+        # Compute common x-limits across all biomes for this variable
+        all_centers = []
+        use_log = False
+        for bkey in SI_BIOMES:
+            h = pdf_biome[bkey][v]
+            all_centers.extend(h["centers"])
+            use_log = h["log"]
+
+        if use_log:
+            xmin = max(np.nanmin(all_centers), 1e-6)
+            xmax = np.nanmax(all_centers)
+        else:
+            xmin, xmax = np.nanmin(all_centers), np.nanmax(all_centers)
+            xpad = 0.02 * (xmax - xmin)
+            xmin, xmax = xmin - xpad, xmax + xpad
+
+        for j, (bkey, binfo) in enumerate(SI_BIOMES.items()):
+            ax = axes[var_idx, j]
+            h = pdf_biome[bkey][v]
+
+            ax.fill_between(h["centers"], h["gt"], color="k", alpha=0.15, label="Ground Truth")
+            ax.plot(h["centers"], h["gt"], color="k", lw=1.2)
+            ax.fill_between(h["centers"], h["pred"], color=color, alpha=0.25, label="SamudraBGC")
+            ax.plot(h["centers"], h["pred"], color=color, lw=1.2, ls="--")
+
+            if use_log:
+                ax.set_xscale("log")
+            ax.set_xlim(xmin, xmax)
+
+            # KS statistic
+            ax.text(0.98, 0.95, f"KS={h['ks_stat']:.3f}", transform=ax.transAxes,
+                    ha="right", va="top", fontsize=8, color="0.3")
+
+            if var_idx == 0:
+                ax.set_title(f"{binfo['label']}", fontsize=11, fontweight="bold")
+            if j == 0:
+                ax.set_ylabel(f"{label}\nDensity", fontsize=9)
+            if var_idx == n_vars - 1:
+                ax.set_xlabel(f"({units})", fontsize=9)
+
+            ax.tick_params(labelsize=8)
+            ax.spines[["top", "right"]].set_visible(False)
+
+    # Legend on first panel
+    axes[0, 0].legend(loc="upper right", fontsize=8, frameon=False)
+
+    fig.suptitle(f"Biome-Stratified PDFs — {depth_label}",
+                 fontsize=12, fontweight="bold", y=0.98)
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  ✓ {output_path.name}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1107,11 +1398,16 @@ def main():
     print("\n" + "=" * 70)
     print("STAGE 3: PRECOMPUTE TIME SERIES & PDFs")
     print("=" * 70)
+
+    # Compute climatological chlorophyll for biome classification (10-year average)
+    annual_chl = compute_climatological_chl(gt_ds)
+    biome_masks, biome_weights = build_chl_biome_masks(lat, wet, annual_chl)
+
     ts_results = {}
     for var_set_name, var_set in VAR_SETS:
         ts_results[var_set_name] = precompute(
             gt_arrays, pred_arrays, mask, lat, wet, pred_times,
-            var_set, var_set_name)
+            var_set, var_set_name, biome_masks, biome_weights)
 
     # ── Stage 4: Chl surface snapshots ────────────────────────────────────
     chl_snapshots = plot_chl_snapshots(gt_ds, pred_ds, wet, lat, lon, pred_times, OUTPUT_DIR)
@@ -1168,7 +1464,32 @@ def main():
     export_panel_f(pdf_n, BGC_VARS_V1, OUTPUT_DIR)
     print("  ✓ All panel PDFs exported → Illustrator-ready")
 
-    # ── Stage 8-9: SI panels (DISABLED - var_set mismatch needs fixing)
+    # ── Stage 8: SI biome-stratified figures ──────────────────────────────
+    print("\n" + "=" * 70)
+    print("STAGE 8: SI BIOME-STRATIFIED FIGURES")
+    print("=" * 70)
+
+    # Surface (0-100m)
+    print("  Computing SI data for surface (0-100m)...")
+    ts_gt_surf, ts_pred_surf, pdf_surf, times_si = compute_si_data(
+        gt_arrays, pred_arrays, biome_weights, pred_times, SI_VARS_SURFACE)
+    plot_si_ts(ts_gt_surf, ts_pred_surf, times_si, SI_VARS_SURFACE,
+               "Surface (0–100 m)", OUTPUT_DIR / "fig02_si_ts_surface.png")
+    plot_si_pdfs(pdf_surf, SI_VARS_SURFACE,
+                 "Surface (0–100 m)", OUTPUT_DIR / "fig02_si_pdfs_surface.png")
+
+    # Interior (100-500m)
+    print("  Computing SI data for interior (100-500m)...")
+    ts_gt_int, ts_pred_int, pdf_int, _ = compute_si_data(
+        gt_arrays, pred_arrays, biome_weights, pred_times, SI_VARS_INTERIOR)
+    plot_si_ts(ts_gt_int, ts_pred_int, times_si, SI_VARS_INTERIOR,
+               "Interior (100–500 m)", OUTPUT_DIR / "fig02_si_ts_interior.png")
+    plot_si_pdfs(pdf_int, SI_VARS_INTERIOR,
+                 "Interior (100–500 m)", OUTPUT_DIR / "fig02_si_pdfs_interior.png")
+
+    print("  ✓ SI figures complete")
+
+    # ── Stage 9: (DISABLED - legacy SI panels)
     # TODO: fix SI_BASE_VARS vs gt_arrays key mismatch (temp vs temp_0_100m)
     # (_, _, ts_gt_biome, ts_pred_biome,
     #  pdf_biome_hists, biome_masks, times_plot_si,

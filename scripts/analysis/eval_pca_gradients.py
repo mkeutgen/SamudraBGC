@@ -328,11 +328,12 @@ def plot_vertical_section(raw: np.ndarray, recons: dict,
                            base_var: str, t_idx: int,
                            mask_3d: np.ndarray, depth_values: np.ndarray,
                            output_path: Path, lat: np.ndarray) -> None:
-    """Zonal-mean lat-depth section: raw | k=3 | k=5 | k=10."""
+    """Zonal-mean lat-depth section: raw | k=5,10,15,20,25 in 3×2 layout."""
     label = display_label(base_var)
     units = UNITS.get(base_var, "")
-    n_cols = 1 + len(K_SNAPSHOT)
-    fig, axes = plt.subplots(1, n_cols, figsize=(5.5 * n_cols, 5), squeeze=False)
+    n_panels = 1 + len(K_SNAPSHOT)  # 6 panels
+    n_rows, n_cols = 3, 2
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 4.5 * n_rows), squeeze=False)
 
     def zonal_mean_section(field_t):
         out = to_display_space(field_t.copy().astype(float), base_var)
@@ -351,8 +352,9 @@ def plot_vertical_section(raw: np.ndarray, recons: dict,
     col_titles = ["Raw (truth)"] + [f"k={k}" for k in K_SNAPSHOT]
     all_sections = [raw_section] + [zonal_mean_section(recons[k][t_idx]) for k in K_SNAPSHOT]
 
-    for col, (title, section) in enumerate(zip(col_titles, all_sections)):
-        ax = axes[0, col]
+    for idx, (title, section) in enumerate(zip(col_titles, all_sections)):
+        row, col = idx // n_cols, idx % n_cols
+        ax = axes[row, col]
         # contourf: x=lat, y=depth (inverted)
         n_levels_plot = 20
         cf = ax.contourf(lat, depth_values, section,

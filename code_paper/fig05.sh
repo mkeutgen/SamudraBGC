@@ -12,9 +12,9 @@
 
 set -e
 
-# Get the directory where this script lives (code_paper/)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# SLURM copies the script to a spool directory, so use SLURM_SUBMIT_DIR
+PROJECT_DIR="${SLURM_SUBMIT_DIR}"
+SCRIPT_DIR="${PROJECT_DIR}/code_paper"
 
 source "${SCRIPT_DIR}/env_setup.sh"
 

@@ -344,45 +344,50 @@ def _depth_avg_o2(ds, depth_indices, scale_factor=MOL_TO_UMOL):
     return (acc / dz.sum()) * scale_factor
 
 
-def _azimuthal_power_spectrum(field_2d, dx_km):
-    """Compute azimuthally averaged power spectrum of a 2D field."""
+def _azimuthal_spectrum(field_2d, dx_km):
+    """
+    1D radial energy spectrum E(k) via azimuthal integration of the 2D
+    periodogram. Parseval-normalized: Σ E(k) = Var(field), with Hanning
+    window variance correction. Returns (wavelength_km, E_k).
+    """
     ny, nx = field_2d.shape
-    # Remove mean and NaN-fill
     f = field_2d.copy()
     f[np.isnan(f)] = 0.0
     f -= f.mean()
-    # Apply Hann window
-    wy = np.hanning(ny)
-    wx = np.hanning(nx)
-    window = np.outer(wy, wx)
-    f *= window
+    spatial_var = np.var(f)
 
-    F = np.fft.fft2(f)
-    P = np.abs(F) ** 2
-    P = np.fft.fftshift(P)
+    # Hanning window to reduce spectral leakage
+    win = np.outer(np.hanning(ny), np.hanning(nx))
+    f *= win
+    var_win = np.var(f)
 
-    ky = np.fft.fftfreq(ny, d=dx_km)
-    kx = np.fft.fftfreq(nx, d=dx_km)
-    ky = np.fft.fftshift(ky)
-    kx = np.fft.fftshift(kx)
+    # 2D periodogram: Parseval says Σ|F|²/N² = var_win
+    # We normalize so Σ P = spatial_var (unwindowed)
+    F = np.fft.fftshift(np.fft.fft2(f))
+    P = np.abs(F) ** 2 / (nx * ny) ** 2 * (spatial_var / var_win) if var_win > 0 else np.abs(F) ** 2 / (nx * ny) ** 2
+
+    # Wavenumbers in cycles/km
+    ky = np.fft.fftshift(np.fft.fftfreq(ny, d=dx_km))
+    kx = np.fft.fftshift(np.fft.fftfreq(nx, d=dx_km))
     KX, KY = np.meshgrid(kx, ky)
-    K = np.sqrt(KX**2 + KY**2)
+    K = np.sqrt(KX ** 2 + KY ** 2)
 
-    # Bin by radial wavenumber
+    # Radial bins
     k_max = min(ky.max(), kx.max())
     n_bins = min(ny, nx) // 2
     k_bins = np.linspace(0, k_max, n_bins + 1)
     k_centers = 0.5 * (k_bins[:-1] + k_bins[1:])
+    dk = k_bins[1] - k_bins[0]
+
+    # E(k): sum over annulus, divide by dk → density in cycles/km
     spectrum = np.zeros(n_bins)
     for i in range(n_bins):
         mask = (K >= k_bins[i]) & (K < k_bins[i + 1])
-        if mask.sum() > 0:
-            spectrum[i] = P[mask].mean()
+        if mask.any():
+            spectrum[i] = P[mask].sum() / dk
 
-    # Convert wavenumber to wavelength in km
     valid = k_centers > 0
-    wavelength_km = 1.0 / k_centers[valid]
-    return wavelength_km, spectrum[valid]
+    return 1.0 / k_centers[valid], spectrum[valid]
 
 
 def load_helmholtz_data():
@@ -436,11 +441,11 @@ def load_helmholtz_data():
             if dl > 0:
                 gt_field = gt_field[:, dl//2:-(dl - dl//2)]
 
-        wl, s = _azimuthal_power_spectrum(gt_field, DX_KM)
+        wl, s = _azimuthal_spectrum(gt_field, DX_KM)
         gt_specs.append(s)
-        _, s = _azimuthal_power_spectrum(helm_field, DX_KM)
+        _, s = _azimuthal_spectrum(helm_field, DX_KM)
         helm_specs.append(s)
-        _, s = _azimuthal_power_spectrum(vel_field, DX_KM)
+        _, s = _azimuthal_spectrum(vel_field, DX_KM)
         vel_specs.append(s)
 
     gt_ds.close(); helm_ds.close(); vel_ds.close()

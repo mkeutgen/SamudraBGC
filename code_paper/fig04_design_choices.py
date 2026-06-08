@@ -93,33 +93,47 @@ def _depth_avg_o2(ds, depth_indices, scale_factor=MOL_TO_UMOL):
     return (acc / dz.sum()) * scale_factor
 
 
-def _azimuthal_power_spectrum(field_2d, dx_km):
+def _azimuthal_spectrum(field_2d, dx_km):
+    """
+    1D radial energy spectrum E(k) via azimuthal integration of the 2D
+    periodogram. Parseval-normalized: Σ E(k) = Var(field), with Hanning
+    window variance correction. Returns (wavelength_km, E_k).
+    """
     ny, nx = field_2d.shape
     f = field_2d.copy()
     f[np.isnan(f)] = 0.0
     f -= f.mean()
-    wy = np.hanning(ny)
-    wx = np.hanning(nx)
-    f *= np.outer(wy, wx)
+    spatial_var = np.var(f)
 
-    F = np.fft.fft2(f)
-    P = np.abs(F) ** 2
-    P = np.fft.fftshift(P)
+    # Hanning window to reduce spectral leakage
+    win = np.outer(np.hanning(ny), np.hanning(nx))
+    f *= win
+    var_win = np.var(f)
 
+    # 2D periodogram: Parseval says Σ|F|²/N² = var_win
+    # We normalize so Σ P = spatial_var (unwindowed)
+    F = np.fft.fftshift(np.fft.fft2(f))
+    P = np.abs(F) ** 2 / (nx * ny) ** 2 * (spatial_var / var_win) if var_win > 0 else np.abs(F) ** 2 / (nx * ny) ** 2
+
+    # Wavenumbers in cycles/km
     ky = np.fft.fftshift(np.fft.fftfreq(ny, d=dx_km))
     kx = np.fft.fftshift(np.fft.fftfreq(nx, d=dx_km))
     KX, KY = np.meshgrid(kx, ky)
-    K = np.sqrt(KX**2 + KY**2)
+    K = np.sqrt(KX ** 2 + KY ** 2)
 
+    # Radial bins
     k_max = min(ky.max(), kx.max())
     n_bins = min(ny, nx) // 2
     k_bins = np.linspace(0, k_max, n_bins + 1)
     k_centers = 0.5 * (k_bins[:-1] + k_bins[1:])
+    dk = k_bins[1] - k_bins[0]
+
+    # E(k): sum over annulus, divide by dk → density in cycles/km
     spectrum = np.zeros(n_bins)
     for i in range(n_bins):
         mask = (K >= k_bins[i]) & (K < k_bins[i + 1])
-        if mask.sum() > 0:
-            spectrum[i] = P[mask].mean()
+        if mask.any():
+            spectrum[i] = P[mask].sum() / dk
 
     valid = k_centers > 0
     return 1.0 / k_centers[valid], spectrum[valid]
@@ -261,10 +275,10 @@ def load_helmholtz_data():
     lon_c = lon[x0:x0 + nx_c]
 
     # Power spectrum from the same 2014-03-21 snapshot
-    wl, gt_spec   = _azimuthal_power_spectrum(gt_snap,   DX_KM)
-    _,  helm_spec = _azimuthal_power_spectrum(helm_snap, DX_KM)
-    _,  vel_spec  = _azimuthal_power_spectrum(vel_snap,  DX_KM)
-    _,  best_spec = _azimuthal_power_spectrum(best_snap, DX_KM)
+    wl, gt_spec   = _azimuthal_spectrum(gt_snap,   DX_KM)
+    _,  helm_spec = _azimuthal_spectrum(helm_snap, DX_KM)
+    _,  vel_spec  = _azimuthal_spectrum(vel_snap,  DX_KM)
+    _,  best_spec = _azimuthal_spectrum(best_snap, DX_KM)
 
     gt_ds.close(); helm_ds.close(); vel_ds.close(); best_ds.close()
     return {

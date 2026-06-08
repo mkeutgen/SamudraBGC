@@ -104,12 +104,12 @@ C = {
 
 LABELS = {
     "gt":       "Ground Truth",
-    "best":     "#9 SamudraBGC",
-    "linear":   "#4 Linear BGC",
+    "best":     "#8 SamudraBGC",
+    "linear":   "#1 Linear BGC",
     "log":      "#3 Log BGC",
-    "alpha0":   "#6 Grad Weight 0",
-    "alpha025": "#7 Grad Weight 0.25",
-    "alpha050": "#8 Grad Weight 0.50",
+    "alpha0":   "#5 Grad Weight 0",
+    "alpha025": "#6 Grad Weight 0.25",
+    "alpha050": "#7 Grad Weight 0.50",
 }
 
 # ── PCA variants for panel (b) ───────────────────────────────────────────────
@@ -125,18 +125,18 @@ PCA_COLORS = {
     "5 components":  "#66C2A4",      # light teal
     "10 components": "#2CA25F",      # medium teal
     "15 components": "#238B45",      # dark teal
-    "20 components": "#E07000",      # orange (M9 SamudraBGC)
+    "20 components": "#E07000",      # orange (#8 SamudraBGC)
 }
 PCA_LWS = {"All 50 levels": 2.5, "5 components": 2.5, "10 components": 2.5,
            "15 components": 2.5, "20 components": 3.8}
 PCA_LST = {"All 50 levels": "--", "5 components": ":", "10 components": "-.",
            "15 components": "-", "20 components": "-"}
 PCA_LABELS = {
-    "All 50 levels": "#5 50 components",
-    "5 components":  "#12 5 components",
-    "10 components": "#11 10 components",
-    "15 components": "#10 15 components",
-    "20 components": "#9 20 components",
+    "All 50 levels": "#4 50 components",
+    "5 components":  "#11 5 components",
+    "10 components": "#10 10 components",
+    "15 components": "#9 15 components",
+    "20 components": "#8 20 components",
 }
 
 # ── Variants (same 6 as v6) ──────────────────────────────────────────────────
@@ -350,7 +350,7 @@ def load_pca_rmse_data():
 # DRAWING FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════
 
-def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units):
+def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units, suffix=""):
     """Panel (a): time series (top) + bias (bottom), one caption on top subplot."""
     gt_ts = ts_dict["gt"]
     # Draw baselines first, then gradient variants, then best on top.
@@ -359,12 +359,12 @@ def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units):
     # Shorter legend labels to fit in 2 columns
     short_labels = {
         "gt":       "GT",
-        "best":     "#9 SamudraBGC",
-        "linear":   "#4 Lin",
+        "best":     "#8 SamudraBGC",
+        "linear":   "#1 Lin",
         "log":      "#3 Log",
-        "alpha0":   "#6 GW0",
-        "alpha025": "#7 GW0.25",
-        "alpha050": "#8 GW0.50",
+        "alpha0":   "#5 GW0",
+        "alpha025": "#6 GW0.25",
+        "alpha050": "#7 GW0.50",
     }
 
     for key in draw_order:
@@ -387,8 +387,9 @@ def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units):
     ax_ts.set_ylabel(f"{var_label}\n({units})", fontsize=8)
     ax_ts.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax_ts.xaxis.set_major_locator(mdates.YearLocator())
-    # Place legend inside upper portion of ts panel to avoid overlap with panel b y-axis
-    ax_ts.legend(fontsize=6, framealpha=0.80, loc="upper right", ncol=2)
+    # O2 100-200m has data peaks in upper right; use lower left for that variant
+    legend_loc = "lower left" if suffix == "o2_100_200m" else "upper right"
+    ax_ts.legend(fontsize=6, framealpha=0.80, loc=legend_loc, ncol=2)
     ax_ts.tick_params(labelsize=7)
     plt.setp(ax_ts.get_xticklabels(), visible=False)
 
@@ -413,11 +414,11 @@ def draw_pca_panel(axes_rmse, pca_data, var_label):
 
     # Shorter legend labels for PCA variants - include "PCs" for clarity
     short_pca_labels = {
-        "All 50 levels": "All 50 PCs",
-        "5 components":  "#12 5 PCs",
-        "10 components": "#11 10 PCs",
-        "15 components": "#10 15 PCs",
-        "20 components": "#9 20 PCs",
+        "All 50 levels": "#4 All 50 PCs",
+        "5 components":  "#11 5 PCs",
+        "10 components": "#10 10 PCs",
+        "15 components": "#9 15 PCs",
+        "20 components": "#8 20 PCs",
     }
 
     for ax, vd in zip(axes_rmse, pca_data["vars"]):
@@ -431,9 +432,11 @@ def draw_pca_panel(axes_rmse, pca_data, var_label):
                     label=display_label, alpha=0.9,
                     zorder=3 if is_best else 2)
         ax.set_ylim(500, 0)
-        # Shorter x-axis labels
-        var_short = vd['label'].replace("Temperature", "Temp").replace("µmol kg⁻¹", "")
-        ax.set_xlabel(f"RMSE\n{var_short}", fontsize=7)
+        # Extract variable name and units from the label (e.g., "Temperature (°C)" or "O₂ (µmol kg⁻¹)")
+        label_parts = vd['label'].split(" (")
+        var_name = label_parts[0].replace("Temperature", "Temp")
+        units = label_parts[1].rstrip(")") if len(label_parts) > 1 else ""
+        ax.set_xlabel(f"RMSE ({units})\n{var_name}", fontsize=7)
         ax.tick_params(labelsize=7)
         ax.grid(True, axis="x", alpha=0.20, lw=0.4)
         ax.grid(True, axis="y", alpha=0.12, lw=0.3)
@@ -466,7 +469,7 @@ def render_variant(variant, ts_dict, times_dt, pca_data, output_dir):
         2, 1, subplot_spec=outer[0], hspace=0.08, height_ratios=[1.6, 1.0])
     ax_ts   = fig.add_subplot(abl_gs[0])
     ax_bias = fig.add_subplot(abl_gs[1], sharex=ax_ts)
-    draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units)
+    draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units, suffix)
 
     # (b) PCA RMSE vs depth: temperature + variant variable
     variant_pca = {
@@ -485,7 +488,7 @@ def render_variant(variant, ts_dict, times_dt, pca_data, output_dir):
     pos_a = ax_ts.get_position()
     pos_b = ax_rmse[0].get_position()
     title_y = max(pos_a.y1, pos_b.y1) + 0.02
-    fig.text(pos_a.x0, title_y, f"(a) Ablation — {var_label}",
+    fig.text(pos_a.x0, title_y, f"(a) {var_label}",
              fontsize=10, fontweight="bold", ha="left", va="bottom")
     fig.text(pos_b.x0, title_y, "(b) RMSE vs Depth",
              fontsize=10, fontweight="bold", ha="left", va="bottom")
