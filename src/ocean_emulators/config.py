@@ -595,16 +595,17 @@ class ProfilerConfig(BaseConfig):
 TrainBackendConfig = Literal["cpu", "cuda", "nccl", "auto"]
 LossType = Literal[
     "mse",
-    "mae",  
-    "mae_gradient",           
-    "mae_gradient_weighted",  
+    "mae",
+    "mae_gradient",
+    "mae_gradient_weighted",
     "mae_gradient_multiscale", # for later test
     "mse_diff_weighted",
-    "mse_cos_weighted",  
+    "mse_cos_weighted",
     "mse_residual_scaled",
     "mse_mae",
     "mse_dynamic",
     "mse_dynamic_no_limit",
+    "mse_dynamic_robust",
     "mae_gradient_relative",
     "mae_dynamic",
 ]
@@ -624,6 +625,8 @@ class TrainConfig(TopLevelConfig):
     gradient_weight: float = 0.1
     second_order_weight: float = 0.0  # Laplacian/curvature penalty for sharper features
     dynamic_n_window: int = 25  # Rolling window size for dynamic loss scaling
+    dynamic_max_ratio: float = 10.0  # Max scale ratio for mse_dynamic_robust
+    dynamic_warmup_steps: int = 1000  # Warmup steps for mse_dynamic_robust
     gradient_scales: Optional[List[float]] = None 
     finetune: bool = False
     resume_ckpt_path: str | None = None

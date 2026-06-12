@@ -167,6 +167,125 @@ class MseDynamic:
             self._per_channel_scale = state["per_channel_scale"].to(self._wet.device)
 
 
+class MseDynamicRobust:
+    """A more robust variant of ``MseDynamic`` with scale clamping and warmup.
+
+    Like ``MseDynamic``, this scales each channel to contribute equally to the
+    loss using a rolling estimate of the per-channel MSE. It adds two
+    safeguards against runaway channel amplification:
+
+    1. **Warmup**: scales are frozen at 1.0 for the first ``warmup_steps``
+       updates, so early-training noise does not bake bad weights into the
+       rolling average.
+    2. **Scale clamping**: each new 1/loss weight is clamped to within a
+       factor of ``max_scale_ratio`` of the median weight, bounding the ratio
+       between any two channel scales.
+
+    The rolling window size is also configurable (``n_window``) instead of
+    the hardcoded ``MseDynamic.N_WINDOW``.
+    """
+
+    def __init__(
+        self,
+        wet: Grid,
+        stds: Float[torch.Tensor, " var"],
+        *,
+        should_limit: bool,
+        max_scale_ratio: float = 10.0,
+        n_window: int = 100,
+        warmup_steps: int = 1000,
+    ):
+        self._wet: Grid = wet
+        self._max_scale_ratio = max_scale_ratio
+        self._n_window = n_window
+        self._warmup_steps = warmup_steps
+        self._step_count: int = 0
+        self._per_channel_scale: Float[torch.Tensor, " var"] = torch.ones(
+            stds.shape[0], device=wet.device
+        )
+        if should_limit:
+            vars: Float[torch.Tensor, " var"] = stds.pow(2)
+            self._limits: Float[torch.Tensor, " var"] | None = 1.0 / vars
+        else:
+            self._limits = None
+
+    def __call__(
+        self,
+        pred: Float[torch.Tensor, "batch hist*var lat lon"],
+        target: Float[torch.Tensor, "batch hist*var lat lon"],
+    ) -> Float[torch.Tensor, " hist*var"]:
+        loss_with_history_channels: Float[torch.Tensor, " hist*var"] = decomposed_mse(
+            pred, target, self._wet
+        )
+        scaled_loss_including_history_dimension: Float[torch.Tensor, "hist var"] = (
+            loss_with_history_channels.reshape(self._per_channel_scale.shape[0], -1)
+            * self._per_channel_scale.unsqueeze(1)
+        )
+        return scaled_loss_including_history_dimension.reshape(-1)
+
+    def update(
+        self,
+        pred: Float[torch.Tensor, "batch hist*var lat lon"],
+        target: Float[torch.Tensor, "batch hist*var lat lon"],
+    ) -> None:
+        """Given the prediction & target for this step, update the per-channel scale.
+
+        Skips the update entirely during warmup, and clamps the new weights to
+        within ``max_scale_ratio`` of their median before folding them into the
+        rolling average.
+        """
+        self._step_count += 1
+        if self._step_count < self._warmup_steps:
+            return
+
+        mse_loss = decomposed_mse(pred, target, self._wet)
+        mse_loss = torch.where(mse_loss == 0, 1e-8, mse_loss)
+        new_target_weights_with_history: Float[torch.Tensor, " hist*var"] = (
+            1.0 / mse_loss
+        )
+        # Reshape from channels * history to channels
+        # by averaging along the `hist` dimension
+        new_target_weights: Float[torch.Tensor, " var"] = (
+            new_target_weights_with_history.reshape(
+                self._per_channel_scale.shape[0], -1
+            ).mean(dim=1)
+        )
+        if self._limits is not None:
+            new_target_weights = new_target_weights.min(self._limits)
+
+        # Clamp weights to within max_scale_ratio of the median to prevent
+        # runaway amplification of any single channel.
+        median_w = new_target_weights.median()
+        new_target_weights = new_target_weights.clamp(
+            median_w / self._max_scale_ratio,
+            median_w * self._max_scale_ratio
+        )
+
+        if get_world_size() > 1:
+            all_reduce_mean(new_target_weights)
+
+        self._per_channel_scale = (
+            self._per_channel_scale * (self._n_window - 1) + new_target_weights
+        ) / self._n_window
+
+    def loss_scale_per_channel(self) -> Float[torch.Tensor, " var"]:
+        return self._per_channel_scale
+
+    def state_dict(self) -> dict[str, torch.Tensor]:
+        """Return state dictionary for checkpointing."""
+        return {
+            "per_channel_scale": self._per_channel_scale.detach().cpu(),
+            "step_count": self._step_count,
+        }
+
+    def load_state_dict(self, state: dict[str, torch.Tensor]) -> None:
+        """Load state from ``state_dict``."""
+        if "per_channel_scale" in state:
+            self._per_channel_scale = state["per_channel_scale"].to(self._wet.device)
+        if "step_count" in state:
+            self._step_count = int(state["step_count"])
+
+
 #############################################
 ##### Maxime Custom Loss Funs ##################
 ################################################

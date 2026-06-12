@@ -81,6 +81,7 @@ from ocean_emulators.utils.logging import (
 from ocean_emulators.utils.loss import (
     MaeDynamic,
     MseDynamic,
+    MseDynamicRobust,
     decomposed_mse,
     decomposed_mae,
     decomposed_mse_cos_weighted,
@@ -288,7 +289,23 @@ class Trainer:
                     ).to(device=self.device),
                     should_limit=should_limit,
                 )
-            
+
+            case "mse_dynamic_robust":
+                logger.info(
+                    f"Using robust dynamic MSE loss (max_ratio={cfg.dynamic_max_ratio}, "
+                    f"n_window={cfg.dynamic_n_window}, warmup={cfg.dynamic_warmup_steps})"
+                )
+                self.loss_fn = MseDynamicRobust(
+                    wet=self.wet,
+                    stds=torch.from_numpy(
+                        self.src.stds[self.prognostic_var_names].to_array().to_numpy()
+                    ).to(device=self.device),
+                    should_limit=True,
+                    max_scale_ratio=cfg.dynamic_max_ratio,
+                    n_window=cfg.dynamic_n_window,
+                    warmup_steps=cfg.dynamic_warmup_steps,
+                )
+
             case "mae_dynamic":
                 logger.info(f"Using dynamic MAE loss (α={cfg.gradient_weight}, n_window={cfg.dynamic_n_window})")
                 self.loss_fn = MaeDynamic(
