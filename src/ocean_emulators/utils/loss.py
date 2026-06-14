@@ -4,6 +4,10 @@ from jaxtyping import Float
 
 from ocean_emulators.constants import Grid
 from ocean_emulators.utils.distributed import all_reduce_mean, get_world_size
+from ocean_emulators.utils.structure_function import (
+    build_shift_bank,
+    sf_loss_per_channel,
+)
 
 
 def decomposed_mse(
@@ -602,3 +606,60 @@ class MaeDynamic:
     def load_state_dict(self, state: dict[str, torch.Tensor]) -> None:
         if "per_channel_scale" in state:
             self._per_channel_scale = state["per_channel_scale"].to(self._wet.device)
+
+
+class SFAugmentedLoss:
+    """Wrap a per-channel base loss and add a structure-function penalty on a
+    designated subset of variable channels.
+
+    The model output has C channels laid out time-major as `factor` repeats of
+    `n_prog` variables: [block0: var0..var_{n_prog-1}, block1: var0..., ...],
+    where factor = C // n_prog. The SF term is applied to a fixed set of
+    variable indices (sf_var_indices, given within ONE n_prog block) and
+    replicated across every time block.
+    """
+
+    def __init__(
+        self,
+        base_loss_fn,                 # callable(pred, target) -> (C,) per-channel
+        *,
+        wet,                          # mask tensor; (1, C, H, W) or (1, 1, H, W)
+        n_prog: int,                  # number of variables per time block (e.g. 161)
+        sf_var_indices: list[int],    # var indices within one block (e.g. psi/phi = 120..159)
+        shift_bank: dict,
+        sf_weight: float,
+        orders: tuple = (2,),
+    ):
+        self.base_loss_fn = base_loss_fn
+        self._n_prog = int(n_prog)
+        self._sf_var_indices = list(sf_var_indices)
+        self._shift_bank = shift_bank
+        self._sf_weight = float(sf_weight)
+        self._orders = tuple(orders)
+
+        # Precompute a (1,1,H,W) ocean mask from `wet`: take the first channel
+        # if wet has >1 channel, else wet; treat >0.5 as valid (1.0).
+        if wet.shape[1] > 1:
+            mask = wet[:, :1]
+        else:
+            mask = wet
+        self._mask2d = (mask > 0.5).float()
+
+    def __call__(self, pred, target):
+        base = self.base_loss_fn(pred, target)        # (C,)
+        C = pred.shape[1]
+        factor = C // self._n_prog
+        assert factor * self._n_prog == C, (C, self._n_prog)
+        full_idx = [
+            t * self._n_prog + i
+            for t in range(factor)
+            for i in self._sf_var_indices
+        ]
+        sf_pc = sf_loss_per_channel(
+            pred[:, full_idx], target[:, full_idx],
+            self._mask2d.to(pred.device), self._shift_bank, self._orders,
+        )                                              # (len(full_idx),)
+        add = torch.zeros_like(base)
+        idx_t = torch.tensor(full_idx, device=base.device)
+        add = add.index_add(0, idx_t, (self._sf_weight * sf_pc).to(base.dtype))
+        return base + add

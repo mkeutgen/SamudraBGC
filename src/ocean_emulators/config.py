@@ -607,6 +607,7 @@ LossType = Literal[
     "mse_dynamic_no_limit",
     "mse_dynamic_robust",
     "mae_gradient_relative",
+    "mae_gradient_sf",
     "mae_dynamic",
 ]
 
@@ -624,6 +625,10 @@ class TrainConfig(TopLevelConfig):
     loss: LossType = "mse"
     gradient_weight: float = 0.1
     second_order_weight: float = 0.0  # Laplacian/curvature penalty for sharper features
+    sf_weight: float = 0.0  # Structure-function penalty weight (mae_gradient_sf loss)
+    sf_max_lag: int = 10  # Max separation distance (grid cells) for SF shift bank
+    sf_n_bins: int = 5  # Number of radial-distance bins for SF shift bank
+    sf_orders: list[int] = Field(default_factory=lambda: [2])  # SF orders to match
     dynamic_n_window: int = 25  # Rolling window size for dynamic loss scaling
     dynamic_max_ratio: float = 10.0  # Max scale ratio for mse_dynamic_robust
     dynamic_warmup_steps: int = 1000  # Warmup steps for mse_dynamic_robust

@@ -90,7 +90,9 @@ from ocean_emulators.utils.loss import (
     decomposed_mse_scaled,
     decomposed_mae_gradient_weighted,
     decomposed_mae_gradient_relative,
+    SFAugmentedLoss,
 )
+from ocean_emulators.utils.structure_function import build_shift_bank
 from ocean_emulators.utils.train import (
     CheckpointPaths,
     collate_inference_data,
@@ -324,6 +326,33 @@ class Trainer:
                     second_order_weight=cfg.second_order_weight
                 )
             
+            case "mae_gradient_sf":
+                base = partial(
+                    decomposed_mae_gradient_weighted,
+                    wet=self.wet,
+                    gradient_weight=cfg.gradient_weight,
+                    second_order_weight=cfg.second_order_weight,
+                )
+                sf_var_indices = [
+                    i for i, n in enumerate(self.prognostic_var_names)
+                    if n.startswith("psipc_") or n.startswith("phipc_")
+                ]
+                shift_bank = build_shift_bank(max_lag=cfg.sf_max_lag, n_bins=cfg.sf_n_bins)
+                self.loss_fn = SFAugmentedLoss(
+                    base,
+                    wet=self.wet,
+                    n_prog=len(self.prognostic_var_names),
+                    sf_var_indices=sf_var_indices,
+                    shift_bank=shift_bank,
+                    sf_weight=cfg.sf_weight,
+                    orders=tuple(cfg.sf_orders),
+                )
+                logger.info(
+                    f"Using MAE+gradient+SF loss (grad={cfg.gradient_weight}, "
+                    f"sf_weight={cfg.sf_weight}, |sf_vars|={len(sf_var_indices)}, "
+                    f"orders={cfg.sf_orders})"
+                )
+
             case "mae_gradient_relative":
                 logger.info(f"Using MAE loss with relative gradient penalty (α={cfg.gradient_weight}, β={cfg.second_order_weight})")
                 self.loss_fn = partial(
