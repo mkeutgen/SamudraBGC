@@ -340,7 +340,7 @@ class Trainer:
                 shift_bank = build_shift_bank(max_lag=cfg.sf_max_lag, n_bins=cfg.sf_n_bins)
                 self.loss_fn = SFAugmentedLoss(
                     base,
-                    wet=self.wet,
+                    wet=self.wet.unsqueeze(0),  # (C,H,W) -> (1,C,H,W)
                     n_prog=len(self.prognostic_var_names),
                     sf_var_indices=sf_var_indices,
                     shift_bank=shift_bank,
