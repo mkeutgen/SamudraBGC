@@ -1,27 +1,21 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
 # ============================================================================
-# Structure-Function Loss experiment (Snider & Bodner)
-# Champion (MAE + gradient 0.10) + scalar structure-function penalty on the
-# psi/phi PCA component fields. Spectral-fidelity term, real-space, FFT-free.
+# Champion Model - History 2
+# Same as champion_model but with hist=2 (2 timesteps of history input)
 # ============================================================================
 
 debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 50
+epochs: 70
 batch_size: 1
 learning_rate: 0.0002
 scheduler:
   type: cosine
-loss: mae_gradient_sf
+loss: mae_gradient_weighted
 gradient_weight: 0.10
 second_order_weight: 0.0
-sf_weight: 50.0   # calibrated: SF term is a stable statistic; ~0.0005 raw vs base MAE ~0.16, so weight ~50 gives ~15% contribution on psi/phi channels
-sf_max_lag: 10
-sf_n_bins: 5
-sf_orders:
-- 2
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
@@ -45,18 +39,18 @@ step_transition: []
 backend: auto
 
 experiment:
-  name: champion_sf_loss
+  name: champion_model_hist2
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: offline
     project: ''
     entity: ''
-    group: loss-ablation
+    group: champion-ablations
     tags:
     - "champion"
-    - "structure-function"
-    - "loss-ablation"
+    - "hist-2"
+    - "ablation"
   prognostic_vars_key: helmholtz_log_no_logno3_pca20_all
   boundary_vars_key: minimal_forcing
   data_root: null
@@ -69,11 +63,11 @@ data:
   num_workers: 4
   persistent_workers: true
   prefetch_factor: 2
-  hist: 1
+  hist: 2
   concurrent_compute: true
 
 model:
-  checkpointing: null
+  checkpointing: all
   pred_residuals: false
   last_kernel_size: 3
   pad: constant

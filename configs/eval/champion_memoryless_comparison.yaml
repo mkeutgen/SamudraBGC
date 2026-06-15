@@ -1,0 +1,39 @@
+# Compare champion model variants (2015-2019 rollout)
+# - Champion (with memory): full resolution, with temporal memory
+# - Champion (memoryless): full resolution, no temporal memory
+# - Coarsened (interpolated): trained on 0.25°/5-day, interpolated to fine grid
+
+experiments:
+  "Champion (with memory)": "outputs/champion_model_eval_rollout2015_2019/predictions_depth.zarr/"
+  "Champion (memoryless)": "outputs/champion_model_memoryless_eval_rollout2015_2019/predictions_depth.zarr/"
+  "Coarsened (interpolated)": "outputs/coarsened_champion_eval_rollout2015_2019/predictions_depth_fine.zarr/"
+
+ground_truth_path: /scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr
+
+output_dir: "outputs/champion_memoryless_comparison"
+
+time_slice:
+  - "2015-01-01"
+  - "2019-12-31"
+
+dx_km: 9.0
+
+compute_regional: false
+save_time_series: true
+save_spatial_fields: false
+
+visualization:
+  snapshot_times: [0, 365, 730, 1095, 1460]
+  spectral_time_idx: 730
+  dpi: 150
+  plot_types:
+    - seasonal
+    - interannual
+
+regional_boundaries:
+  subtropical_jet: 37
+  jet_subpolar: 43
+
+memory:
+  batch_size: 40
+  clear_cache_between_batches: true

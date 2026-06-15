@@ -1,65 +1,64 @@
 # yaml-language-server: $schema=../../schemas/TrainConfig.json
 # ============================================================================
-# Structure-Function Loss experiment (Snider & Bodner)
-# Champion (MAE + gradient 0.10) + scalar structure-function penalty on the
-# psi/phi PCA component fields. Spectral-fidelity term, real-space, FFT-free.
+# Phase 5: PCA Vertical Representation - FULL (train+val period) - STRIDE 5
+# Configuration: Helmholtz + Log BGC, PCA k=20, gradient_weight = 0.10
+# Champion model with stride=5 (1/5th of data) for data efficiency ablation
 # ============================================================================
 
 debug: false
 disk_mode: true
 pin_mem: true
 save_freq: 5
-epochs: 50
+epochs: 70
 batch_size: 1
 learning_rate: 0.0002
 scheduler:
   type: cosine
-loss: mae_gradient_sf
+loss: mae_gradient_weighted
 gradient_weight: 0.10
 second_order_weight: 0.0
-sf_weight: 50.0   # calibrated: SF term is a stable statistic; ~0.0005 raw vs base MAE ~0.16, so weight ~50 gives ~15% contribution on psi/phi channels
-sf_max_lag: 10
-sf_n_bins: 5
-sf_orders:
-- 2
 finetune: false
 resume_ckpt_path: null
 inference_epochs: []
 data_percent: 1.0
 
+# Full training: train+val period merged, test period used for monitoring
 train_time:
   start: '1960-01-01'
-  end: '2014-12-31'
+  end: '2014-12-31'    # 55 years training (train + val)
 val_time:
   start: '2015-01-01'
-  end: '2019-12-31'
+  end: '2019-12-31'    # 5 years test period (monitoring only)
 inference_times:
 - start: '2015-01-01'
-  end: '2019-12-31'
+  end: '2019-12-31'    # 5 years paper holdout
 
 data_stride:
-- 1
+- 5                    # Use every 5th sample (1/5th of data)
 steps:
 - 4
 step_transition: []
 backend: auto
 
 experiment:
-  name: champion_sf_loss
+  name: champion_model_stride5
   rand_seed: 42
   base_output_dir: ./outputs
   wandb:
     mode: offline
-    project: ''
-    entity: ''
-    group: loss-ablation
+    project: ''  # Set WANDB_PROJECT env var
+    entity: ''  # Set WANDB_ENTITY env var
+    group: phase5-pca
     tags:
-    - "champion"
-    - "structure-function"
-    - "loss-ablation"
+    - "phase5-pca"
+    - "helmholtz-decomposition"
+    - "pca-k20"
+    - "grad-0.10"
+    - "stride-5"
   prognostic_vars_key: helmholtz_log_no_logno3_pca20_all
   boundary_vars_key: minimal_forcing
-  data_root: null
+  # PCA variables appended to existing zarr by scripts/fit_pca.py
+  data_root: null  # Set OCEAN_EMU_DATA_ROOT env var
 
 data:
   data_location: bgc_data.zarr
@@ -101,3 +100,7 @@ model:
   corrector:
     non_negative_corrector_names: null
     ocean_heat_corrector: false
+
+# Variables: log_dicpc, log_o2pc, no3pc, log_chlpc, temppc, saltpc, psipc, phipc @ 20 PCA components + SSH
+# Forcing: Qnet, tauuo, tauvo (minimal forcing)
+# Total prognostic channels: 8 vars * 20 components + 1 SSH = 161 (vs 401 with depth-levels)

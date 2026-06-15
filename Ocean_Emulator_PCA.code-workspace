@@ -1,0 +1,58 @@
+{
+  "folders": [
+    {
+      "path": "src"
+    },
+    {
+      "path": "configs"
+    },
+    {
+      "path": "scripts"
+    },
+    {
+      "path": "tests"
+    },
+    {
+      "path": "code_paper"
+    }
+  ],
+  "settings": {
+    "files.watcherExclude": {
+      "**/.git/objects/**": true,
+      "**/.git/subtree-cache/**": true,
+      "**/.mypy_cache/**": true,
+      "**/__pycache__/**": true,
+      "**/*.pyc": true,
+      "**/*.zarr/**": true,
+      "**/outputs/**": true,
+      "**/logs/**": true,
+      "**/checkpoints/**": true,
+      "**/wandb/**": true,
+      "**/code_paper/figures/**": true
+    },
+    "search.exclude": {
+      "**/.mypy_cache/**": true,
+      "**/__pycache__/**": true,
+      "**/*.zarr/**": true,
+      "**/outputs/**": true,
+      "**/logs/**": true,
+      "**/checkpoints/**": true,
+      "**/wandb/**": true,
+      "**/code_paper/figures/**": true
+    },
+    "python.analysis.exclude": [
+      "**/.mypy_cache/**",
+      "**/__pycache__/**",
+      "**/*.zarr/**",
+      "**/outputs/**",
+      "**/logs/**",
+      "**/checkpoints/**",
+      "**/wandb/**",
+      "**/code_paper/figures/**"
+    ],
+    "python.analysis.indexing": false,
+    "search.followSymlinks": false,
+    "git.untrackedChanges": "hidden",
+    "git.statusLimit": 500
+  }
+}
