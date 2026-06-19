@@ -62,8 +62,8 @@ _n_workers = int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count() or 8))
 # =============================================================================
 # CONFIG
 # =============================================================================
-GT_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
-PCA_PARAMS_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/pca_params.npz")
+GT_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr")
+PCA_PARAMS_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "pca_params.npz")
 
 ML_ENSEMBLE_DIR = Path("outputs/champion_model_eval_ensemble50_tsonly_std05_2015")
 PHYSICAL_BASE_DIR = Path(os.environ.get("MOM6_NUMERICAL_PATH", "."))
@@ -558,8 +558,34 @@ def _plot_maps_row(fig, gs_indices, lat, lon, phys_spread, ml_spread, n_phys, n_
     return ax_phys, ax_ml
 
 
-def _plot_mirror_spread(ax, ml_arr, phys_arr, title, vc_units):
-    """Plot mirror-spread diagnostic: Ground Truth up, SamudraBGC down."""
+def _compute_spread_y_max(ml_arr, phys_arr):
+    """Compute the y_max for mirror-spread plot from ensemble arrays."""
+    y_max_candidates = []
+
+    if ml_arr.size and ml_arr.shape[0] > 0:
+        mm_ml = np.nanmax(ml_arr, axis=0) - np.nanmin(ml_arr, axis=0)
+        mm_ml = mm_ml - mm_ml[0]
+        mm_ml = np.clip(mm_ml, 0, None)
+        if len(mm_ml) > 0:
+            y_max_candidates.append(np.nanmax(mm_ml))
+
+    if phys_arr.size and phys_arr.shape[0] > 0:
+        mm_phys = np.nanmax(phys_arr, axis=0) - np.nanmin(phys_arr, axis=0)
+        mm_phys = mm_phys - mm_phys[0]
+        mm_phys = np.clip(mm_phys, 0, None)
+        if len(mm_phys) > 0:
+            y_max_candidates.append(np.nanmax(mm_phys))
+
+    return max(y_max_candidates) * 1.18 if y_max_candidates else 1.0
+
+
+def _plot_mirror_spread(ax, ml_arr, phys_arr, title, vc_units, shared_y_max=None,
+                        annotate_max_sigma=False):
+    """Plot mirror-spread diagnostic: Ground Truth up, SamudraBGC down.
+
+    If shared_y_max is provided, use it for y-axis limits (for consistent axes across panels).
+    If annotate_max_sigma is True, add text annotation with max σ values for both ensembles.
+    """
     # Month labels for x-axis
     month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan']
@@ -611,12 +637,15 @@ def _plot_mirror_spread(ax, ml_arr, phys_arr, title, vc_units):
     ax.axhline(0, color='k', lw=0.8, zorder=5)
 
     # Set axes
-    y_max_candidates = []
-    if len(mm_phys) > 0:
-        y_max_candidates.append(np.nanmax(mm_phys))
-    if len(mm_ml) > 0:
-        y_max_candidates.append(np.nanmax(mm_ml))
-    y_max = max(y_max_candidates) * 1.18 if y_max_candidates else 1.0
+    if shared_y_max is not None:
+        y_max = shared_y_max
+    else:
+        y_max_candidates = []
+        if len(mm_phys) > 0:
+            y_max_candidates.append(np.nanmax(mm_phys))
+        if len(mm_ml) > 0:
+            y_max_candidates.append(np.nanmax(mm_ml))
+        y_max = max(y_max_candidates) * 1.18 if y_max_candidates else 1.0
 
     ax.set_xlim(0, 12)
     ax.set_ylim(-y_max, y_max)
@@ -649,6 +678,24 @@ def _plot_mirror_spread(ax, ml_arr, phys_arr, title, vc_units):
     ax.text(0.02, 0.20, 'SamudraBGC',
             transform=ax.transAxes, fontsize=6.5,
             color=ML_LINE, fontweight='bold', va='bottom')
+
+    # Optional max σ annotation for quantitative comparison across panels
+    if annotate_max_sigma:
+        max_sigma_phys = np.nanmax(sigma_phys) if len(sigma_phys) > 0 else 0.0
+        max_sigma_ml = np.nanmax(sigma_ml) if len(sigma_ml) > 0 else 0.0
+        # Adaptive formatting based on magnitude
+        if max(max_sigma_phys, max_sigma_ml) < 0.01:
+            fmt = ".4f"
+        elif max(max_sigma_phys, max_sigma_ml) < 0.1:
+            fmt = ".3f"
+        else:
+            fmt = ".2f"
+        annotation = f"max σ: GT={max_sigma_phys:{fmt}}, ML={max_sigma_ml:{fmt}}"
+        ax.text(0.98, 0.97, annotation,
+                transform=ax.transAxes, fontsize=7, fontweight='bold',
+                ha='right', va='top',
+                bbox=dict(facecolor='white', alpha=0.85, edgecolor='0.7',
+                          boxstyle='round,pad=0.3', linewidth=0.5))
 
 
 def plot_pointwise_figure(
@@ -740,6 +787,8 @@ def plot_biomes_figure(
     ml_biome_ts   = extract_biome_ts(ml_stack, biome_weights)
     phys_biome_ts = extract_biome_ts(phys_stack, biome_weights)
 
+    biome_keys = ["subtropical", "jet", "subpolar", "domain"]
+
     # Use layout="constrained" to stop labels from overlapping automatically
     fig = plt.figure(figsize=(7.48, 9.0), layout="constrained")
     
@@ -758,7 +807,6 @@ def plot_biomes_figure(
                                phys_stack.shape[0], ml_stack.shape[0], vc, vmax)
 
     # Rows 2-3: Biomes (Columns 0 and 1 only)
-    biome_keys = ["subtropical", "jet", "subpolar", "domain"]
     panel_labels = ["(c)", "(d)", "(e)", "(f)"]
     all_ts_axes = []
 
@@ -771,6 +819,7 @@ def plot_biomes_figure(
             ax, ml_biome_ts[bkey], phys_biome_ts[bkey],
             f"{panel_labels[i]} {BIOME_LABELS[bkey]}",
             vc.units,
+            annotate_max_sigma=True,
         )
 
         if col_idx == 0:

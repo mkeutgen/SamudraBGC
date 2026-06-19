@@ -631,13 +631,13 @@ def render_variant(variant, snap_data, ts_dict, times_dt, pca_data, output_dir):
     row1_y = max(pos_a.y1, pos_b.y1) + 0.015
     row2_y = max(pos_c.y1, pos_d.y1) + 0.015
 
-    fig.text(pos_a.x0, row1_y, "(a) Spatial Structure",
+    fig.text(pos_a.x0, row1_y, "(a) Helmholtz versus Velocity",
              fontsize=9, fontweight="bold", ha="left", va="bottom")
-    fig.text(pos_b.x0, row1_y, "(b) Power Spectrum",
+    fig.text(pos_b.x0, row1_y, "(b) Helmholtz removes\n     small-scale noise",
              fontsize=9, fontweight="bold", ha="left", va="bottom")
-    fig.text(pos_c.x0, row2_y, "(c) Time Series",
+    fig.text(pos_c.x0, row2_y, "(c) Temporal stability",
              fontsize=9, fontweight="bold", ha="left", va="bottom")
-    fig.text(pos_d.x0, row2_y, "(d) RMSE vs Depth",
+    fig.text(pos_d.x0, row2_y, "(d) Vertical structure",
              fontsize=9, fontweight="bold", ha="left", va="bottom")
 
     out = Path(output_dir) / f"fig04_combined_{suffix}.png"
