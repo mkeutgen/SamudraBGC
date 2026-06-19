@@ -157,7 +157,7 @@ Reduce vertical dimension using PCA before the neural network:
 - `phase5_pca20_helmholtz_grad010` — k=20 components **[WINNER]**
 - `phase5_pca25_helmholtz_grad010` — k=25 components
 
-### Phase 6: Anomaly-Based Training
+### Phase 6: Anomaly-Based Training (Optional)
 Train on anomalies (deviations from climatology) instead of full fields:
 - `phase6_pca15_anomaly_helmholtz_grad010`
 
