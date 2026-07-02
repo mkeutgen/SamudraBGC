@@ -335,7 +335,8 @@ class Trainer:
                 )
                 sf_var_indices = [
                     i for i, n in enumerate(self.prognostic_var_names)
-                    if n.startswith("psipc_") or n.startswith("phipc_")
+                    if (n.startswith("psipc_") or n.startswith("phipc_"))
+                    and int(n.split("_")[-1]) < 5  # only first 5 of each (dominant components)
                 ]
                 shift_bank = build_shift_bank(max_lag=cfg.sf_max_lag, n_bins=cfg.sf_n_bins)
                 self.loss_fn = SFAugmentedLoss(

@@ -36,29 +36,33 @@ OUTPUT_DIR = Path(__file__).resolve().parent / "figures"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Ablation tree data ────────────────────────────────────────────────────────
+# Numbering follows narrative order: baselines before champions within each level.
+# Models that appear in multiple levels share their number:
+#   - #2 Helmholtz = #2 Linear BGC (same model, untransformed BGC baseline)
+#   - #11 20 components = #11 SamudraBGC (same model, final champion)
 TREE_LEVELS = [
     {"header": "Ocean Circulation\nRepresentation", "nodes": [
-        {"label": "#1 Helmholtz", "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": True},
-        {"label": "#2 Velocity",  "r2": -0.0659, "nrmse": 0.1896, "nmae": 0.1442, "nbias": -0.0189, "champion": False},
+        {"label": "#1 Velocity",  "r2": -0.0659, "nrmse": 0.1896, "nmae": 0.1442, "nbias": -0.0189, "champion": False},
+        {"label": "#2 Helmholtz", "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": True},
     ]},
     {"header": "Biogeochemistry\nRepresentation", "nodes": [
+        {"label": "#2 Linear BGC",  "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": False},
         {"label": "#3 Log BGC",     "r2": 0.6345, "nrmse": 0.1052, "nmae": 0.0714, "nbias": 0.0052, "champion": True},
-        {"label": "#1 Linear BGC",  "r2": 0.4956, "nrmse": 0.1269, "nmae": 0.0915, "nbias": -0.0065, "champion": False},
     ]},
     {"header": "Fine-scale Dynamics\n(gradient weight in loss)", "nodes": [
-        {"label": "#4 Grad Weight 0.10", "r2": 0.7954, "nrmse": 0.0828, "nmae": 0.0527, "nbias": 0.0049, "champion": True},
-        {"label": "#5 Grad Weight 0",    "r2": 0.7489, "nrmse": 0.0903, "nmae": 0.0591, "nbias": 0.0026, "champion": False},
+        {"label": "#4 Grad Weight 0",    "r2": 0.7489, "nrmse": 0.0903, "nmae": 0.0591, "nbias": 0.0026, "champion": False},
+        {"label": "#5 Grad Weight 0.10", "r2": 0.7954, "nrmse": 0.0828, "nmae": 0.0527, "nbias": 0.0049, "champion": True},
         {"label": "#6 Grad Weight 0.25", "r2": 0.7720, "nrmse": 0.0848, "nmae": 0.0556, "nbias": 0.0019, "champion": False},
         {"label": "#7 Grad Weight 0.50", "r2": 0.7791, "nrmse": 0.0837, "nmae": 0.0539, "nbias": 0.0047, "champion": False},
     ]},
     {"header": "Vertical Structure\n(PCA)", "nodes": [
-        {"label": "#8 20 components", "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010, "champion": True},
-        {"label": "#9 15 components", "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias": 0.0016, "champion": False},
-        {"label": "#10 10 components", "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias": 0.0046, "champion": False},
-        {"label": "#11 5 components",  "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
+        {"label": "#8 5 components",   "r2": 0.7001, "nrmse": 0.0958, "nmae": 0.0678, "nbias": -0.0052, "champion": False},
+        {"label": "#9 10 components",  "r2": 0.7328, "nrmse": 0.0924, "nmae": 0.0637, "nbias": 0.0046, "champion": False},
+        {"label": "#10 15 components", "r2": 0.8158, "nrmse": 0.0777, "nmae": 0.0488, "nbias": 0.0016, "champion": False},
+        {"label": "#11 20 components", "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010, "champion": True},
     ]},
     {"header": "ML Architecture", "nodes": [
-        {"label": "#8 SamudraBGC",   "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010,  "champion": True},
+        {"label": "#11 SamudraBGC",   "r2": 0.8062, "nrmse": 0.0796, "nmae": 0.0501, "nbias": 0.0010,  "champion": True},
         {"label": "#12 Wider",        "r2": 0.8084, "nrmse": 0.0791, "nmae": 0.0515, "nbias": -0.0046, "champion": False},
         {"label": "#13 Much Wider",   "r2": 0.7832, "nrmse": 0.0842, "nmae": 0.0565, "nbias": 0.0002,  "champion": False},
         {"label": "#14 Wider+Deeper", "r2": 0.8144, "nrmse": 0.0768, "nmae": 0.0500, "nbias": 0.0042,  "champion": False, "no_star": ("r2", "nmae")},

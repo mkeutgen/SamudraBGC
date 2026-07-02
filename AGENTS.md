@@ -367,9 +367,15 @@ When a training job fails:
 
 **Ablation-figure experiment labels must match the ablation tree verbatim**:
 - `fig03_ablation_tree.py` TREE_LEVELS is the canonical source for every experiment name. Any other paper figure (fig04, fig04_bis, SI variants) that references the same experiments MUST spell them exactly the same way, character for character
-- **Experiment numbering prefix**: use `#` (hash), not `M` — e.g. `"#1 Helmholtz"` not `"M1 Helmholtz"`
-- Current canonical set: `"Ground Truth"`, `"#1 Helmholtz"`, `"#2 Velocity"`, `"#3 Log BGC"`, `"#1 Linear BGC"`, `"#4 Grad Weight 0.10"`, `"#5 Grad Weight 0"`, `"#6 Grad Weight 0.25"`, `"#7 Grad Weight 0.50"`, `"#8 20 components"`, `"#9 15 components"`, `"#10 10 components"`, `"#11 5 components"`, `"#8 SamudraBGC"`, `"#12 Wider"`, `"#13 Much Wider"`, `"#14 Wider+Deeper"`
-- **Carried-forward winners keep their number** (14 distinct models, #1–#14, no gaps): the circulation winner `#1` reappears as `#1 Linear BGC` (the untransformed-BGC baseline), and the vertical-structure winner `#8` reappears as `#8 SamudraBGC` (the architecture baseline). In fig04_bis the uncompressed grad-0.10 winner `#4` is also shown as `#4 50 components` / `#4 All 50 PCs`. So `#1`, `#4`, and `#8` each legitimately label more than one node — intentional, not a duplicate-numbering bug
+- **Experiment numbering prefix**: use `#` (hash), not `M` — e.g. `"#1 Velocity"` not `"M1 Velocity"`
+- **Numbering follows narrative order** (baselines before champions within each level):
+  - Circulation: `"#1 Velocity"` (baseline), `"#2 Helmholtz"` (champion)
+  - BGC: `"#2 Linear BGC"` (same model as #2 Helmholtz), `"#3 Log BGC"` (champion)
+  - Grad weight: `"#4 Grad Weight 0"`, `"#5 Grad Weight 0.10"` (champion), `"#6 Grad Weight 0.25"`, `"#7 Grad Weight 0.50"`
+  - PCA: `"#8 5 components"`, `"#9 10 components"`, `"#10 15 components"`, `"#11 20 components"` (champion)
+  - Architecture: `"#11 SamudraBGC"` (same as #11 20 components), `"#12 Wider"`, `"#13 Much Wider"`, `"#14 Wider+Deeper"`
+- Current canonical set: `"Ground Truth"`, `"#1 Velocity"`, `"#2 Helmholtz"`, `"#2 Linear BGC"`, `"#3 Log BGC"`, `"#4 Grad Weight 0"`, `"#5 Grad Weight 0.10"`, `"#6 Grad Weight 0.25"`, `"#7 Grad Weight 0.50"`, `"#8 5 components"`, `"#9 10 components"`, `"#10 15 components"`, `"#11 20 components"`, `"#11 SamudraBGC"`, `"#12 Wider"`, `"#13 Much Wider"`, `"#14 Wider+Deeper"`
+- **Shared numbers for same models** (14 distinct models, #1–#14): `#2` is shared by Helmholtz and Linear BGC (same model, untransformed BGC baseline); `#11` is shared by 20 components and SamudraBGC (same model, final champion)
 - `"Ground Truth"` itself is not a tree node — it comes from the naming-convention rule above (never `"MOM6-DG"`, `"MOM6-DG (truth)"`, etc.)
 - Do NOT embed parenthetical context like `"(log BGC)"` or `"(no transform)"` in ablation-line labels — the tree is the single place where rationale is spelled out; figures just use the names
 

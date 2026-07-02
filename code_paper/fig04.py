@@ -80,9 +80,9 @@ HELM_MODELS = {
 # step + ML Architecture champion). Ground Truth per AGENTS.md convention.
 HELM_LABELS = {
     "gt":   "Ground Truth",
-    "helm": "#1 Helmholtz",
-    "vel":  "#2 Velocity",
-    "best": "#8 SamudraBGC",
+    "helm": "#2 Helmholtz",
+    "vel":  "#1 Velocity",
+    "best": "#11 SamudraBGC",
 }
 HELM_COLORS = {
     "gt":   "#000000",

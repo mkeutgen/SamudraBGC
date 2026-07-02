@@ -18,12 +18,12 @@ loss: mae_gradient_sf
 gradient_weight: 0.10
 second_order_weight: 0.0
 sf_weight: 50.0   # calibrated: SF term is a stable statistic; ~0.0005 raw vs base MAE ~0.16, so weight ~50 gives ~15% contribution on psi/phi channels
-sf_max_lag: 10
-sf_n_bins: 5
+sf_max_lag: 5
+sf_n_bins: 3
 sf_orders:
 - 2
 finetune: false
-resume_ckpt_path: null
+resume_ckpt_path: outputs/champion_sf_loss/saved_nets/ckpt_20.pt
 inference_epochs: []
 data_percent: 1.0
 
@@ -73,7 +73,7 @@ data:
   concurrent_compute: true
 
 model:
-  checkpointing: null
+  checkpointing: all
   pred_residuals: false
   last_kernel_size: 3
   pad: constant

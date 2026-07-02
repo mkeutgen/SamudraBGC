@@ -64,6 +64,7 @@ OUTPUT_DIR = Path(__file__).resolve().parent.parent / "figures" / "fig04_combine
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CACHE_FILE = OUTPUT_DIR / "_data_cache.pkl"
+CACHE_VERSION = 2  # Increment when cache structure changes (v2: added gt_std for nRMSE)
 
 # ── Constants ────────────────────────────────────────────────────────────────
 MOL_TO_UMOL = 1e6
@@ -86,9 +87,9 @@ HELM_MODELS = {
 }
 HELM_LABELS = {
     "gt":   "Ground Truth",
-    "helm": "#1 Helmholtz",
-    "vel":  "#2 Velocity",
-    "best": "#8 SamudraBGC",
+    "helm": "#2 Helmholtz",
+    "vel":  "#1 Velocity",
+    "best": "#11 SamudraBGC",
 }
 HELM_COLORS = {
     "gt":   "#000000",
@@ -127,15 +128,18 @@ C = {
 
 LABELS = {
     "gt":       "Ground Truth",
-    "best":     "#8 SamudraBGC",
-    "linear":   "#1 Linear BGC",
+    "best":     "#11 SamudraBGC",
+    "linear":   "#2 Linear BGC",
     "log":      "#3 Log BGC",
-    "alpha0":   "#5 Grad Weight 0",
+    "alpha0":   "#4 Grad Weight 0",
     "alpha025": "#6 Grad Weight 0.25",
     "alpha050": "#7 Grad Weight 0.50",
 }
 
 # PCA variants for panel (d)
+# "All 50 levels" = phase2_helmholtz_grad010, the champion gradient-weight model
+# that predicts all 50 depth levels directly (no PCA compression).
+# The PCA models (5/10/15/20 components) compress the vertical dimension.
 PCA_PATHS = {
     "All 50 levels": "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase2_helmholtz_grad010_eval_linear/predictions.zarr",
     "5 components":  "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca5_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr",
@@ -154,12 +158,14 @@ PCA_LWS = {"All 50 levels": 2.5, "5 components": 2.5, "10 components": 2.5,
            "15 components": 2.5, "20 components": 3.8}
 PCA_LST = {"All 50 levels": "--", "5 components": ":", "10 components": "-.",
            "15 components": "-", "20 components": "-"}
+# Labels match ablation tree: "All 50 levels" is the baseline (predicts all depths),
+# PCA models compress to fewer components
 PCA_LABELS = {
-    "All 50 levels": "#4 50 components",
-    "5 components":  "#11 5 components",
-    "10 components": "#10 10 components",
-    "15 components": "#9 15 components",
-    "20 components": "#8 20 components",
+    "All 50 levels": "#5 All 50 levels",
+    "5 components":  "#8 5 components",
+    "10 components": "#9 10 components",
+    "15 components": "#10 15 components",
+    "20 components": "#11 20 components",
 }
 
 # ── Variants ─────────────────────────────────────────────────────────────────
@@ -352,6 +358,13 @@ def _compute_rmse_for_variable(args):
     gt = _load_var_all_levels(GT_PATH, vp, max_level, ref_times, wet, scale, True)
     print(f"  [{vp}] GT ready  {gt.nbytes/1e9:.1f} GB  ({_time.time()-t0:.0f}s)", flush=True)
 
+    # Compute GT standard deviation at each level for normalization
+    # std computed over time and space (all wet cells, all timesteps)
+    gt_std = np.zeros(max_level, dtype=np.float64)
+    for lev in range(max_level):
+        gt_std[lev] = float(np.nanstd(gt[lev]))
+    print(f"  [{vp}] GT std range: {gt_std.min():.3g} - {gt_std.max():.3g}", flush=True)
+
     rmse_by_exp = {}
     for mi, (exp_label, path) in enumerate(PCA_PATHS.items(), 1):
         t1 = _time.time()
@@ -370,7 +383,7 @@ def _compute_rmse_for_variable(args):
 
     del gt
     print(f"  [{vp}] all done ({_time.time()-t0:.0f}s total)", flush=True)
-    return vp, rmse_by_exp
+    return vp, rmse_by_exp, gt_std
 
 
 def load_pca_rmse_data():
@@ -398,7 +411,8 @@ def load_pca_rmse_data():
 
     by_var = {
         vp: {"label": scale_map[vp][1], "prefix": vp,
-             "rmse": {exp: np.zeros(max_level) for exp in PCA_PATHS}}
+             "rmse": {exp: np.zeros(max_level) for exp in PCA_PATHS},
+             "gt_std": np.zeros(max_level)}
         for vp in vars_to_compute
     }
 
@@ -414,9 +428,10 @@ def load_pca_rmse_data():
     with ProcessPoolExecutor(max_workers=n_workers) as pool:
         futures = {pool.submit(_compute_rmse_for_variable, a): a[0] for a in task_args}
         for fut in as_completed(futures):
-            vp, rmse_by_exp = fut.result()
+            vp, rmse_by_exp, gt_std = fut.result()
             for exp_label, rmse_arr in rmse_by_exp.items():
                 by_var[vp]["rmse"][exp_label][:] = rmse_arr
+            by_var[vp]["gt_std"][:] = gt_std
             print(f"  done {vp} ({_time.time()-t0:.0f}s elapsed)", flush=True)
 
     return {"depth_centers": depth_centers, "by_var": by_var}
@@ -489,10 +504,10 @@ def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units, suf
 
     short_labels = {
         "gt":       "GT",
-        "best":     "#8 SamudraBGC",
-        "linear":   "#1 Lin",
+        "best":     "#11 SamudraBGC",
+        "linear":   "#2 Lin",
         "log":      "#3 Log",
-        "alpha0":   "#5 GW0",
+        "alpha0":   "#4 GW0",
         "alpha025": "#6 GW0.25",
         "alpha050": "#7 GW0.50",
     }
@@ -541,11 +556,11 @@ def draw_pca_panel(axes_rmse, pca_data, var_label):
     depth = pca_data["depth_centers"]
 
     short_pca_labels = {
-        "All 50 levels": "#4 All 50 PCs",
-        "5 components":  "#11 5 PCs",
-        "10 components": "#10 10 PCs",
-        "15 components": "#9 15 PCs",
-        "20 components": "#8 20 PCs",
+        "All 50 levels": "#5 All 50 lvl",
+        "5 components":  "#8 5 PCs",
+        "10 components": "#9 10 PCs",
+        "15 components": "#10 15 PCs",
+        "20 components": "#11 20 PCs",
     }
 
     for ax, vd in zip(axes_rmse, pca_data["vars"]):
@@ -665,15 +680,22 @@ def main():
         print(f"  done {v['suffix']}")
 
     # Load time series + PCA RMSE data (cached)
+    cache_valid = False
     if CACHE_FILE.exists():
-        print(f"\n[cache] Loading {CACHE_FILE} (delete to force regeneration)...")
+        print(f"\n[cache] Loading {CACHE_FILE}...")
         with open(CACHE_FILE, "rb") as f:
             cached = pickle.load(f)
-        ts_all   = cached["ts_all"]
-        times_dt = cached["times_dt"]
-        pca_data = cached["pca_data"]
-        print(f"[cache] loaded in {_time.time() - t0_total:.1f}s")
-    else:
+        cache_ver = cached.get("version", 1)
+        if cache_ver == CACHE_VERSION:
+            ts_all   = cached["ts_all"]
+            times_dt = cached["times_dt"]
+            pca_data = cached["pca_data"]
+            cache_valid = True
+            print(f"[cache] loaded v{cache_ver} in {_time.time() - t0_total:.1f}s")
+        else:
+            print(f"[cache] version mismatch (have v{cache_ver}, need v{CACHE_VERSION}), regenerating...")
+
+    if not cache_valid:
         print("\n[2/3] Loading ablation time series for all variants...")
         ts_all = {}
         times_dt = None
@@ -685,9 +707,10 @@ def main():
         print("\n[2b/3] Loading PCA RMSE data (full 2010–2014, all variant vars)...")
         pca_data = load_pca_rmse_data()
 
-        print(f"\n[cache] Writing {CACHE_FILE}...")
+        print(f"\n[cache] Writing {CACHE_FILE} (v{CACHE_VERSION})...")
         with open(CACHE_FILE, "wb") as f:
-            pickle.dump({"ts_all": ts_all, "times_dt": times_dt, "pca_data": pca_data},
+            pickle.dump({"version": CACHE_VERSION, "ts_all": ts_all,
+                         "times_dt": times_dt, "pca_data": pca_data},
                         f, protocol=pickle.HIGHEST_PROTOCOL)
         print(f"[cache] saved ({CACHE_FILE.stat().st_size/1e6:.1f} MB)")
 

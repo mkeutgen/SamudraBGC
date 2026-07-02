@@ -104,10 +104,10 @@ C = {
 
 LABELS = {
     "gt":       "Ground Truth",
-    "best":     "#8 SamudraBGC",
-    "linear":   "#1 Linear BGC",
+    "best":     "#11 SamudraBGC",
+    "linear":   "#2 Linear BGC",
     "log":      "#3 Log BGC",
-    "alpha0":   "#5 Grad Weight 0",
+    "alpha0":   "#4 Grad Weight 0",
     "alpha025": "#6 Grad Weight 0.25",
     "alpha050": "#7 Grad Weight 0.50",
 }
@@ -132,11 +132,11 @@ PCA_LWS = {"All 50 levels": 2.5, "5 components": 2.5, "10 components": 2.5,
 PCA_LST = {"All 50 levels": "--", "5 components": ":", "10 components": "-.",
            "15 components": "-", "20 components": "-"}
 PCA_LABELS = {
-    "All 50 levels": "#4 50 components",
-    "5 components":  "#11 5 components",
-    "10 components": "#10 10 components",
-    "15 components": "#9 15 components",
-    "20 components": "#8 20 components",
+    "All 50 levels": "#5 50 components",
+    "5 components":  "#8 5 components",
+    "10 components": "#9 10 components",
+    "15 components": "#10 15 components",
+    "20 components": "#11 20 components",
 }
 
 # ── Variants (same 6 as v6) ──────────────────────────────────────────────────
@@ -359,10 +359,10 @@ def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units, suf
     # Shorter legend labels to fit in 2 columns
     short_labels = {
         "gt":       "GT",
-        "best":     "#8 SamudraBGC",
-        "linear":   "#1 Lin",
+        "best":     "#11 SamudraBGC",
+        "linear":   "#2 Lin",
         "log":      "#3 Log",
-        "alpha0":   "#5 GW0",
+        "alpha0":   "#4 GW0",
         "alpha025": "#6 GW0.25",
         "alpha050": "#7 GW0.50",
     }
