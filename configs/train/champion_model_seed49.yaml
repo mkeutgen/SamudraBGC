@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=../../schemas/TrainConfig.json
+# ============================================================================
+# Champion Model - Seed 49
+# Same as champion_model but with different random seed for ensemble
+# ============================================================================
+
+debug: false
+disk_mode: true
+pin_mem: true
+save_freq: 5
+epochs: 70
+batch_size: 1
+learning_rate: 0.0002
+scheduler:
+  type: cosine
+loss: mae_gradient_weighted
+gradient_weight: 0.10
+second_order_weight: 0.0
+finetune: false
+resume_ckpt_path: null
+inference_epochs: []
+data_percent: 1.0
+
+train_time:
+  start: '1960-01-01'
+  end: '2014-12-31'
+val_time:
+  start: '2015-01-01'
+  end: '2019-12-31'
+inference_times:
+- start: '2015-01-01'
+  end: '2019-12-31'
+
+data_stride:
+- 1
+steps:
+- 4
+step_transition: []
+backend: auto
+
+experiment:
+  name: champion_model_seed49
+  rand_seed: 49
+  base_output_dir: ./outputs
+  wandb:
+    mode: offline
+    project: ''
+    entity: ''
+    group: champion-seeds
+    tags:
+    - "champion"
+    - "seed-ensemble"
+    - "seed-49"
+  prognostic_vars_key: helmholtz_log_no_logno3_pca20_all
+  boundary_vars_key: minimal_forcing
+  data_root: null
+
+data:
+  data_location: bgc_data.zarr
+  data_means_location: bgc_means.zarr
+  data_stds_location: bgc_stds.zarr
+  scaling_residuals_file: null
+  num_workers: 4
+  persistent_workers: true
+  prefetch_factor: 2
+  hist: 1
+  concurrent_compute: true
+
+model:
+  checkpointing: null
+  pred_residuals: false
+  last_kernel_size: 3
+  pad: constant
+  unet:
+    ch_width:
+    - 320
+    - 440
+    - 600
+    dilation:
+    - 1
+    - 2
+    - 4
+    n_layers:
+    - 1
+    - 1
+    - 1
+    core_block:
+      block_type: conv_next_block
+      kernel_size: 3
+      activation: capped_gelu
+      upscale_factor: 2
+      norm: batch
+    down_sampling_block: avg_pool
+    up_sampling_block: bilinear_upsample
+  corrector:
+    non_negative_corrector_names: null
+    ocean_heat_corrector: false
