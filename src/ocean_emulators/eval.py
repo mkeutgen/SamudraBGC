@@ -78,9 +78,12 @@ class Eval:
             cfg.experiment.boundary_vars_key
         ]
 
+        # Mirror train.py: an "*_all" prognostic key maps to 50 vertical levels.
+        # The old hardcoded 19 was an OM4-era leftover (audit finding 15);
+        # self.levels only feeds the "Levels:" log line below.
         levels = cfg.experiment.prognostic_vars_key.split("_")[-1]
         if "all" in levels:
-            self.levels = 19
+            self.levels = 50
         else:
             self.levels = int(levels)
 
