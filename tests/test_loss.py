@@ -99,3 +99,28 @@ def test_mse_dynamic_update_time_major(wet):
 
     assert loss_fn._per_channel_scale.shape == (N_VARS,)
     assert torch.allclose(loss_fn._per_channel_scale, expected_scale)
+
+
+def test_mse_dynamic_update_with_limits(wet):
+    """Regression test for audit finding 10.
+
+    With should_limit=True, _limits is a multi-element tensor; the buggy
+    ``if self._limits:`` raised an ambiguous-truthiness RuntimeError on the
+    first update. The weights must instead be capped elementwise at 1/std^2.
+    (On this branch the ``is not None`` guard was already present; this test
+    guards against a regression.)
+    """
+    stds = torch.tensor([0.5, 1.0, 2.0, 4.0])
+    loss_fn = MseDynamic(wet=wet, stds=stds, should_limit=True)
+
+    pred, target = _pred_target_with_channel_losses([1, 2, 3, 4, 5, 6, 7, 8])
+    loss_fn.update(pred, target)  # raised RuntimeError before the fix
+
+    mse = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]) ** 2
+    new_weights = (1.0 / mse).reshape(HIST + 1, N_VARS).mean(dim=0)
+    limits = 1.0 / stds.pow(2)
+    capped = new_weights.min(limits)
+    n_window = MseDynamic.N_WINDOW
+    expected_scale = (torch.ones(N_VARS) * (n_window - 1) + capped) / n_window
+
+    assert torch.allclose(loss_fn._per_channel_scale, expected_scale)
