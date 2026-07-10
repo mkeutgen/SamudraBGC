@@ -345,6 +345,15 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
         for j in DEPTH_I_LEVELS
     ]
     + ["SSH"],
+    # ── Test-only fixtures ──
+    # These keys are NOT used by any training/eval config. They match the
+    # in-memory `mock` DataSource (OM4 convention: thetao/so/uo/vo + zos) built in
+    # tests/conftest.py and are required to revive the trainer test suite (audit
+    # finding 6). Do not reference them from production configs.
+    "thermo_dynamic_5": [
+        k + str(j) for k in ["uo_", "vo_", "thetao_", "so_"] for j in DEPTH_I_LEVELS[:5]
+    ]
+    + ["zos"],
 }
 
 BoundaryVarNames = list[str]
@@ -362,7 +371,12 @@ BOUNDARY_VARS: dict[str, BoundaryVarNames] = {
         "chl_0",    # TODO : Assimilate From MODIS/VIIRS satellite
         "temp_0",   # TODO : Assimilate From AVHRR/AMSR2 SST (also beneficial!)
         # Potentially: "salt_0" from SMAP/SMOS
-    ]
+    ],
+    # ── Test-only fixtures ──
+    # Matches the `mock` DataSource forcing vars (tauuo/tauvo/hfds) in
+    # tests/conftest.py; required to revive the trainer test suite (audit
+    # finding 6). Not referenced by any production config.
+    "tau_hfds": ["tauuo", "tauvo", "hfds"],
 }
 
 DEFAULT_METADATA = {

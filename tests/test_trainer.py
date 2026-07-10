@@ -24,9 +24,14 @@ def test_trainer__mini_benchmark(trainer_pair: TrainPair, caplog, benchmark):
         trainer.run()
 
 
+# Marked manual: full-training integration test on the (large, 180x360) mock
+# DataSource is slow on CPU and memory-heavy under `-n auto`. The fast, focused
+# regression tests below cover checkpoint save/load correctness; run this with
+# `pytest -m manual` for the end-to-end training smoke check.
+@pytest.mark.manual
 @pytest.mark.parametrize(
     "data_source,config_name",
-    [("remote-om4", "train_default_2step.test.yaml")],
+    [("mock", "train_default_2step.test.yaml")],
     indirect=True,
 )
 def test_trainer__mini_2step(trainer_pair: TrainPair, caplog):
@@ -36,9 +41,14 @@ def test_trainer__mini_2step(trainer_pair: TrainPair, caplog):
     trainer.run()
 
 
+# Marked manual: trains a full epoch on the large mock DataSource (slow on CPU,
+# memory-heavy under `-n auto`). This checks EMA-state round-trip through
+# save/load; the fast test_ema_checkpoint_saves_ema_not_raw_weights below covers
+# the audit finding 1 regression. Run with `pytest -m manual`.
+@pytest.mark.manual
 @pytest.mark.parametrize(
     "data_source,config_name",
-    [("remote-om4", "train_default_2step.test.yaml")],
+    [("mock", "train_default_2step.test.yaml")],
     indirect=True,
 )
 def test_checkpoint_ema(train_config, caplog):
@@ -61,7 +71,64 @@ def test_checkpoint_ema(train_config, caplog):
 
 @pytest.mark.parametrize(
     "data_source,config_name",
-    [("remote-om4", "train_default_2step.test.yaml")],
+    [("mock", "train_default_2step.test.yaml")],
+    indirect=True,
+)
+def test_ema_checkpoint_saves_ema_not_raw_weights(trainer_pair: TrainPair, caplog):
+    """Regression test for audit finding 1.
+
+    ``save_checkpoint(for_inference=True)`` must serialize the EMA weights, not
+    the raw model weights. The bug: ``model.state_dict()`` was captured inside
+    the EMA context, but ``torch.save`` ran *after* the context exit restored the
+    raw weights in-place (``EMATracker.restore``), rewriting the aliased tensors
+    so the saved ``ema_ckpt.pt`` was byte-identical to the raw weights.
+    """
+    caplog.set_level(logging.INFO)
+    _, trainer = trainer_pair
+    trainer.best_val_loss = 10
+    trainer.best_inf_loss = 10
+
+    # Force the EMA weights to differ from the raw weights by a known offset so
+    # the two checkpoints are guaranteed distinguishable per parameter.
+    with torch.no_grad():
+        for name in trainer._ema._ema_params:
+            trainer._ema._ema_params[name] = (
+                trainer._ema._ema_params[name].detach().clone() + 1.0
+            )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        raw_path = Path(tmpdir) / "ckpt.pt"
+        ema_path = Path(tmpdir) / "ema_ckpt.pt"
+        trainer.save_checkpoint(1, raw_path, for_inference=False)
+        trainer.save_checkpoint(1, ema_path, for_inference=True)
+        raw_model = torch.load(raw_path, map_location="cpu", weights_only=False)[
+            "model"
+        ]
+        ema_model = torch.load(ema_path, map_location="cpu", weights_only=False)[
+            "model"
+        ]
+
+    model = trainer.model
+    assert isinstance(model, BaseModel)
+    trainable = [name for name, p in model.named_parameters() if p.requires_grad]
+    assert trainable, "expected at least one trainable parameter"
+
+    # Every trainable weight in the EMA checkpoint must equal the EMA params and
+    # differ from the raw checkpoint (which holds the live/raw weights).
+    for name in trainable:
+        ema_name = trainer._ema._get_ema_name(name)
+        expected = trainer._ema._ema_params[ema_name].cpu()
+        assert torch.equal(ema_model[name].cpu(), expected), (
+            f"{name}: ema_ckpt.pt does not hold EMA weights"
+        )
+        assert not torch.equal(ema_model[name].cpu(), raw_model[name].cpu()), (
+            f"{name}: ema_ckpt.pt is byte-identical to the raw weights (finding 1)"
+        )
+
+
+@pytest.mark.parametrize(
+    "data_source,config_name",
+    [("mock", "train_default_2step.test.yaml")],
     indirect=True,
 )
 def test_checkpoint_inference(trainer_pair: TrainPair, caplog):

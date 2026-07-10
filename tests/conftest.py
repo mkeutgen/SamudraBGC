@@ -319,8 +319,11 @@ def backend(request) -> TrainBackendConfig:
 def _uncached_data_source(name: str) -> DataSource:
     match name:
         case "mock":
+            # noleap calendar to match the current configs (TimeConfig uses
+            # NoLeapDate; julian was OM4-era) and mismatches config dates when a
+            # Trainer slices train/val/inference times (audit finding 6 revival).
             time_range = xr.cftime_range(
-                "1975-08-05", "1975-12-31", freq="5D", calendar="julian"
+                "1975-08-05", "1975-12-31", freq="5D", calendar="noleap"
             )
             dims = DataSourceDims()
             dims.set_time_range(time_range)
@@ -332,9 +335,16 @@ def _uncached_data_source(name: str) -> DataSource:
                 var: dims.encode(i)
                 for i, var in enumerate(["hfds", "tauuo", "tauvo", "zos"])
             }
+            vars_3d_bases = ["so", "thetao", "uo", "vo"]
+            # data_var_index is encoded into a uint8, so it must stay < 256. The
+            # old `i + j * 10` scheme overflowed once DEPTH_I_LEVELS grew to 50
+            # (max 3 + 49*10 = 493). Use a contiguous per-(var, level) index
+            # instead, which stays unique and bounded (max 4 + 3*50 + 49 = 203).
             vars_3d = {
-                f"{var}_{lev}": dims.encode(len(vars_2d) + i + j * 10)
-                for i, var in enumerate(["so", "thetao", "uo", "vo"])
+                f"{var}_{lev}": dims.encode(
+                    len(vars_2d) + i * len(c.DEPTH_I_LEVELS) + j
+                )
+                for i, var in enumerate(vars_3d_bases)
                 for j, lev in enumerate(c.DEPTH_I_LEVELS)
             }
             # Mask with a binary circle.

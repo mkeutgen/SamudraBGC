@@ -1017,8 +1017,14 @@ class Trainer:
         for_inference: bool = False,
     ):
         if for_inference:
+            # Clone inside the EMA context: state_dict() tensors alias the live
+            # parameter storage, and _ema_context() restores the raw weights
+            # in-place on exit. Without the clone the captured dict would be
+            # rewritten back to raw weights before torch.save runs (audit finding 1).
             with self._ema_context():
-                model_state_dict = self.model.state_dict()
+                model_state_dict = {
+                    k: v.detach().clone() for k, v in self.model.state_dict().items()
+                }
         else:
             model_state_dict = self.model.state_dict()
 
