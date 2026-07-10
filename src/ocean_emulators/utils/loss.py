@@ -123,9 +123,13 @@ class MseDynamic:
         loss_with_history_channels: Float[torch.Tensor, " hist*var"] = decomposed_mse(
             pred, target, self._wet
         )
+        # Channels are time-major: flat index = t * n_vars + v (see
+        # datasets.py rearrange "... time variable ... -> ... (time variable) ...").
+        # Reshape to (hist, var) so the per-variable scale broadcasts over the
+        # leading time dim (audit finding 2; mirrors loss_openathena.DynamicLoss).
         scaled_loss_including_history_dimension: Float[torch.Tensor, "hist var"] = (
-            loss_with_history_channels.reshape(self._per_channel_scale.shape[0], -1)
-            * self._per_channel_scale.unsqueeze(1)
+            loss_with_history_channels.reshape(-1, self._per_channel_scale.shape[0])
+            * self._per_channel_scale
         )
         return scaled_loss_including_history_dimension.reshape(-1)
 
@@ -140,12 +144,12 @@ class MseDynamic:
         new_target_weights_with_history: Float[torch.Tensor, " hist*var"] = (
             1.0 / mse_loss
         )
-        # Reshape from channels * history to channels
-        # by averaging along the `hist` dimension
+        # Channels are time-major: (hist, var). Average over the leading time
+        # dim to get per-variable weights (audit finding 2).
         new_target_weights: Float[torch.Tensor, " var"] = (
             new_target_weights_with_history.reshape(
-                self._per_channel_scale.shape[0], -1
-            ).mean(dim=1)
+                -1, self._per_channel_scale.shape[0]
+            ).mean(dim=0)
         )
         if self._limits is not None:
             new_target_weights = new_target_weights.min(self._limits)
@@ -575,7 +579,10 @@ class MaeDynamic:
         else:
             loss_per_ch = mae
 
-        scaled = loss_per_ch.reshape(self._n_vars, -1) * self._per_channel_scale.unsqueeze(1)
+        # Channels are time-major: flat index = t * n_vars + v. Reshape to
+        # (hist, var) so the per-variable scale broadcasts over the leading
+        # time dim (audit finding 2; mirrors loss_openathena.DynamicLoss).
+        scaled = loss_per_ch.reshape(-1, self._n_vars) * self._per_channel_scale
         return scaled.reshape(-1)
 
     def update(
@@ -587,8 +594,9 @@ class MaeDynamic:
         mae = self._mae_per_channel(pred, target)
         mae = torch.where(mae == 0, torch.tensor(1e-8, device=mae.device), mae)
 
-        # Average across history dimension to get per-variable weights
-        new_weights = (1.0 / mae).reshape(self._n_vars, -1).mean(dim=1)
+        # Channels are time-major: (hist, var). Average over the leading time
+        # dim to get per-variable weights (audit finding 2).
+        new_weights = (1.0 / mae).reshape(-1, self._n_vars).mean(dim=0)
 
         if get_world_size() > 1:
             all_reduce_mean(new_weights)

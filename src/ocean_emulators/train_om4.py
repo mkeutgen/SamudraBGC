@@ -582,11 +582,12 @@ class Trainer:
                     self.loss_fn, "loss_scale_per_channel", None
                 ):
                     loss_scale_per_channel = loss_scale_per_channel_fn()
-                    # Reshape from channels * history to channels
-                    # by averaging along the `hist` dimension
+                    # Channels are time-major: (hist, var). Average over the
+                    # leading time dim to get per-variable losses (audit
+                    # finding 2; mirrors loss_openathena.DynamicLoss).
                     loss_per_channel = TO.loss_per_channel.reshape(
-                        loss_scale_per_channel.shape[0], -1
-                    ).mean(dim=1)
+                        -1, loss_scale_per_channel.shape[0]
+                    ).mean(dim=0)
 
                     unscaled_loss_per_channel = (
                         loss_per_channel / loss_scale_per_channel
