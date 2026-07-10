@@ -27,7 +27,10 @@ class BaseModel(torch.nn.Module):
         assert last_kernel_size % 2 != 0, "Cannot use even kernel sizes!"
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.wet = wet.bool()
+        # Registered (non-persistent) buffer so model.to(device) moves the mask
+        # with the parameters instead of relying on callers pre-moving it
+        # (audit finding 17). Non-persistent keeps checkpoints byte-compatible.
+        self.register_buffer("wet", wet.bool(), persistent=False)
         self.N_pad = int((last_kernel_size - 1) / 2)
         self.pad = pad
         self.pred_residuals = pred_residuals
