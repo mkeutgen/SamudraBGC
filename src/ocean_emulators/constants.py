@@ -209,13 +209,10 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
         for j in DEPTH_I_LEVELS
     ]
     + ["SSH"],
-    # Keep the old one for backward compatibility if needed
-    "full_state_and_helmholtz_all": [
-        k + str(j)
-        for k in ["dic_", "o2_", "no3_", "pp_", "chl_", "temp_", "salt_","uo_","vo_","psi_","phi_","poc_"]
-        for j in DEPTH_I_LEVELS
-    ]
-    + ["SSH"],
+    # NOTE: pp_ is intentionally NOT included. An earlier duplicate definition
+    # of this key (same dict literal) listed pp_, but Python kept this second
+    # definition, so every checkpoint trained with this key used the pp_-less
+    # variable set below. Keep it that way (audit finding 7).
     "full_state_and_helmholtz_all": [
         k + str(j)
         for k in ["dic_", "o2_", "no3_", "chl_", "temp_", "salt_","uo_","vo_","psi_","phi_","poc_"]
