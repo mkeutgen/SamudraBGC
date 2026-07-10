@@ -9,6 +9,12 @@ def get_depth_loss_dict(
     tensor_map = TensorMap.get_instance()
     metrics = {}
     for depth in tensor_map.DEPTH_SET:
+        # PCA keys have component suffixes (e.g. 0-19) narrower than the
+        # 50-level DEPTH_SET assumed for *_all keys, leaving empty buckets
+        # whose .mean() is NaN — skip them instead of logging NaN to W&B
+        # (audit finding 8).
+        if tensor_map.DP_3D_IDX[depth].numel() == 0:
+            continue
         metrics[f"{label}/loss/depth/depth_{depth}_loss"] = loss_per_channel[
             tensor_map.DP_3D_IDX[depth]
         ].mean()
