@@ -1,0 +1,29 @@
+#!/bin/bash
+# 5-year rollout (2010-2014, val period) for phase2_helmholtz_grad00 (Model #5: Grad Weight 0)
+
+#SBATCH --job-name=rollout_grad00
+#SBATCH --partition=cimes
+#SBATCH --account=cimes3
+#SBATCH --gres=gpu:l40s:1
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=400G
+#SBATCH --time=24:00:00
+#SBATCH --output=logs/eval_phase2_helmholtz_grad00_rollout2010_2014_%j.out
+#SBATCH --error=logs/eval_phase2_helmholtz_grad00_rollout2010_2014_%j.err
+
+set -e
+
+source "${SLURM_SUBMIT_DIR}/scripts/slurm/env_setup.sh"
+
+
+CONFIG=configs/eval/phase2_helmholtz_grad00_eval_rollout2010_2014.yaml
+
+echo "Starting 5-year rollout (2010-2014) for phase2_helmholtz_grad00 (Model #5: Grad Weight 0)"
+echo "Config: ${CONFIG}"
+echo "Job ID: ${SLURM_JOB_ID}"
+
+python -m ocean_emulators.eval ${CONFIG}
+
+echo "Rollout eval complete: outputs/phase2_helmholtz_grad00_eval_rollout2010_2014/predictions.zarr"
