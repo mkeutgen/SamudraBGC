@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=fig05_companion
-#SBATCH --account=cimes3
-#SBATCH --partition=cimes
+#SBATCH --account=YOUR_ACCOUNT
+#SBATCH --partition=YOUR_PARTITION
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16

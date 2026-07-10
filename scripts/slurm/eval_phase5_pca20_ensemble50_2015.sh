@@ -4,8 +4,8 @@
 # Perturbations: density-compensated T/S (0.05C), lognormal BGC (2%)
 
 #SBATCH --job-name=pca20_ens50
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1

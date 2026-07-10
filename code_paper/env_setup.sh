@@ -14,16 +14,21 @@ source ~/.bashrc 2>/dev/null || true
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OCEAN_EMU_PROJECT_DIR="${OCEAN_EMU_PROJECT_DIR:-$(dirname "$SCRIPT_DIR")}"
 
-# Force correct data root (override any incorrect value from bashrc)
-OCEAN_EMU_DATA_ROOT="/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz"
-
-# Fallback conda env if not set
-OCEAN_EMU_CONDA_ENV="${OCEAN_EMU_CONDA_ENV:-/scratch/cimes/maximek/envs/ocean-emulator}"
-
-if [ -z "$OCEAN_EMU_CONDA_ENV" ]; then
-    echo "ERROR: OCEAN_EMU_CONDA_ENV not set"
+# Use OCEAN_EMU_DATA_ROOT from environment (required)
+if [ -z "$OCEAN_EMU_DATA_ROOT" ]; then
+    echo "ERROR: OCEAN_EMU_DATA_ROOT not set. Set it in ~/.bashrc, e.g.:"
+    echo "  export OCEAN_EMU_DATA_ROOT=/path/to/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz"
     exit 1
 fi
+
+# Use OCEAN_EMU_CONDA_ENV from environment (required)
+if [ -z "$OCEAN_EMU_CONDA_ENV" ]; then
+    echo "ERROR: OCEAN_EMU_CONDA_ENV not set. Set it in ~/.bashrc, e.g.:"
+    echo "  export OCEAN_EMU_CONDA_ENV=/path/to/your/conda/env"
+    exit 1
+fi
+
+# (OCEAN_EMU_CONDA_ENV validation already done above)
 module purge
 module load anaconda3/2024.10
 conda activate "$OCEAN_EMU_CONDA_ENV"

@@ -2,8 +2,8 @@
 # 5-year rollout (2010-2014) for phase7_pca20_arch_wider_deeper v2 (retrained)
 
 #SBATCH --job-name=rollout_p7_wd_v2
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1

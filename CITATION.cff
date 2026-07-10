@@ -1,0 +1,36 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: "SamudraBGC: Machine Learning Emulator of Ocean Biogeochemistry"
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - name: Manuscript Authors
+license: Apache-2.0
+repository-code: https://github.com/PLACEHOLDER/SamudraBGC
+version: 1.0.0
+date-released: 2026-07-10
+abstract: >-
+  SamudraBGC is a machine learning emulator for ocean physics and
+  biogeochemistry. It implements a ConvNeXt U-Net architecture to predict
+  ocean variables including temperature, salinity, velocities, and
+  biogeochemical tracers (DIC, O2, NO3, Chl, POC).
+keywords:
+  - ocean emulator
+  - machine learning
+  - biogeochemistry
+  - climate modeling
+  - deep learning
+  - PyTorch
+
+preferred-citation:
+  type: article
+  title: "SamudraBGC: Machine Learning Emulator of Ocean Biogeochemistry"
+  authors:
+    - name: Manuscript Authors
+  journal: Geophysical Research Letters
+  year: 2026
+  doi: 10.1029/PLACEHOLDER

@@ -3,8 +3,8 @@
 # Test holdout period 2015-2019 (5-year rollout)
 
 #SBATCH --job-name=pca15_ens20_hb_5y
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1

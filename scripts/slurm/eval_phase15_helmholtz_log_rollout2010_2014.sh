@@ -3,8 +3,8 @@
 # Paper ablation: log-space Helmholtz (50 epochs)
 
 #SBATCH --job-name=rollout_p15_log
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1

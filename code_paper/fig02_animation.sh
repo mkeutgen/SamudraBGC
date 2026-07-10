@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=fig02_anim
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
@@ -16,7 +16,8 @@
 
 set -e
 
-source /scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/code_paper/env_setup.sh
+# Source shared environment setup (relative to this script)
+source "$(dirname "$0")/env_setup.sh"
 
 
 mkdir -p logs

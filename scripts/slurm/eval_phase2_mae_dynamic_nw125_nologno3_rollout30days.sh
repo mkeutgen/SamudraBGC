@@ -2,8 +2,8 @@
 # 30-day rollout eval for phase2_mae_dynamic_nw125_nologno3
 
 #SBATCH --job-name=mae_dyn_nologno3_30d
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1

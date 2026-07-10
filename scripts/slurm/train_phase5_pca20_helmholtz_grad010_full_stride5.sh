@@ -3,8 +3,8 @@
 # Champion model with stride=5 (1/5th of data) for data efficiency ablation
 
 #SBATCH --job-name=phase5_pca20_stride5
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1

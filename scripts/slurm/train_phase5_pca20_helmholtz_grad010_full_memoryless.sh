@@ -3,8 +3,8 @@
 # Same as train_phase5_pca20_helmholtz_grad010_full.sh but with hist=0
 
 #SBATCH --job-name=phase5_pca20_memoryless
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1

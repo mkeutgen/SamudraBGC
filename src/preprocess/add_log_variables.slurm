@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --job-name=add_log_vars
 #SBATCH --output=logs/add_log_vars_%j.out
 #SBATCH --error=logs/add_log_vars_%j.err
@@ -26,14 +26,15 @@ echo "Start time: $(date)"
 echo ""
 
 # Load environment
+# NOTE: Set OCEAN_EMU_CONDA_ENV and OCEAN_EMU_DATA_ROOT in your ~/.bashrc
 module load anaconda3/2024.10
-conda activate /scratch/cimes/maximek/envs/ocean-emulator
+conda activate "${OCEAN_EMU_CONDA_ENV:?Set OCEAN_EMU_CONDA_ENV to your conda environment path}"
 
 # Change to project root directory
-cd /scratch/cimes/maximek/INMOS/Ocean_Emulator
+cd "${OCEAN_EMU_PROJECT_DIR:?Set OCEAN_EMU_PROJECT_DIR to your project directory}"
 
 # Data directory
-DATA_DIR="/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz"
+DATA_DIR="${OCEAN_EMU_DATA_ROOT:?Set OCEAN_EMU_DATA_ROOT to your data directory}/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz"
 
 echo "Working directory: $(pwd)"
 echo "Data directory: $DATA_DIR"

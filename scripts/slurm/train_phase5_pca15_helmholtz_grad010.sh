@@ -3,8 +3,8 @@
 # Requires: PCA dataset created by scripts/slurm/fit_pca.sh
 
 #SBATCH --job-name=phase5_pca15_grad010
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1

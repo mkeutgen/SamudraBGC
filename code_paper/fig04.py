@@ -64,10 +64,26 @@ DX_KM       = 9.0
 SNAP_DATE_STR = "2014-03-21"
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-GT_PATH       = "/scratch/cimes/maximek/INMOS/processed_data/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
-LINEAR_PATH   = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_helmholtz_nograd_eval/predictions.zarr"
-VELOCITY_PATH = "/scratch/cimes/maximek/INMOS/Ocean_Emulator/outputs/phase1_velocity_nograd_eval/predictions.zarr"
-BEST_PATH     = "/scratch/cimes/maximek/INMOS/Ocean_Emulator_PCA/outputs/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr"
+# Set these environment variables before running:
+#   OCEAN_EMU_DATA_ROOT   - path to processed data (contains MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/)
+#   OCEAN_EMU_OUTPUTS_BASE - path to Ocean_Emulator outputs (baseline models)
+#   OCEAN_EMU_OUTPUTS_PCA  - path to Ocean_Emulator_PCA outputs (PCA models)
+_DATA_ROOT = os.environ.get("OCEAN_EMU_DATA_ROOT")
+_OUTPUTS_BASE = os.environ.get("OCEAN_EMU_OUTPUTS_BASE")
+_OUTPUTS_PCA = os.environ.get("OCEAN_EMU_OUTPUTS_PCA")
+
+if not all([_DATA_ROOT, _OUTPUTS_BASE, _OUTPUTS_PCA]):
+    raise EnvironmentError(
+        "Required environment variables not set. Please set:\n"
+        "  OCEAN_EMU_DATA_ROOT=/path/to/processed_data\n"
+        "  OCEAN_EMU_OUTPUTS_BASE=/path/to/Ocean_Emulator/outputs\n"
+        "  OCEAN_EMU_OUTPUTS_PCA=/path/to/Ocean_Emulator_PCA/outputs"
+    )
+
+GT_PATH       = os.path.join(_DATA_ROOT, "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
+LINEAR_PATH   = os.path.join(_OUTPUTS_BASE, "phase1_helmholtz_nograd_eval/predictions.zarr")
+VELOCITY_PATH = os.path.join(_OUTPUTS_BASE, "phase1_velocity_nograd_eval/predictions.zarr")
+BEST_PATH     = os.path.join(_OUTPUTS_PCA, "phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr")
 
 HELM_MODELS = {
     "gt":   GT_PATH,

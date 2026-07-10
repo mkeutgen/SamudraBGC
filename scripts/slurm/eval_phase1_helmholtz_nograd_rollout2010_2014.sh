@@ -2,8 +2,8 @@
 # 5-year rollout (2010-2014, val period) for phase1_helmholtz_nograd
 
 #SBATCH --job-name=rollout_p1_helm
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1

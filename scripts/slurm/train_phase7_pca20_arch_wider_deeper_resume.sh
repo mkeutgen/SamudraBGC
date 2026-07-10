@@ -2,8 +2,8 @@
 # Phase 7: PCA k=20 architecture ablation — Wider+Deeper [400,550,650,750] — RESUME from epoch 40
 
 #SBATCH --job-name=p7_wider_d
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1
