@@ -212,7 +212,12 @@ class DataSource:
 
         norm = (data - means) / stds
         if fill_nan:
-            norm = norm.nan_to_num(nan=fill_value)
+            # A zero std yields ±inf, not NaN — neutralize those too
+            # (audit finding 16; unreachable with current stats, min |std|
+            # verified ~0.03, but cheap insurance against degenerate inputs).
+            norm = norm.nan_to_num(
+                nan=fill_value, posinf=fill_value, neginf=fill_value
+            )
         norm = norm.to(data.dtype)
         return norm
 
