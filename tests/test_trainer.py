@@ -131,6 +131,58 @@ def test_ema_checkpoint_saves_ema_not_raw_weights(trainer_pair: TrainPair, caplo
     [("mock", "train_default_2step.test.yaml")],
     indirect=True,
 )
+def test_best_loss_survives_resume(train_config, caplog):
+    """Regression test for audit finding 3.
+
+    ``best_val_loss`` / ``best_inf_loss`` restored by ``load_checkpoint`` on
+    resume must NOT be wiped by ``run()``. The bug reset both to 1e8 at the top
+    of ``run()``, so the first post-resume epoch trivially beat the sentinel and
+    overwrote ``best_validation_ckpt.pt`` with a possibly worse model.
+    """
+    caplog.set_level(logging.INFO)
+
+    with MultitonScope():
+        trainer_a = Trainer(train_config)
+        # A fresh trainer initializes the best losses to the 1e8 sentinel in
+        # __init__ (finding 3: they must be set before the optional resume load).
+        assert trainer_a.best_val_loss == 1e8
+        assert trainer_a.best_inf_loss == 1e8
+        trainer_a.best_val_loss = 42.0
+        trainer_a.best_inf_loss = 43.0
+        trainer_a.save_checkpoint(
+            epoch=5,
+            checkpoint_path=trainer_a.ckpt_paths.latest_checkpoint_path,
+        )
+
+    with MultitonScope():
+        train_config.resume_ckpt_path = str(
+            trainer_a.ckpt_paths.latest_checkpoint_path
+        )
+        trainer_b = Trainer(train_config)
+
+        # load_checkpoint (called from __init__) restores the saved best losses.
+        assert trainer_b.best_val_loss == 42.0
+        assert trainer_b.best_inf_loss == 43.0
+
+        # run() must not reset them. Make the epoch loop empty (no training) so
+        # this stays fast: start_epoch is 6 (saved epoch + 1); set epochs below it.
+        assert trainer_b.start_epoch == 6
+        trainer_b.epochs = trainer_b.start_epoch - 1
+        trainer_b.run()
+
+        assert trainer_b.best_val_loss == 42.0, (
+            "run() wiped the resumed best_val_loss (finding 3)"
+        )
+        assert trainer_b.best_inf_loss == 43.0, (
+            "run() wiped the resumed best_inf_loss (finding 3)"
+        )
+
+
+@pytest.mark.parametrize(
+    "data_source,config_name",
+    [("mock", "train_default_2step.test.yaml")],
+    indirect=True,
+)
 def test_checkpoint_inference(trainer_pair: TrainPair, caplog):
     caplog.set_level(logging.INFO)
     _, trainer = trainer_pair

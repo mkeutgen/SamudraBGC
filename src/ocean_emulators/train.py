@@ -395,6 +395,11 @@ class Trainer:
         )
 
         self.num_batches_seen = 0
+        # Initialize best-checkpoint tracking BEFORE the optional resume load so
+        # load_checkpoint can override these from the checkpoint. run() must not
+        # reset them, or a resume would wipe the restored values (audit finding 3).
+        self.best_val_loss = 1e8
+        self.best_inf_loss = 1e8
         loaded_checkpoint = False
         if cfg.resume_ckpt_path is not None:
             if cfg.finetune:
@@ -536,8 +541,9 @@ class Trainer:
     def run(self) -> None:
         logger.info(f"Starting training")
 
-        self.best_val_loss = 1e8
-        self.best_inf_loss = 1e8
+        # NB: best_val_loss / best_inf_loss are initialized in __init__ (and
+        # restored by load_checkpoint on resume). Do NOT reset them here, or a
+        # resumed run would discard the restored best model (audit finding 3).
         self.wandb_logger.watch(self.model, log="all")
 
         self.profiler.start()
