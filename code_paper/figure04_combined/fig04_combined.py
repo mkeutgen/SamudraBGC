@@ -532,7 +532,7 @@ def draw_ablation_panel(ax_ts, ax_bias, ts_dict, times_dt, var_label, units, suf
     ax_ts.set_ylabel(f"{var_label}\n({units})", fontsize=7)
     ax_ts.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax_ts.xaxis.set_major_locator(mdates.YearLocator())
-    legend_loc = "lower left" if suffix == "o2_100_200m" else "lower right"
+    legend_loc = "lower left" if suffix == "o2_100_200m" else "upper left"
     ax_ts.legend(fontsize=5, framealpha=0.80, loc=legend_loc, ncol=2)
     ax_ts.tick_params(labelsize=6)
     plt.setp(ax_ts.get_xticklabels(), visible=False)
