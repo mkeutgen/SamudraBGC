@@ -344,9 +344,11 @@ PROGNOSTIC_VARS: dict[str, PrognosticVarNames] = {
     + ["SSH"],
     # ── Test-only fixtures ──
     # These keys are NOT used by any training/eval config. They match the
-    # in-memory `mock` DataSource (OM4 convention: thetao/so/uo/vo + zos) built in
-    # tests/conftest.py and are required to revive the trainer test suite (audit
-    # finding 6). Do not reference them from production configs.
+    # in-memory `mock` DataSource (OM4 convention: thetao/so/uo/vo + zos) built
+    # in tests/conftest.py and the single-variable synthetic data in the
+    # stepper / norm-unnorm / positional tests. Required to revive the test
+    # suite (audit finding 6). Do not reference them from production configs.
+    "thetao_1": [f"thetao_{DEPTH_I_LEVELS[0]}"],
     "thermo_dynamic_5": [
         k + str(j) for k in ["uo_", "vo_", "thetao_", "so_"] for j in DEPTH_I_LEVELS[:5]
     ]
@@ -370,9 +372,11 @@ BOUNDARY_VARS: dict[str, BoundaryVarNames] = {
         # Potentially: "salt_0" from SMAP/SMOS
     ],
     # ── Test-only fixtures ──
-    # Matches the `mock` DataSource forcing vars (tauuo/tauvo/hfds) in
-    # tests/conftest.py; required to revive the trainer test suite (audit
-    # finding 6). Not referenced by any production config.
+    # Match the forcing vars used in tests (tauuo/tauvo/hfds in the `mock`
+    # DataSource; a single hfds boundary in the stepper / norm-unnorm /
+    # positional tests). Required to revive the test suite (audit finding 6).
+    # Not referenced by any production config.
+    "hfds": ["hfds"],
     "tau_hfds": ["tauuo", "tauvo", "hfds"],
 }
 

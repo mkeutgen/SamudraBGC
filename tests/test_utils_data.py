@@ -193,7 +193,11 @@ def test_unnormalize_prognostic_tensor(normalize_input, fill_value):
 @pytest.fixture
 def data_init(hist: int):
     with MultitonScope():
-        levels = 19
+        # This branch's flatten_masks() builds a mask for every DEPTH_I_LEVELS
+        # entry, so the synthetic wetmask must carry the full level count or it
+        # would index past the wetmask's lev dim (audit finding 6).
+        # len(DEPTH_LEVELS) == len(DEPTH_I_LEVELS) == 50.
+        levels = len(DEPTH_LEVELS)
         lats = 3
         lons = 3
         total_time_steps = 100
@@ -234,7 +238,8 @@ def data_init(hist: int):
             },
             coords={
                 "time": np.arange(total_time_steps),
-                "lev": DEPTH_LEVELS,
+                # Coord length matches the wetmask's `levels` lev dimension.
+                "lev": DEPTH_LEVELS[:levels],
                 "lat": np.arange(lats),
                 "lon": np.arange(lons),
             },

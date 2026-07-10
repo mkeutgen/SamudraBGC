@@ -18,7 +18,11 @@ from ocean_emulators.utils.multiton import MultitonScope
 @pytest.fixture
 def inf_data_init(hist: int):
     with MultitonScope():
-        levels = 19
+        # This branch's flatten_masks() builds a mask for every DEPTH_I_LEVELS
+        # entry, so the synthetic wetmask must carry the full level count or it
+        # would index past the wetmask's lev dim (audit finding 6).
+        # len(DEPTH_LEVELS) == len(DEPTH_I_LEVELS) == 50.
+        levels = len(DEPTH_LEVELS)
         lats = 1
         lons = 1
         total_time_steps = 100
@@ -56,7 +60,8 @@ def inf_data_init(hist: int):
             },
             coords={
                 "time": np.arange(total_time_steps),
-                "lev": DEPTH_LEVELS,
+                # Coord length matches the wetmask's `levels` lev dimension.
+                "lev": DEPTH_LEVELS[:levels],
                 "lat": np.arange(lats),
                 "lon": np.arange(lons),
             },
