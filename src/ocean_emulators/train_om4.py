@@ -714,7 +714,11 @@ class Trainer:
             cur_step = None
             cur_step_idx = None
             for i, epoch_to_transition in enumerate(self.step_transition):
-                if epoch <= epoch_to_transition:
+                # Strict `<`: fresh runs transition AT `epoch in step_transition`
+                # (to steps[i+1]), so a resume landing exactly on a transition
+                # epoch must pick the next bucket too, not keep the shorter
+                # rollout for the rest of training (audit finding 11).
+                if epoch < epoch_to_transition:
                     cur_step = self.steps[i]
                     cur_step_idx = i
                     break
