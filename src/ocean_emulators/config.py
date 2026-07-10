@@ -600,7 +600,6 @@ LossType = Literal[
     "mae_gradient_weighted",
     "mae_gradient_multiscale", # for later test
     "mse_diff_weighted",
-    "mse_cos_weighted",
     "mse_residual_scaled",
     "mse_mae",
     "mse_dynamic",

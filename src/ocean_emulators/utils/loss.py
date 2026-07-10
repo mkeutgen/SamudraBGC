@@ -51,18 +51,6 @@ def decomposed_mse_diff_weighted(
     return combined_loss.mean(dim=(0, 2, 3))
 
 
-def decomposed_mse_cos_weighted(
-    pred: torch.Tensor, target: torch.Tensor, wet: torch.Tensor, cos: torch.Tensor
-) -> torch.Tensor:
-    """MSE loss weighted by cosine of latitude."""
-    pred = pred * wet
-    target = target * wet
-    weights = cos.view(1, 1, -1, 1)  # Reshape for broadcasting
-    mse = F.mse_loss(pred, target, reduction="none")
-    weighted_mse = mse * weights
-    return weighted_mse.mean(dim=(0, 2, 3))
-
-
 def decomposed_mse_scaled(
     pred: torch.Tensor, target: torch.Tensor, wet: torch.Tensor, scaling: torch.Tensor
 ) -> torch.Tensor:

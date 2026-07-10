@@ -81,7 +81,6 @@ from ocean_emulators.utils.logging import (
 from ocean_emulators.utils.loss import (
     MseDynamic,
     decomposed_mse,
-    decomposed_mse_cos_weighted,
     decomposed_mse_diff_weighted,
     decomposed_mse_mae,
     decomposed_mse_scaled,
@@ -239,13 +238,6 @@ class Trainer:
                 assert cfg.data.hist == 1  # TEMP
                 logger.info("Using decomposed mse loss with weighted diff")
                 self.loss_fn = partial(decomposed_mse_diff_weighted, wet=self.wet)
-            case "mse_cos_weighted":
-                logger.info("Using decomposed mse loss with weighted cos")
-                area_weights = np.sqrt(np.cos(np.deg2rad(self.data.y))).to_numpy()
-                area_weights = torch.from_numpy(area_weights).to(device=self.device)
-                self.loss_fn = partial(
-                    decomposed_mse_cos_weighted, wet=self.wet, cos=area_weights
-                )
             case "mse_residual_scaled":
                 logger.info("Using decomposed mse loss with scaled residuals")
                 assert self.data_container.scaling_residuals is not None, (
