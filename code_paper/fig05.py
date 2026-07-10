@@ -160,7 +160,7 @@ VARIABLES = [
               list(range(32, 40)), log_transform=True, scale_factor=MOL_TO_UMOL),
     VarConfig("dic_100_200m", "DIC (100–200 m)", "µmol kg⁻¹", "log_dic", "log_dicpc", "dic", "dic",
               list(range(32, 40)), log_transform=True, scale_factor=MOL_TO_UMOL),
-    VarConfig("chl_surface", "Chl (surface)", "mg m⁻³", "log_chl", "log_chlpc", "chl", "chl",
+    VarConfig("chl_surface", "Chlorophyll (surface)", "mg m⁻³", "log_chl", "log_chlpc", "chl", "chl",
               [0], log_transform=True, scale_factor=1.0),
 ]
 
@@ -539,7 +539,7 @@ def _plot_maps_row(fig, gs_indices, lat, lon, phys_spread, ml_spread, n_phys, n_
         # Use 'equal' but we will fix the row height ratio to minimize gaps
         ax.set_aspect(0.75) 
         ax.set_facecolor("#e5e5e5")
-        ax.set_title(title, fontsize=8, fontweight="bold", pad=5)
+        ax.set_title(title, fontsize=9, fontweight="bold", pad=5, loc="left")
         ax.set_xlabel("Longitude (°E)", fontsize=7)
         ax.tick_params(labelsize=6.5)
 
@@ -665,7 +665,7 @@ def _plot_mirror_spread(ax, ml_arr, phys_arr, title, vc_units, shared_y_max=None
         fmt = ".1f"
     ax.set_yticklabels([f'{abs(v):{fmt}}' for v in sym])
 
-    ax.set_title(title, fontsize=7.5, fontweight='bold', pad=4, loc='left')
+    ax.set_title(title, fontsize=9, fontweight='bold', pad=4, loc='left')
     ax.spines[['top', 'right']].set_visible(False)
     ax.tick_params(direction='out', pad=2)
     ax.grid(axis='y', lw=0.4, alpha=0.25, color='0.4')
@@ -715,7 +715,7 @@ def plot_pointwise_figure(
     ml_probe_ts   = extract_probe_ts(ml_stack, probe_indices)
     phys_probe_ts = extract_probe_ts(phys_stack, probe_indices)
 
-    fig = plt.figure(figsize=(7.48, 7.43))
+    fig = plt.figure(figsize=(6.85, 6.81))
     outer_gs = GridSpec(
         2, 1, figure=fig,
         height_ratios=[1,1],
@@ -740,7 +740,7 @@ def plot_pointwise_figure(
 
         _plot_mirror_spread(
             ax, ml_probe_ts[pkey], phys_probe_ts[pkey],
-            f"{panel_labels[col]} {pinfo['label']} ({lat[ilat]:.1f}°N, {abs(lon[ilon]):.1f}°W)",
+            f"{panel_labels[col]} {pinfo['label']}\n({lat[ilat]:.1f}°N, {abs(lon[ilon]):.1f}°W)",
             vc.units,
         )
 
@@ -763,7 +763,7 @@ def plot_pointwise_figure(
                bbox_to_anchor=(0.5, 0.02))
 
     fig.suptitle(f"{vc.label} — Ensemble Variability Analysis ({YEAR})",
-                 fontsize=8, fontweight="bold", y=0.98)
+                 fontsize=10, fontweight="bold", y=0.98)
 
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Wrote: {output_path}")
@@ -790,7 +790,7 @@ def plot_biomes_figure(
     biome_keys = ["subtropical", "jet", "subpolar", "domain"]
 
     # Use layout="constrained" to stop labels from overlapping automatically
-    fig = plt.figure(figsize=(7.48, 9.0), layout="constrained")
+    fig = plt.figure(figsize=(6.85, 8.24), layout="constrained")
     
     # We create a 3x3 grid. The 3rd column is dedicated to the colorbar.
     # We adjust height_ratios: maps usually need LESS height to look 'the same size'
@@ -819,7 +819,7 @@ def plot_biomes_figure(
             ax, ml_biome_ts[bkey], phys_biome_ts[bkey],
             f"{panel_labels[i]} {BIOME_LABELS[bkey]}",
             vc.units,
-            annotate_max_sigma=True,
+            annotate_max_sigma=False,
         )
 
         if col_idx == 0:
@@ -847,11 +847,11 @@ def plot_biomes_figure(
     fig.suptitle(f"{vc.label} — Ensemble Variability Analysis ({YEAR})",
                  fontsize=10, fontweight="bold")
 
-    fig.savefig(output_path, dpi=300)
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Wrote: {output_path}")
     plt.close(fig)
 
-    
+
 
 # =============================================================================
 # MAIN
