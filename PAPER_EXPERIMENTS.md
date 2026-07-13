@@ -1,180 +1,100 @@
 # Paper Ablation Experiments
 
-> **Note**: This document describes the early experiments (Phase 1-2). For the complete ablation study including Phase 4-7 and PCA experiments, see the "Paper Experiments" section in [README.md](README.md).
+This document provides a quick reference to the ablation study described in the GRL manuscript.
 
-This document describes the experiments created for the paper analysis.
+For detailed documentation including config-to-experiment mappings, reproduction instructions, and seed sensitivity analysis, see **[docs/EXPERIMENTS.md](docs/EXPERIMENTS.md)**.
 
-## Research Questions
+## Ablation Tree Summary
 
-### Question 1: What is the optimal velocity representation?
-**Comparison of model architectures with minimal forcing and grad_weight=0.5**
+The paper evaluates 14 configurations across 5 sequential design choices:
 
-| Experiment | Prognostic Variables | Description |
-|------------|---------------------|-------------|
-| `jra_helmholtz_min_grad05` | `helmholtz_only_all` (psi, phi) | **Helmholtz-only** - Uses decomposition |
-| `jra_fullstate_min_grad05` | `full_state_all` (u, v) | **Full state** - Direct velocity prediction |
-| `jra_fullstate_helmholtz_min_grad05` | `full_state_and_helmholtz_all` (u, v, psi, phi) | **Redundant** - Both representations |
+```
+#1 Velocity (u,v)           R²=-0.07  ──┐
+                                        ├─► Phase 1: Circulation
+#2 Helmholtz (ψ,φ)          R²=0.50  ──┘   Winner: #2
+        │
+        ▼
+#2 Linear BGC               R²=0.50  ──┐
+                                        ├─► Phase 1.5: BGC Transform
+#3 Log BGC                  R²=0.63  ──┘   Winner: #3
+        │
+        ▼
+#4 Grad Weight 0            R²=0.75  ──┐
+#5 Grad Weight 0.10         R²=0.80  ──┼─► Phase 2: Gradient Penalty
+#6 Grad Weight 0.25         R²=0.78  ──┤   Winner: #5
+#7 Grad Weight 0.50         R²=0.76  ──┘
+        │
+        ▼
+#8  5 components            R²=0.70  ──┐
+#9  10 components           R²=0.78  ──┼─► Phase 5: PCA Compression
+#10 15 components           R²=0.82  ──┤   Winner: #11
+#11 20 components           R²=0.81  ──┘
+        │
+        ▼
+#11 SamudraBGC (baseline)   R²=0.81  ──┐
+#12 Wider                   R²=0.81  ──┼─► Phase 7: Architecture
+#13 Much Wider              R²=0.78  ──┤   Winner: #11 (no gain)
+#14 Wider+Deeper            R²=0.81  ──┘
+```
 
-**Hypothesis**: Helmholtz decomposition should perform best due to enforced divergence-free constraint.
+## Config Files
 
-**Expected Outcome**:
-- Best: `helmholtz_only` (cleaner representation)
-- Worse: `full_state` (hard to enforce div-free)
-- Worst/Middle: `full_state_helmholtz` (redundancy may help or hurt)
+| # | Experiment | Training Config | Eval Config |
+|---|------------|-----------------|-------------|
+| 1 | Velocity | `phase1_fullstate_nograd.yaml` | `phase1_velocity_nograd_eval.yaml` |
+| 2 | Helmholtz | `phase1_helmholtz_nograd.yaml` | `phase1_helmholtz_nograd_eval.yaml` |
+| 3 | Log BGC | `phase15_helmholtz_log_all.yaml` | `phase15_helmholtz_log_eval.yaml` |
+| 4 | Grad 0 | `phase2_helmholtz_grad00.yaml` | `phase2_helmholtz_grad00_eval.yaml` |
+| 5 | Grad 0.10 | `phase2_helmholtz_grad010.yaml` | `phase2_helmholtz_grad010_eval.yaml` |
+| 6 | Grad 0.25 | `phase2_helmholtz_grad025.yaml` | `phase2_helmholtz_grad025_eval.yaml` |
+| 7 | Grad 0.50 | `phase2_helmholtz_grad050.yaml` | `phase2_helmholtz_grad050_eval.yaml` |
+| 8 | PCA 5 | `phase5_pca5_helmholtz_grad010.yaml` | `phase5_pca5_helmholtz_grad010_eval.yaml` |
+| 9 | PCA 10 | `phase5_pca10_helmholtz_grad010.yaml` | `phase5_pca10_helmholtz_grad010_eval.yaml` |
+| 10 | PCA 15 | `phase5_pca15_helmholtz_grad010.yaml` | `phase5_pca15_helmholtz_grad010_eval.yaml` |
+| 11 | PCA 20 | `phase5_pca20_helmholtz_grad010.yaml` | `phase5_pca20_helmholtz_grad010_eval.yaml` |
+| 12 | Wider | `phase7_pca20_arch_wider.yaml` | `phase7_pca20_arch_wider_eval_rollout2010_2014.yaml` |
+| 13 | Much Wider | `phase7_pca20_arch_much_wider.yaml` | `phase7_pca20_arch_much_wider_eval_rollout2010_2014.yaml` |
+| 14 | Wider+Deeper | `phase7_pca20_arch_wider_deeper.yaml` | `phase7_pca20_arch_wider_deeper_eval_rollout2010_2014.yaml` |
 
----
+**Champion model** (trained on train+val, evaluated on test):
+- Training: `phase5_pca20_helmholtz_grad010_full.yaml`
+- Evaluation: `champion_model_eval_rollout2015_2019.yaml`
 
-### Question 2: What is the optimal gradient penalty weight?
-**Ablation of gradient penalty using Helmholtz-only with minimal forcing**
+## Evaluation Periods
 
-| Experiment | Gradient Weight | Description |
-|------------|----------------|-------------|
-| `jra_helmholtz_min_grad05` | 0.5 | **Baseline** - Current best practice |
-| `jra_helmholtz_min_grad025` | 0.25 | **Reduced** - Less spatial regularization |
-| `jra_helmholtz_min_grad010` | 0.10 | **Minimal** - Very weak regularization |
-| `jra_helmholtz_min_grad000` | 0.0 | **None** - Pure MAE loss |
+| Period | Years | Purpose |
+|--------|-------|---------|
+| Training | 1960-2009 | Model training |
+| Validation | 2010-2014 | Model selection (ablation comparisons) |
+| Test | 2015-2019 | Final evaluation (holdout) |
 
-**Hypothesis**: Moderate gradient penalty (0.25-0.5) balances point-wise accuracy and spatial smoothness.
-
-**Expected Outcome**:
-- Best: 0.25 or 0.5 (good balance)
-- Worse: 0.10 (too little regularization)
-- Worst: 0.0 (checkerboard artifacts, poor spatial structure)
-
----
-
-## Experiment Configuration
-
-### Common Settings
-- **Dataset**: MOM6_CobaltDG_JRA_FULL_POC_Helmholtz (60 years, 1958-2019)
-- **Training Period**: 1960-2009 (50 years)
-- **Validation Period**: 2010-2014 (5 years)
-- **Test Period**: 2015-2019 (5 years holdout)
-- **Boundary Variables**: `minimal_forcing` (Qnet, tauuo, tauvo - no PRCmE)
-- **Model**: ConvNeXt U-Net with gradient-weighted MAE loss
-- **Hardware**: 16 nodes x 1 L40S GPU (16 GPUs total)
-
-### Variable Counts
-
-| Config | Prognostic Vars | Output Channels |
-|--------|----------------|-----------------|
-| `helmholtz_only_all` | dic, o2, no3, chl, temp, salt, psi, phi @ 50 levels + SSH | ~401 |
-| `full_state_all` | dic, o2, no3, pp, chl, temp, salt, uo, vo @ 50 levels + SSH | ~451 |
-| `full_state_and_helmholtz_all` | dic, o2, no3, chl, temp, salt, uo, vo, psi, phi, poc @ 50 levels + SSH | ~551 |
-
----
-
-## Running the Experiments
-
-### Training
+## Running All Ablations
 
 ```bash
-# Question 1: Model architecture comparison
-sbatch scripts/slurm/train_jra_helmholtz_min_grad05.sh
-sbatch scripts/slurm/train_jra_fullstate_min_grad05.sh
-sbatch scripts/slurm/train_jra_fullstate_helmholtz_min_grad05.sh
+# Phase 1: Circulation
+sbatch scripts/slurm/train_phase1_fullstate_nograd.sh
+sbatch scripts/slurm/train_phase1_helmholtz_nograd.sh
 
-# Question 2: Gradient penalty ablation
-sbatch scripts/slurm/train_jra_helmholtz_min_grad025.sh
-sbatch scripts/slurm/train_jra_helmholtz_min_grad010.sh
-sbatch scripts/slurm/train_jra_helmholtz_min_grad000.sh
+# Phase 1.5: BGC Transform
+sbatch scripts/slurm/train_phase15_helmholtz_log.sh
+
+# Phase 2: Gradient Weight
+sbatch scripts/slurm/train_phase2_helmholtz_grad00.sh
+sbatch scripts/slurm/train_phase2_helmholtz_grad010.sh
+sbatch scripts/slurm/train_phase2_helmholtz_grad025.sh
+sbatch scripts/slurm/train_phase2_helmholtz_grad050.sh
+
+# Phase 5: PCA Compression
+sbatch scripts/slurm/train_phase5_pca5_helmholtz_grad010.sh
+sbatch scripts/slurm/train_phase5_pca10_helmholtz_grad010.sh
+sbatch scripts/slurm/train_phase5_pca15_helmholtz_grad010.sh
+sbatch scripts/slurm/train_phase5_pca20_helmholtz_grad010.sh
+
+# Phase 7: Architecture
+sbatch scripts/slurm/train_phase7_pca20_arch_wider.sh
+sbatch scripts/slurm/train_phase7_pca20_arch_much_wider.sh
+sbatch scripts/slurm/train_phase7_pca20_arch_wider_deeper.sh
+
+# Champion (train+val)
+sbatch scripts/slurm/train_phase5_pca20_helmholtz_grad010_full.sh
 ```
-
-### Evaluation
-
-```bash
-# Question 1: Model architecture comparison
-sbatch scripts/slurm/eval_jra_helmholtz_min_grad05.sh
-sbatch scripts/slurm/eval_jra_fullstate_min_grad05.sh
-sbatch scripts/slurm/eval_jra_fullstate_helmholtz_min_grad05.sh
-
-# Question 2: Gradient penalty ablation
-sbatch scripts/slurm/eval_jra_helmholtz_min_grad025.sh
-sbatch scripts/slurm/eval_jra_helmholtz_min_grad010.sh
-sbatch scripts/slurm/eval_jra_helmholtz_min_grad000.sh
-```
-
----
-
-## Evaluation Metrics
-
-All experiments will be evaluated on:
-
-### Primary Metrics (Test Period 2015-2019)
-- **RMSE** (Root Mean Square Error) per variable
-- **Bias** (Mean Error) per variable
-- **Correlation** (Pattern correlation) per variable
-- **Spatial gradients** (Smoothness metrics)
-
-### Secondary Metrics
-- **Ocean Heat Content (OHC)** - Conservation properties
-- **ENSO Metrics** - Nino3.4 index correlation
-- **Basin-specific statistics** - Regional performance
-- **Rollout stability** - 25-day autoregressive performance
-
-### Visualization
-- Spatial maps (mean, bias, RMSE)
-- Time series (global mean evolution)
-- PDFs (distribution matching)
-- Spectral diagnostics (spatial scales)
-
----
-
-## File Locations
-
-### Configurations
-```
-configs/train/
-├── jra_helmholtz_min_grad05.yaml
-├── jra_fullstate_min_grad05.yaml
-├── jra_fullstate_helmholtz_min_grad05.yaml
-├── jra_helmholtz_min_grad025.yaml
-├── jra_helmholtz_min_grad010.yaml
-└── jra_helmholtz_min_grad000.yaml
-
-configs/eval/
-├── jra_helmholtz_min_grad05_eval.yaml
-├── jra_fullstate_min_grad05_eval.yaml
-├── jra_fullstate_helmholtz_min_grad05_eval.yaml
-├── jra_helmholtz_min_grad025_eval.yaml
-├── jra_helmholtz_min_grad010_eval.yaml
-└── jra_helmholtz_min_grad000_eval.yaml
-```
-
-### Scripts
-```
-scripts/slurm/
-├── train_jra_helmholtz_min_grad05.sh
-├── train_jra_fullstate_min_grad05.sh
-├── train_jra_fullstate_helmholtz_min_grad05.sh
-├── train_jra_helmholtz_min_grad025.sh
-├── train_jra_helmholtz_min_grad010.sh
-├── train_jra_helmholtz_min_grad000.sh
-├── eval_jra_helmholtz_min_grad05.sh
-├── eval_jra_fullstate_min_grad05.sh
-├── eval_jra_fullstate_helmholtz_min_grad05.sh
-├── eval_jra_helmholtz_min_grad025.sh
-├── eval_jra_helmholtz_min_grad010.sh
-└── eval_jra_helmholtz_min_grad000.sh
-```
-
-### Outputs
-```
-outputs/
-├── jra_helmholtz_min_grad05/
-├── jra_fullstate_min_grad05/
-├── jra_fullstate_helmholtz_min_grad05/
-├── jra_helmholtz_min_grad025/
-├── jra_helmholtz_min_grad010/
-└── jra_helmholtz_min_grad000/
-```
-
----
-
-## Notes
-
-- All experiments use the same random seed (42) for reproducibility
-- Models checkpoint every 5 epochs
-- EMA (Exponential Moving Average) checkpoints are used for evaluation
-- Evaluation produces zarr files with full rollout predictions
-- W&B logging is set to offline mode (group: mom6-bgc-training-jra60)
