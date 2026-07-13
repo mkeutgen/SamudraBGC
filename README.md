@@ -44,35 +44,32 @@ export WANDB_ENTITY=your-username
 
 ### 3. Download Model Weights and Evaluation Data
 
-Two small downloads from HuggingFace are enough to reproduce the champion-model
-evaluation. See [Data Availability](#data-availability) for the full 7 TB
-simulation and other options.
+Two downloads are enough to reproduce the champion-model evaluation: the model
+weights (HuggingFace) and the evaluation subset (Zenodo). See
+[Data Availability](#data-availability) for the full 7 TB simulation and other
+options.
+
+**Champion model weights** — from the model repo [`mkeutgen/SamudraBGC`](https://huggingface.co/mkeutgen/SamudraBGC) on HuggingFace:
 
 ```bash
-pip install -U huggingface_hub   # provides the huggingface-cli used below
-```
-
-**Champion model weights** — from the model repo [`mkeutgen/SamudraBGC`](https://huggingface.co/mkeutgen/SamudraBGC):
-
-```bash
+pip install -U huggingface_hub
 huggingface-cli download mkeutgen/SamudraBGC --local-dir ./hf_weights
 ```
 
 Place the champion checkpoint where the eval config expects it: the `ckpt_path`
-in `configs/eval/champion_model_eval_rollout2015_2019.yaml`, which defaults to
+in `configs/eval/champion_model_eval_subset.yaml`, which defaults to
 `outputs/champion_model/saved_nets/ema_ckpt.pt` (rename the downloaded file if
 it differs).
 
-**Evaluation subset** — from the dataset repo [`mkeutgen/SamudraBGC-eval`](https://huggingface.co/datasets/mkeutgen/SamudraBGC-eval). This is a 60-day contiguous window of the simulation (all variables), sufficient to run and score a champion-model rollout without the full 7 TB:
+**Evaluation subset** — from Zenodo (DOI [`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/zenodo.PLACEHOLDER)). A 60-day contiguous window of the simulation (all variables), sufficient to run and score a champion-model rollout without the full 7 TB:
 
 ```bash
-# Download and extract the subset data root (~24 GB)
-huggingface-cli download mkeutgen/SamudraBGC-eval eval_subset_2015_60day.tar \
-    --repo-type dataset --local-dir /path/to/downloads
-tar -xf /path/to/downloads/eval_subset_2015_60day.tar -C /path/to/downloads
+# Download and extract the subset data root (~24 GB) from the Zenodo record
+wget -O eval_subset_2015_60day.tar "https://zenodo.org/records/PLACEHOLDER/files/eval_subset_2015_60day.tar"
+tar -xf eval_subset_2015_60day.tar
 
 # Point OCEAN_EMU_DATA_ROOT at the extracted directory
-export OCEAN_EMU_DATA_ROOT=/path/to/downloads/eval_subset_60day
+export OCEAN_EMU_DATA_ROOT="$PWD/eval_subset_60day"
 ```
 
 The extracted directory is a ready-to-use data root containing `bgc_data.zarr`,
@@ -229,15 +226,15 @@ sbatch code_paper/figS_ensemble_snapshots.sh
 We provide several entry points so you can pick the smallest download that fits
 your goal. New to the project? Start with the evaluation subset.
 
-**Evaluation subset (recommended for reproduction) — HuggingFace dataset.**
+**Evaluation subset (recommended for reproduction) — Zenodo.**
 A 60-day contiguous daily window (2015-01-01 onward, all variables) of the
 DG-MOM6-COBALTv2 double-gyre simulation, packaged as a single ~24 GB tar
-(`eval_subset_2015_60day.tar`) on
-[`mkeutgen/SamudraBGC-eval`](https://huggingface.co/datasets/mkeutgen/SamudraBGC-eval).
+(`eval_subset_2015_60day.tar`) archived on Zenodo with a citable DOI:
+[`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/zenodo.PLACEHOLDER).
 It is sufficient to run and score a champion-model rollout without the full 7 TB.
-Download and extract it to a directory, then point `OCEAN_EMU_DATA_ROOT` at the
-extracted `eval_subset_60day/` (see [Quick Start](#quick-start) step 3). Once
-extracted, load any field with `xarray`:
+Download and extract it, then point `OCEAN_EMU_DATA_ROOT` at the extracted
+`eval_subset_60day/` (see [Quick Start](#quick-start) step 3). Once extracted,
+load any field with `xarray`:
 
 ```python
 import xarray as xr
@@ -246,7 +243,7 @@ ds = xr.open_zarr(f"{OCEAN_EMU_DATA_ROOT}/bgc_data.zarr")
 print(ds)
 ```
 
-**Model weights — HuggingFace model repo.**
+**Model weights — HuggingFace.**
 Champion checkpoint, ensemble members, and normalization/PCA parameters live on
 [`mkeutgen/SamudraBGC`](https://huggingface.co/mkeutgen/SamudraBGC). See
 [MODEL_CARD.md](MODEL_CARD.md) for the repository layout and a loading example.
@@ -259,9 +256,10 @@ citable DOI through Princeton Data Commons
 - DOI: `10.XXXX/PLACEHOLDER` — *placeholder, to be assigned on data publication*
 - Globus endpoint: *placeholder, link to be added*
 
-**Code — GitHub.**
+**Code — GitHub, archived on Zenodo.**
 Source, configs, and paper-figure scripts:
-<https://github.com/mkeutgen/SamudraBGC>.
+<https://github.com/mkeutgen/SamudraBGC>. Tagged releases are archived on Zenodo
+with a citable code DOI: [`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/zenodo.PLACEHOLDER).
 
 ## Data Format
 

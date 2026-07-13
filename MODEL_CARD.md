@@ -99,8 +99,8 @@ On the 2015-2019 test period (5-year autoregressive rollout):
 *Values above are placeholders; final metrics are reported in the paper. To
 reproduce them yourself, follow the evaluation workflow in the
 [GitHub README](https://github.com/mkeutgen/SamudraBGC#quick-start) using the
-evaluation subset on
-[`mkeutgen/SamudraBGC-eval`](https://huggingface.co/datasets/mkeutgen/SamudraBGC-eval).*
+evaluation subset archived on
+[Zenodo](https://doi.org/10.5281/zenodo.PLACEHOLDER).*
 
 ## Citation
 
@@ -123,7 +123,7 @@ Apache 2.0
 ## Links
 
 - **Paper**: GRL — DOI [`10.1029/PLACEHOLDER`](https://doi.org/10.1029/PLACEHOLDER) *(placeholder, pending publication)*
-- **Code**: [github.com/mkeutgen/SamudraBGC](https://github.com/mkeutgen/SamudraBGC)
+- **Code**: [github.com/mkeutgen/SamudraBGC](https://github.com/mkeutgen/SamudraBGC) — archived on Zenodo, DOI [`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/zenodo.PLACEHOLDER)
 - **Model weights**: [huggingface.co/mkeutgen/SamudraBGC](https://huggingface.co/mkeutgen/SamudraBGC)
-- **Evaluation subset**: [huggingface.co/datasets/mkeutgen/SamudraBGC-eval](https://huggingface.co/datasets/mkeutgen/SamudraBGC-eval)
+- **Evaluation subset**: Zenodo, DOI [`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/zenodo.PLACEHOLDER)
 - **Full simulation (~7 TB)**: Globus + Princeton Data Commons DOI *(placeholder, to be assigned)*
