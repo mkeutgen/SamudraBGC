@@ -27,38 +27,78 @@ See [CITATION.cff](CITATION.cff) for BibTeX and other citation formats.
 git clone https://github.com/mkeutgen/SamudraBGC.git
 cd SamudraBGC
 conda env create -f environment.yml
-conda activate samudra
+conda activate ocean-emulator
 ```
 
 ### 2. Set Environment Variables
 
 ```bash
-# Required: path to downloaded data
+# Required: directory holding the evaluation data (see Data Availability)
 export OCEAN_EMU_DATA_ROOT=/path/to/downloaded/data
 
-# Optional: Weights & Biases logging
+# Optional: repo root (used by some helper scripts) and W&B logging
+export OCEAN_EMU_PROJECT_DIR=$(pwd)
 export WANDB_PROJECT=samudrabgc
 export WANDB_ENTITY=your-username
 ```
 
-### 3. Download Data and Weights
+### 3. Download Model Weights and Evaluation Data
 
-| Resource | Size | Link |
-|----------|------|------|
-| Training/Evaluation Data | ~XXX GB | [Zenodo](https://zenodo.org/records/PLACEHOLDER) |
-| Pretrained Weights | ~XXX MB | [HuggingFace](https://huggingface.co/PLACEHOLDER/SamudraBGC) |
+Two small downloads from HuggingFace are enough to reproduce the champion-model
+evaluation. See [Data Availability](#data-availability) for the full 7 TB
+simulation and other options.
 
 ```bash
-# Clone data using the provided script
-python scripts/clone_data.py --output $OCEAN_EMU_DATA_ROOT
+pip install -U huggingface_hub   # provides the huggingface-cli used below
 ```
+
+**Champion model weights** — from the model repo [`mkeutgen/SamudraBGC`](https://huggingface.co/mkeutgen/SamudraBGC):
+
+```bash
+huggingface-cli download mkeutgen/SamudraBGC --local-dir ./hf_weights
+```
+
+Place the champion checkpoint where the eval config expects it: the `ckpt_path`
+in `configs/eval/champion_model_eval_rollout2015_2019.yaml`, which defaults to
+`outputs/champion_model/saved_nets/ema_ckpt.pt` (rename the downloaded file if
+it differs).
+
+**Evaluation subset** — from the dataset repo [`mkeutgen/SamudraBGC-eval`](https://huggingface.co/datasets/mkeutgen/SamudraBGC-eval). This is a 60-day contiguous window of the simulation (all variables), sufficient to run and score a champion-model rollout without the full 7 TB:
+
+```bash
+# Download and extract the subset data root (~24 GB)
+huggingface-cli download mkeutgen/SamudraBGC-eval eval_subset_2015_60day.tar \
+    --repo-type dataset --local-dir /path/to/downloads
+tar -xf /path/to/downloads/eval_subset_2015_60day.tar -C /path/to/downloads
+
+# Point OCEAN_EMU_DATA_ROOT at the extracted directory
+export OCEAN_EMU_DATA_ROOT=/path/to/downloads/eval_subset_60day
+```
+
+The extracted directory is a ready-to-use data root containing `bgc_data.zarr`,
+`bgc_means.zarr`, `bgc_stds.zarr`, and `pca_params.npz`.
 
 ### 4. Run Evaluation
 
 ```bash
-# Evaluate champion model on test period (2015-2019)
-python -m ocean_emulators.eval configs/eval/champion_model_eval_rollout2015_2019.yaml
+# Champion-model rollout over the 60-day subset window
+python -m ocean_emulators.eval configs/eval/champion_model_eval_subset.yaml
 ```
+
+The champion model predicts in a compressed PCA vertical space. At the end of the
+run, `eval` automatically reconstructs the full physical depth levels
+(`temp_0..49`, `salt_0..49`, `dic_0..49`, …), so this single command produces both
+the rollout predictions (`predictions.zarr`) and the reconstructed physical-depth
+fields (`predictions_depth.zarr`), written as Zarr under `outputs/`.
+
+> **Comparing to ground truth:** always apply the wet (ocean) mask before
+> computing statistics on the biogeochemical variables `dic`, `o2`, and `chl`.
+> In `predictions_depth.zarr` their land cells are filled with `exp(0) − ε ≈ 1.0`
+> (an artifact of inverse-log on land), so a naive `mean`/`nanmean` over the whole
+> grid is contaminated by land — it inflates surface `o2` ~46× and `dic` ~6×. At
+> ocean points the reconstruction matches ground truth to ~1%. Every figure in
+> `code_paper/` masks both sides this way; the full 2015–2019 config is
+> `configs/eval/champion_model_eval_rollout2015_2019.yaml` (needs the full data).
 
 ## Model Architecture
 
@@ -183,6 +223,45 @@ sbatch code_paper/fig05.sh           # Fig 5: Ensemble spread
 sbatch code_paper/figS_mesoscale_multivar.sh
 sbatch code_paper/figS_ensemble_snapshots.sh
 ```
+
+## Data Availability
+
+We provide several entry points so you can pick the smallest download that fits
+your goal. New to the project? Start with the evaluation subset.
+
+**Evaluation subset (recommended for reproduction) — HuggingFace dataset.**
+A 60-day contiguous daily window (2015-01-01 onward, all variables) of the
+DG-MOM6-COBALTv2 double-gyre simulation, packaged as a single ~24 GB tar
+(`eval_subset_2015_60day.tar`) on
+[`mkeutgen/SamudraBGC-eval`](https://huggingface.co/datasets/mkeutgen/SamudraBGC-eval).
+It is sufficient to run and score a champion-model rollout without the full 7 TB.
+Download and extract it to a directory, then point `OCEAN_EMU_DATA_ROOT` at the
+extracted `eval_subset_60day/` (see [Quick Start](#quick-start) step 3). Once
+extracted, load any field with `xarray`:
+
+```python
+import xarray as xr
+
+ds = xr.open_zarr(f"{OCEAN_EMU_DATA_ROOT}/bgc_data.zarr")
+print(ds)
+```
+
+**Model weights — HuggingFace model repo.**
+Champion checkpoint, ensemble members, and normalization/PCA parameters live on
+[`mkeutgen/SamudraBGC`](https://huggingface.co/mkeutgen/SamudraBGC). See
+[MODEL_CARD.md](MODEL_CARD.md) for the repository layout and a loading example.
+
+**Full simulation (~7 TB) — Globus + Princeton Data Commons.**
+The complete training simulation is distributed via Globus and will receive a
+citable DOI through Princeton Data Commons
+([researchdata.princeton.edu](https://researchdata.princeton.edu)):
+
+- DOI: `10.XXXX/PLACEHOLDER` — *placeholder, to be assigned on data publication*
+- Globus endpoint: *placeholder, link to be added*
+
+**Code — GitHub.**
+Source, configs, and paper-figure scripts:
+<https://github.com/mkeutgen/SamudraBGC>.
 
 ## Data Format
 

@@ -96,14 +96,20 @@ On the 2015-2019 test period (5-year autoregressive rollout):
 | NO3 | X.XX μmol/kg | 0.XX |
 | Chlorophyll | X.XX mg/m³ | 0.XX |
 
+*Values above are placeholders; final metrics are reported in the paper. To
+reproduce them yourself, follow the evaluation workflow in the
+[GitHub README](https://github.com/mkeutgen/SamudraBGC#quick-start) using the
+evaluation subset on
+[`mkeutgen/SamudraBGC-eval`](https://huggingface.co/datasets/mkeutgen/SamudraBGC-eval).*
+
 ## Citation
 
 If you use this model, please cite:
 
 ```bibtex
 @article{samudrabgc2026,
-  title={SamudraBGC: Machine Learning Emulator of Ocean Biogeochemistry},
-  author={Manuscript Authors},
+  title={SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry},
+  author={Keutgen De Greef, Maxime and Resplandy, Laure and Champenois, Bianca and Poupon, Mathieu and Li, Weidong and Hassanzadeh, Pedram and Zanna, Laure},
   journal={Geophysical Research Letters},
   year={2026},
   doi={10.1029/PLACEHOLDER}
@@ -116,6 +122,8 @@ Apache 2.0
 
 ## Links
 
-- **Paper**: [GRL (DOI pending)](https://doi.org/10.1029/PLACEHOLDER)
-- **Code**: [GitHub](https://github.com/mkeutgen/SamudraBGC)
-- **Evaluation Data**: [Princeton Research Data](https://researchdata.princeton.edu/PLACEHOLDER)
+- **Paper**: GRL — DOI [`10.1029/PLACEHOLDER`](https://doi.org/10.1029/PLACEHOLDER) *(placeholder, pending publication)*
+- **Code**: [github.com/mkeutgen/SamudraBGC](https://github.com/mkeutgen/SamudraBGC)
+- **Model weights**: [huggingface.co/mkeutgen/SamudraBGC](https://huggingface.co/mkeutgen/SamudraBGC)
+- **Evaluation subset**: [huggingface.co/datasets/mkeutgen/SamudraBGC-eval](https://huggingface.co/datasets/mkeutgen/SamudraBGC-eval)
+- **Full simulation (~7 TB)**: Globus + Princeton Data Commons DOI *(placeholder, to be assigned)*

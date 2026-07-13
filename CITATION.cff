@@ -2,15 +2,29 @@
 # Visit https://bit.ly/cffinit to generate yours today!
 
 cff-version: 1.2.0
-title: "SamudraBGC: Machine Learning Emulator of Ocean Biogeochemistry"
+title: "SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry"
 message: >-
   If you use this software, please cite it using the
   metadata from this file.
 type: software
 authors:
-  - name: Manuscript Authors
+  - given-names: Maxime
+    family-names: "Keutgen De Greef"
+  - given-names: Laure
+    family-names: Resplandy
+  - given-names: Bianca
+    family-names: Champenois
+  - given-names: Mathieu
+    family-names: Poupon
+  - given-names: Weidong
+    family-names: Li
+  - given-names: Pedram
+    family-names: Hassanzadeh
+  - given-names: Laure
+    family-names: Zanna
 license: Apache-2.0
-repository-code: https://github.com/PLACEHOLDER/SamudraBGC
+repository-code: https://github.com/mkeutgen/SamudraBGC
+repository-artifact: https://huggingface.co/mkeutgen/SamudraBGC
 version: 1.0.0
 date-released: 2026-07-10
 abstract: >-
@@ -28,9 +42,22 @@ keywords:
 
 preferred-citation:
   type: article
-  title: "SamudraBGC: Machine Learning Emulator of Ocean Biogeochemistry"
+  title: "SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry"
   authors:
-    - name: Manuscript Authors
+    - given-names: Maxime
+      family-names: "Keutgen De Greef"
+    - given-names: Laure
+      family-names: Resplandy
+    - given-names: Bianca
+      family-names: Champenois
+    - given-names: Mathieu
+      family-names: Poupon
+    - given-names: Weidong
+      family-names: Li
+    - given-names: Pedram
+      family-names: Hassanzadeh
+    - given-names: Laure
+      family-names: Zanna
   journal: Geophysical Research Letters
   year: 2026
-  doi: 10.1029/PLACEHOLDER
+  doi: 10.1029/PLACEHOLDER  # placeholder — DOI assigned on publication

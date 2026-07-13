@@ -1,204 +1,103 @@
 #!/usr/bin/env python3
 """
-Create a compact evaluation subset for public release.
+Create a contiguous daily evaluation subset for public release.
 
-Strategy:
-- Forcings (2D): ALL timesteps (small, needed for driving the model)
-- Full state (3D): Every Nth day (for validation snapshots)
-- Time range: Test period 2015-2019 (5 years, ~1825 days)
+Unlike a sparse subset, this keeps a CONTIGUOUS daily time window with ALL
+variables on a single shared time axis — structurally identical to the full
+bgc_data.zarr, just shorter. This is directly consumable by the shipped
+eval.py / InferenceDataset pipeline (which builds rolling windows over one
+contiguous ``time`` axis and needs prognostic + boundary variables to share
+that axis).
 
-This allows users to:
-1. Run the emulator with daily forcing
-2. Validate against ground truth every N days
+The autoregressive model (hist=1) needs two consecutive daily states to seed
+the initial condition; a contiguous daily slice provides that automatically.
 
 Usage:
     python scripts/create_eval_subset.py \
-        --input /path/to/bgc_data.zarr \
+        --input  /path/to/bgc_data.zarr \
         --output /path/to/eval_subset.zarr \
-        --state-stride 10 \
-        --start-year 2015 \
-        --end-year 2019
+        --start-date 2015-01-01 \
+        --n-days 60
 """
 
 import argparse
+import datetime
 import os
 import shutil
 from pathlib import Path
 
 import numpy as np
-import zarr
-try:
-    from tqdm import tqdm
-except ImportError:
-    def tqdm(iterable, **kwargs):
-        desc = kwargs.get('desc', '')
-        total = len(iterable) if hasattr(iterable, '__len__') else None
-        for i, item in enumerate(iterable):
-            if total:
-                print(f"\r{desc}: {i+1}/{total}", end='', flush=True)
-            yield item
-        print()
+import xarray as xr
 
 
-# 2D forcing variables (keep all timesteps)
-FORCING_VARS = {"Qnet", "tauuo", "tauvo", "PRCmE", "SSH", "time"}
+def date_to_index(times: np.ndarray, target: datetime.date) -> int:
+    """Find the index of the first timestep on or after ``target``.
 
-# Log-transformed variables (also 3D, keep at stride)
-LOG_VARS = {"log_dic", "log_o2", "log_chl", "asinh_no3"}
-
-
-def is_3d_state_var(name: str) -> bool:
-    """Check if variable is a 3D state variable (has depth suffix)."""
-    if name in FORCING_VARS:
-        return False
-    # Check for depth suffix pattern: varname_N where N is 0-49
-    parts = name.rsplit("_", 1)
-    if len(parts) == 2 and parts[1].isdigit():
-        return True
-    return False
-
-
-def get_time_indices(zarr_store, start_year: int, end_year: int):
-    """Get indices for the specified year range."""
-    times = zarr_store["time"][:]
-
-    # Handle cftime objects
-    if hasattr(times[0], 'year'):
-        years = np.array([t.year for t in times])
-    else:
-        # Numeric: days since 1900-01-01 (CF convention reference)
-        import datetime
-        ref_date = datetime.date(1900, 1, 1)
-        years = np.array([
-            (ref_date + datetime.timedelta(days=float(t))).year
-            for t in times
-        ])
-
-    mask = (years >= start_year) & (years <= end_year)
-    indices = np.where(mask)[0]
-    print(f"Year range {start_year}-{end_year}: indices {indices[0]}-{indices[-1]} ({len(indices)} timesteps)")
-    return indices
+    Handles both numeric (days-since) and cftime-decoded time axes.
+    """
+    first = times[0]
+    if hasattr(first, "year"):
+        # cftime / datetime objects: compare by (year, month, day)
+        target_tuple = (target.year, target.month, target.day)
+        for idx, t in enumerate(times):
+            if (t.year, t.month, t.day) >= target_tuple:
+                return idx
+        raise ValueError(f"{target} is past the end of the dataset")
+    # Numeric days since 1900-01-01
+    target_days = (target - datetime.date(1900, 1, 1)).days
+    idx = int(np.searchsorted(times, target_days))
+    if idx >= len(times):
+        raise ValueError(f"{target} is past the end of the dataset")
+    return idx
 
 
-def create_eval_subset(
-    input_path: str,
-    output_path: str,
-    state_stride: int = 10,
-    start_year: int = 2015,
-    end_year: int = 2019,
-):
-    """Create compact evaluation subset."""
+def create_eval_subset(input_path, output_path, start_date, n_days):
+    """Slice a contiguous daily window keeping all variables."""
+    ds = xr.open_zarr(input_path)
 
-    input_store = zarr.open(input_path, "r")
+    times = ds["time"].values
+    start_idx = date_to_index(times, start_date)
+    end_idx = start_idx + n_days
+    if end_idx > ds.sizes["time"]:
+        raise ValueError(
+            f"Requested {n_days} days from {start_date} exceeds dataset length"
+        )
 
-    # Get time indices for the year range
-    time_indices = get_time_indices(input_store, start_year, end_year)
-    n_times = len(time_indices)
-    print(f"Found {n_times} timesteps for {start_year}-{end_year}")
+    print(f"Slicing time indices {start_idx}..{end_idx} "
+          f"({n_days} consecutive days from {start_date})")
 
-    # Indices for strided state variables
-    state_indices = time_indices[::state_stride]
-    n_state = len(state_indices)
-    print(f"Will include {n_state} state snapshots (every {state_stride} days)")
-    print(f"Will include {n_times} forcing timesteps (all days)")
+    subset = ds.isel(time=slice(start_idx, end_idx))
 
-    # Create output directory
     output_path = Path(output_path)
     if output_path.exists():
         shutil.rmtree(output_path)
-    output_path.mkdir(parents=True)
 
-    output_store = zarr.open(str(output_path), "w")
+    # Rechunk time to 1 so each daily field is an independent chunk (matches
+    # how the loader reads one timestep at a time).
+    subset = subset.chunk({"time": 1})
+    subset.to_zarr(str(output_path), mode="w")
+    ds.close()
 
-    # Copy metadata
-    output_store.attrs["source"] = str(input_path)
-    output_store.attrs["start_year"] = start_year
-    output_store.attrs["end_year"] = end_year
-    output_store.attrs["state_stride"] = state_stride
-    output_store.attrs["forcing_times"] = n_times
-    output_store.attrs["state_times"] = n_state
-
-    # Process each variable
-    var_names = list(input_store.keys())
-
-    for var_name in tqdm(var_names, desc="Processing variables"):
-        arr = input_store[var_name]
-
-        if var_name == "time":
-            # Copy all times in range for forcing reference
-            output_store.create_dataset(
-                "time_forcing",
-                data=arr[time_indices],
-                chunks=arr.chunks,
-            )
-            # Also copy strided times for state reference
-            output_store.create_dataset(
-                "time_state",
-                data=arr[state_indices],
-                chunks=arr.chunks,
-            )
-            continue
-
-        # Check if variable has time dimension (first dim matches total timesteps)
-        has_time = arr.shape[0] == len(input_store["time"])
-
-        if not has_time:
-            # Static variable (e.g., mask, grid) - copy as-is
-            data = arr[:]
-        elif var_name in FORCING_VARS:
-            # 2D forcing: keep all timesteps
-            data = arr[time_indices]
-        elif is_3d_state_var(var_name):
-            # 3D state: keep strided
-            data = arr[state_indices]
-        else:
-            # Other variables (log transforms, etc): keep strided
-            data = arr[state_indices]
-
-        output_store.create_dataset(
-            var_name,
-            data=data,
-            chunks=arr.chunks,
-            compressor=arr.compressor,
-        )
-
-    print(f"\nCreated evaluation subset at: {output_path}")
-
-    # Report sizes
-    input_size = sum(
+    out_size = sum(
         os.path.getsize(os.path.join(dp, f))
-        for dp, dn, fn in os.walk(input_path)
+        for dp, _, fn in os.walk(output_path)
         for f in fn
     )
-    output_size = sum(
-        os.path.getsize(os.path.join(dp, f))
-        for dp, dn, fn in os.walk(output_path)
-        for f in fn
-    )
-
-    print(f"Input size: {input_size / 1e9:.1f} GB")
-    print(f"Output size: {output_size / 1e9:.1f} GB")
-    print(f"Compression ratio: {input_size / output_size:.1f}x")
+    print(f"Wrote {output_path}")
+    print(f"  {len(subset.data_vars)} variables, {n_days} timesteps")
+    print(f"  size: {out_size / 1e9:.2f} GB ({out_size / 1e9 / n_days * 1000:.0f} MB/day)")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Create evaluation subset")
-    parser.add_argument("--input", required=True, help="Input bgc_data.zarr path")
-    parser.add_argument("--output", required=True, help="Output subset path")
-    parser.add_argument("--state-stride", type=int, default=10,
-                        help="Keep state every N days (default: 10)")
-    parser.add_argument("--start-year", type=int, default=2015)
-    parser.add_argument("--end-year", type=int, default=2019)
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--start-date", default="2015-01-01")
+    parser.add_argument("--n-days", type=int, default=60)
     args = parser.parse_args()
 
-    create_eval_subset(
-        args.input,
-        args.output,
-        args.state_stride,
-        args.start_year,
-        args.end_year,
-    )
+    start = datetime.date.fromisoformat(args.start_date)
+    create_eval_subset(args.input, args.output, start, args.n_days)
 
 
 if __name__ == "__main__":
