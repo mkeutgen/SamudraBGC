@@ -16,9 +16,8 @@ Per CLAUDE.md conventions:
 | `fig01_3d_schematic.py` | Architecture schematic with 3D ocean state visualization | Fig. 1a |
 | `fig03_ablation_tree.py` | Ablation tree showing sequential design choices | Fig. 1b |
 | `fig02.py` | Best model BGC performance: O₂ snapshots, DIC sections, time series, PDFs | Fig. 2 |
-| `fig04.py` | Ocean circulation representation: DIC snapshots + power spectrum | Fig. 3 |
-| `fig04_bis.py` | BGC representation ablation: time series, bias, RMSE vs depth | Fig. 4 |
-| `fig05.py` | Ensemble comparison: spread maps + pointwise trajectories | Fig. 5 |
+| `figure04_combined/fig04_combined.py` | Design choices: DIC/O₂/NO₃ snapshots, spectra, bias, RMSE vs depth | Fig. 3-4 |
+| `fig05.py` | Ensemble comparison: spread maps + biome trajectories | Fig. 5 |
 
 ## Supporting Figures
 
@@ -27,16 +26,15 @@ Per CLAUDE.md conventions:
 | `fig02_bis.py` | Extended time series by biome (surface + interior) | S1-S2 |
 | `fig02_ter.py` | Seasonal Hovmoller: MLD + surface Chl | S5 |
 | `fig05_multivar.py` | Multi-variable ensemble spread comparison | S10+ |
+| `fig06_conservation.py` | Tracer drift diagnostic | S9 |
+| `figS_mesoscale_multivar.py` | Mesoscale structure across variables | S10 |
+| `figS_ensemble_snapshots.py` | Ensemble member snapshots | S11 |
 
 ## Utility Scripts
 
 | Script | Description |
 |--------|-------------|
-| `fig01_panels.py` | Individual panels for Fig. 1 schematic |
-| `fig03_lollipop.py` | Alternative lollipop-style ablation visualization |
-| `fig04_bgc_pdf.py` | BGC variable PDF comparisons |
-| `fig04_design_choices.py` | Design choice comparison plots |
-| `fig05_diagnostics.py` | Ensemble diagnostic plots |
+| `biomes_utils.py` | Biome definitions and helper functions |
 | `env_setup.sh` | Environment setup for SLURM scripts |
 
 ## Running Figures
@@ -44,11 +42,17 @@ Per CLAUDE.md conventions:
 **Always submit via SLURM** (never run `.py` directly):
 
 ```bash
+# Main figures
 sbatch code_paper/fig02.sh
 sbatch code_paper/fig03_ablation_tree.sh
-sbatch code_paper/fig04.sh
-sbatch code_paper/fig04_bis.sh
+sbatch code_paper/figure04_combined/fig04_combined.sh
 sbatch code_paper/fig05.sh
+
+# Supporting figures
+sbatch code_paper/fig02_bis.sh
+sbatch code_paper/fig02_ter.sh
+sbatch code_paper/figS_mesoscale_multivar.sh
+sbatch code_paper/figS_ensemble_snapshots.sh
 ```
 
 ## Output Directories
@@ -56,8 +60,7 @@ sbatch code_paper/fig05.sh
 Figures are saved to `code_paper/figures/{script_name}/`:
 - `figures/fig02/` — main figure panels
 - `figures/fig03_ablation_tree/` — ablation tree
-- `figures/fig04/` — circulation representation
-- `figures/fig04_bis/` — BGC ablation panels
+- `figures/figure04_combined/` — circulation + BGC ablation
 - `figures/fig05/` — ensemble comparison
 
 ## Dependencies
@@ -67,10 +70,21 @@ Most scripts require the standard `ocean-emulator` conda environment. Exceptions
 
 ## Data Sources
 
-- **Ground Truth**: `$OCEAN_EMU_DATA_ROOT/MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr`
+- **Ground Truth**: `$OCEAN_EMU_DATA_ROOT/bgc_data.zarr`
 - **Best Model Predictions**: `outputs/champion_model_eval_rollout2015_2019/predictions_depth.zarr`
 - **Ablation Predictions**: `outputs/phase{N}_*/predictions_depth.zarr`
 - **Ensemble Predictions**: `outputs/champion_model_eval_ensemble*/`
+
+## Reproducibility Notes
+
+**From a clean clone**, only `fig03_ablation_tree.py` runs without data (hardcoded metrics).
+
+Other figures require:
+1. Download champion weights from HuggingFace
+2. Download evaluation data subset from Zenodo
+3. Run eval to generate `predictions_depth.zarr`
+
+See the top-level README for data download instructions.
 
 ## Style Guidelines
 

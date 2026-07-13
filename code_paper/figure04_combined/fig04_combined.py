@@ -73,7 +73,7 @@ SNAP_DATE_STR = "2014-03-21"
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 # Set these environment variables before running:
-#   OCEAN_EMU_DATA_ROOT   - path to processed data (contains MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/)
+#   OCEAN_EMU_DATA_ROOT   - path to processed data (contains bgc_data.zarr)
 #   OCEAN_EMU_OUTPUTS_BASE - path to Ocean_Emulator outputs (baseline models)
 #   OCEAN_EMU_OUTPUTS_PCA  - path to Ocean_Emulator_PCA outputs (PCA models)
 _DATA_ROOT = os.environ.get("OCEAN_EMU_DATA_ROOT")
@@ -88,7 +88,7 @@ if not all([_DATA_ROOT, _OUTPUTS_BASE, _OUTPUTS_PCA]):
         "  OCEAN_EMU_OUTPUTS_PCA=/path/to/Ocean_Emulator_PCA/outputs"
     )
 
-GT_PATH       = os.path.join(_DATA_ROOT, "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
+GT_PATH       = os.path.join(_DATA_ROOT, "bgc_data.zarr")
 LINEAR_PATH   = os.path.join(_OUTPUTS_BASE, "phase1_helmholtz_nograd_eval/predictions.zarr")
 VELOCITY_PATH = os.path.join(_OUTPUTS_BASE, "phase1_velocity_nograd_eval/predictions.zarr")
 LOG_PATH      = os.path.join(_OUTPUTS_BASE, "phase15_helmholtz_log_eval_linear/predictions.zarr")

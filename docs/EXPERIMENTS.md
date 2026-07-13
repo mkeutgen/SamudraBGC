@@ -83,7 +83,7 @@ The manuscript describes a sequential ablation study with 5 phases (Figure 1c):
 | S9 | `code_paper/fig06_conservation.py` | Drift diagnostic |
 | S10 | `code_paper/figS_mesoscale_multivar.py` | Mesoscale snapshots |
 | S11 | `code_paper/figS_ensemble_snapshots.py` | Ensemble members |
-| S12 | `code_paper/figS_energetics_dynamics.py` | Energetics |
+| S12 | (generated from eval outputs) | Energetics |
 
 ## Running Experiments
 
@@ -116,7 +116,7 @@ sbatch scripts/slurm/eval_phase5_pca20_helmholtz_grad010_rollout2010_2014.sh
 
 ```bash
 # Generate 50-member ensemble (used in Fig 5, S11)
-sbatch scripts/slurm/eval_champion_model_ensemble50_tsonly_std05_2015.sh
+python -m ocean_emulators.eval configs/eval/champion_model_eval_ensemble50_tsonly_std05_2015.yaml
 ```
 
 ## Key Hyperparameters

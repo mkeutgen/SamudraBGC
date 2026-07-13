@@ -38,9 +38,9 @@ from matplotlib.colors import LogNorm, Normalize, TwoSlopeNorm
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 — registers 3D projection
 
 # ── Config ────────────────────────────────────────────────────────────────────
-DATA_PATH = (
-    os.environ.get("OCEAN_EMU_DATA_ROOT", ".")
-    "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+DATA_PATH = os.path.join(
+    os.environ.get("OCEAN_EMU_DATA_ROOT", "."),
+    "bgc_data.zarr"
 )
 OUTPUT_DIR    = Path(__file__).parent / "figures" / "fig01_3d_schematic"
 SNAPSHOT_DATE = (2005, 4, 15)          # (year, month, day) — spring bloom

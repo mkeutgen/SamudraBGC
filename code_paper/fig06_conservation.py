@@ -62,7 +62,7 @@ YEARS = 5.0
 # ── Paths ────────────────────────────────────────────────────────────────────
 GT_PATH = os.path.join(
     os.environ.get("OCEAN_EMU_DATA_ROOT", "."),
-    "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr"
+    "bgc_data.zarr"
 )
 BEST_PATH = "outputs/champion_model_eval_rollout2015_2019/predictions_depth.zarr"
 

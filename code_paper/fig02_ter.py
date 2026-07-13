@@ -40,7 +40,7 @@ mpl.rcParams.update({
 })
 
 # ── Config ────────────────────────────────────────────────────────────────────
-GT_PATH   = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
+GT_PATH   = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr")
 PRED_PATH = "outputs/champion_model_eval_rollout2015_2019/predictions_depth.zarr"
 OUTPUT_DIR = Path(__file__).resolve().parent / "figures" / "fig02_ter_panels"
 
