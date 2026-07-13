@@ -701,8 +701,10 @@ class PCAConfig(BaseConfig):
     pca_params_path: str = Field(
         description="Path to pca_params.npz file with fitted PCA parameters"
     )
-    original_data_root: Location = Field(
-        description="Path to the original depth-level data (for truth comparison)"
+    original_data_root: Location | None = Field(
+        default=None,
+        description="Path to the original depth-level data (for truth comparison). "
+        "If null, falls back to the resolved data_root (OCEAN_EMU_DATA_ROOT).",
     )
     original_prognostic_vars_key: str = Field(
         description="Prognostic vars key for original depth-level variables "
