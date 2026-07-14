@@ -263,10 +263,17 @@ with a citable code DOI: [`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/
 
 ## Data Format
 
-Training data uses Zarr format:
+A complete data root (as in the evaluation subset tar, or the full simulation)
+contains four items:
+
 - `bgc_data.zarr` — Full spatiotemporal fields (time × depth × lat × lon)
 - `bgc_means.zarr` — Per-variable means for normalization
 - `bgc_stds.zarr` — Per-variable standard deviations
+- `pca_params.npz` — **Fitted PCA basis for the vertical compression.** The
+  champion predicts in PCA space, so this file is **required** to reconstruct
+  physical depth levels; `eval.py` loads it via `pca.pca_params_path`, resolved
+  relative to `OCEAN_EMU_DATA_ROOT`. It is bundled in the evaluation-subset tar
+  and ships with the full simulation — no separate download.
 
 Variable naming:
 - 3D variables: `{varname}_{depth_index}` (e.g., `temp_0`, `dic_38`)
