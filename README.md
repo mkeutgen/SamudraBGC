@@ -61,11 +61,11 @@ in `configs/eval/champion_model_eval_subset.yaml`, which defaults to
 `outputs/champion_model/saved_nets/ema_ckpt.pt` (rename the downloaded file if
 it differs).
 
-**Evaluation subset** — from Zenodo (DOI [`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/zenodo.PLACEHOLDER)). A 60-day contiguous window of the simulation (all variables), sufficient to run and score a champion-model rollout without the full 7 TB:
+**Evaluation subset** — from Zenodo (DOI [`10.5281/zenodo.21341550`](https://doi.org/10.5281/zenodo.21341550)). A 60-day contiguous window of the simulation (all variables), sufficient to run and score a champion-model rollout without the full 7 TB:
 
 ```bash
 # Download and extract the subset data root (~24 GB) from the Zenodo record
-wget -O eval_subset_2015_60day.tar "https://zenodo.org/records/PLACEHOLDER/files/eval_subset_2015_60day.tar"
+wget -O eval_subset_2015_60day.tar "https://zenodo.org/records/21341550/files/eval_subset_2015_60day.tar"
 tar -xf eval_subset_2015_60day.tar
 
 # Point OCEAN_EMU_DATA_ROOT at the extracted directory
@@ -230,7 +230,7 @@ your goal. New to the project? Start with the evaluation subset.
 A 60-day contiguous daily window (2015-01-01 onward, all variables) of the
 DG-MOM6-COBALTv2 double-gyre simulation, packaged as a single ~24 GB tar
 (`eval_subset_2015_60day.tar`) archived on Zenodo with a citable DOI:
-[`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/zenodo.PLACEHOLDER).
+[`10.5281/zenodo.21341550`](https://doi.org/10.5281/zenodo.21341550).
 It is sufficient to run and score a champion-model rollout without the full 7 TB.
 Download and extract it, then point `OCEAN_EMU_DATA_ROOT` at the extracted
 `eval_subset_60day/` (see [Quick Start](#quick-start) step 3). Once extracted,

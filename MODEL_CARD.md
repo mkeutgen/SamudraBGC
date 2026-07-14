@@ -85,22 +85,26 @@ mkeutgen/SamudraBGC/
 
 ## Evaluation Results
 
-On the 2015-2019 test period (5-year autoregressive rollout):
+Skill is scored over the upper 500 m. The champion configuration (#11) reaches a
+mean **R² = 0.81** on the validation period, up from R² = −0.07 for a baseline
+trained on Cartesian velocities (#1). Skill is stable across random seeds:
 
-| Variable | RMSE | R² |
-|----------|------|-----|
-| Temperature | X.XX °C | 0.XX |
-| Salinity | X.XX psu | 0.XX |
-| DIC | X.XX μmol/kg | 0.XX |
-| O2 | X.XX μmol/kg | 0.XX |
-| NO3 | X.XX μmol/kg | 0.XX |
-| Chlorophyll | X.XX mg/m³ | 0.XX |
+| Metric (top 500 m) | Value |
+|--------------------|-------|
+| R² (4 seeds)       | 0.77 ± 0.01 |
+| nRMSE (4 seeds)    | 0.075 ± 0.002 |
 
-*Values above are placeholders; final metrics are reported in the paper. To
-reproduce them yourself, follow the evaluation workflow in the
+On the **2015–2019 test period** (5-year free rollout):
+
+- **Domain-averaged time series** (surface temperature, DIC 100–200 m, O₂ 100–200 m, surface chlorophyll, NO₃ 0–100 m): per-variable **R² ranges from 0.41 to 0.96**.
+- **Time-averaged meridional DIC section**: RMSE = 4.0 μmol kg⁻¹, R² = 0.992.
+- **Distributions**: Kolmogorov–Smirnov statistic < 0.08 for all variables — the emulator reproduces both oligotrophic near-zero chlorophyll and subpolar bloom peaks.
+- **Drift**: with the gradient penalty, DIC bias stays below 2 μmol kg⁻¹ across the validation period (similar for O₂ and NO₃).
+
+See the paper for full metrics and figures. To reproduce, follow the
 [GitHub README](https://github.com/mkeutgen/SamudraBGC#quick-start) using the
 evaluation subset archived on
-[Zenodo](https://doi.org/10.5281/zenodo.PLACEHOLDER).*
+[Zenodo](https://doi.org/10.5281/zenodo.21341550).
 
 ## Citation
 
@@ -125,5 +129,5 @@ Apache 2.0
 - **Paper**: GRL — DOI [`10.1029/PLACEHOLDER`](https://doi.org/10.1029/PLACEHOLDER) *(placeholder, pending publication)*
 - **Code**: [github.com/mkeutgen/SamudraBGC](https://github.com/mkeutgen/SamudraBGC) — archived on Zenodo, DOI [`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/zenodo.PLACEHOLDER)
 - **Model weights**: [huggingface.co/mkeutgen/SamudraBGC](https://huggingface.co/mkeutgen/SamudraBGC)
-- **Evaluation subset**: Zenodo, DOI [`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/zenodo.PLACEHOLDER)
+- **Evaluation subset**: Zenodo, DOI [`10.5281/zenodo.21341550`](https://doi.org/10.5281/zenodo.21341550)
 - **Full simulation (~7 TB)**: Globus + Princeton Data Commons DOI *(placeholder, to be assigned)*
