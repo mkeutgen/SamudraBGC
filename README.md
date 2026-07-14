@@ -259,7 +259,7 @@ citable DOI through Princeton Data Commons
 **Code — GitHub, archived on Zenodo.**
 Source, configs, and paper-figure scripts:
 <https://github.com/mkeutgen/SamudraBGC>. Tagged releases are archived on Zenodo
-with a citable code DOI: [`10.5281/zenodo.PLACEHOLDER`](https://doi.org/10.5281/zenodo.PLACEHOLDER).
+with a citable code DOI: [`10.5281/zenodo.21352483`](https://doi.org/10.5281/zenodo.21352483).
 
 ## Data Format
 

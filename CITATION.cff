@@ -27,7 +27,7 @@ repository-code: https://github.com/mkeutgen/SamudraBGC
 repository-artifact: https://huggingface.co/mkeutgen/SamudraBGC
 version: 1.0.0
 date-released: 2026-07-10
-doi: 10.5281/zenodo.PLACEHOLDER  # Zenodo code archive — assigned on first GitHub release
+doi: 10.5281/zenodo.21352483  # Zenodo code archive (concept DOI, resolves to latest version)
 identifiers:
   - type: doi
     value: 10.5281/zenodo.21341550
