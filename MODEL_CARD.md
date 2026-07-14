@@ -46,42 +46,43 @@ Trained on the DG-MOM6-COBALTv2 double gyre simulation:
 
 ## How to Use
 
-### Download and Load
+The recommended path is the end-to-end evaluation workflow in the
+[GitHub README](https://github.com/mkeutgen/SamudraBGC#quick-start): download this
+checkpoint plus the evaluation subset (Zenodo, which bundles `bgc_means.zarr`,
+`bgc_stds.zarr`, and `pca_params.npz`), then run
+`python -m ocean_emulators.eval configs/eval/champion_model_eval_subset.yaml`.
+
+### Download the checkpoint
 
 ```python
 from huggingface_hub import hf_hub_download
 import torch
 
-# Download checkpoint
-ckpt_path = hf_hub_download(
-    repo_id="mkeutgen/SamudraBGC",
-    filename="champion_model/best_checkpoint.pt"
-)
+ckpt_path = hf_hub_download(repo_id="mkeutgen/SamudraBGC", filename="ema_ckpt.pt")
 
-# Load model
+# The checkpoint is a dict; the model weights are under the "model" key
 checkpoint = torch.load(ckpt_path, map_location="cpu")
-model_state = checkpoint["model_state_dict"]
-
-# Initialize your model architecture and load weights
-# See repository for full example
+model_state = checkpoint["model"]
 ```
+
+To instantiate the architecture and load these weights, use the model builder in
+[`src/ocean_emulators/`](https://github.com/mkeutgen/SamudraBGC) with the champion
+config `configs/eval/champion_model_eval_subset.yaml` — the eval entry point
+handles construction, normalization, and PCA reconstruction for you.
 
 ### Repository Structure
 
 ```
 mkeutgen/SamudraBGC/
-├── champion_model/
-│   └── best_checkpoint.pt      # Champion model weights
-├── ensemble/
-│   ├── seed43/best_checkpoint.pt
-│   ├── seed44/best_checkpoint.pt
-│   └── ...                     # 11 ensemble members
-├── normalization/
-│   ├── bgc_means.zarr/         # Normalization means
-│   ├── bgc_stds.zarr/          # Normalization stds
-│   └── pca_params.npz          # PCA transformation matrices
-└── README.md                   # This file
+├── ema_ckpt.pt   # Champion model checkpoint (EMA weights under the "model" key)
+└── README.md     # This model card
 ```
+
+Normalization statistics (`bgc_means.zarr`, `bgc_stds.zarr`) and the PCA
+parameters (`pca_params.npz`) are **not** in this repo — they ship inside the
+[evaluation subset on Zenodo](https://doi.org/10.5281/zenodo.21341550), already
+positioned in the data root the eval config expects. The 4-seed ensemble members
+used for the robustness check are available from the authors on request.
 
 ## Evaluation Results
 
