@@ -441,6 +441,11 @@ class Eval:
         Reads each predictions.zarr (ensemble members + unperturbed), applies
         inverse PCA reconstruction, and writes predictions_depth.zarr with
         depth-level variables (e.g., temp_0..temp_49 instead of temppc_0..temppc_14).
+
+        For log-transformed variables (log_dic, log_o2, log_chl), also applies
+        the inverse log transform physical = exp(log_val) - epsilon and outputs
+        physical variable names (dic_0, o2_0, chl_0) instead of log_dic_0 etc.,
+        so a single eval run yields physical depth fields with no separate step.
         """
         if self.cfg.pca is None:
             return
@@ -452,13 +457,38 @@ class Eval:
         logger.info("Reconstructing PCA predictions to depth levels")
         logger.info("=" * 70 + "\n")
 
-        pca_dict = load_pca_params(self.cfg.pca.pca_params_path)
+        # Epsilon values for the inverse log transform. These MUST match the
+        # per-variable epsilons used in preprocessing (see the epsilon_map in
+        # src/preprocess/add_log_variables.py). no3 is included for completeness
+        # but the champion config (helmholtz_log_no_logno3_*) does not log no3.
+        log_epsilon = {
+            "dic": 1e-10,
+            "o2": 1e-10,
+            "chl": 1e-8,
+            "no3": 1e-14,
+        }
+
+        # Resolve the original depth-level data root. When original_data_root is
+        # null (the shipped config convention), fall back to the resolved
+        # data_root (i.e. OCEAN_EMU_DATA_ROOT), mirroring experiment.resolved_data_root.
+        if self.cfg.pca.original_data_root is None:
+            original_root = str(self.cfg.experiment.resolved_data_root.path)
+        else:
+            loc = self.cfg.pca.original_data_root
+            original_root = str(loc.path) if hasattr(loc, "path") else str(loc)
+        logger.info(f"Using original depth-level data root: {original_root}")
+
+        # Resolve pca_params_path relative to the data root when not absolute.
+        pca_params_path = self.cfg.pca.pca_params_path
+        if not Path(pca_params_path).is_absolute():
+            pca_params_path = str(Path(original_root) / pca_params_path)
+        logger.info(f"Loading PCA params from: {pca_params_path}")
+
+        pca_dict = load_pca_params(pca_params_path)
         n_components = self.cfg.pca.n_components
 
         # Build 3D ocean mask from original depth-level data
-        original_data = xr.open_zarr(
-            str(Path(self.cfg.pca.original_data_root) / "bgc_data.zarr")
-        )
+        original_data = xr.open_zarr(str(Path(original_root) / "bgc_data.zarr"))
         # Use temp_0..temp_49 to build mask (NaN = land)
         n_levels = pca_dict["temp"].components.shape[1]
         mask_3d = np.stack(
@@ -519,17 +549,29 @@ class Eval:
                 # Inverse PCA: (time, k, lat, lon) -> (time, n_levels, lat, lon)
                 reconstructed = inverse_transform(coefficients, pca_dict[var_name], mask_3d)
 
+                # For log-transformed variables, invert the log transform so the
+                # output is physical (dic_0..49) rather than log-space (log_dic_0..49).
+                if var_name.startswith("log_"):
+                    physical_name = var_name[4:]  # "log_dic" -> "dic"
+                    epsilon = log_epsilon.get(physical_name, 1e-10)
+                    reconstructed = np.exp(reconstructed) - epsilon
+                    depth_prefix = f"{physical_name}_"
+                    logger.info(
+                        f"  {var_name}: {n_components} PCs -> {n_levels} depth levels "
+                        f"(inverse log with eps={epsilon:.0e})"
+                    )
+                else:
+                    depth_prefix = f"{var_name}_"
+                    logger.info(
+                        f"  {var_name}: {n_components} PCs -> {n_levels} depth levels"
+                    )
+
                 # Write depth-level variables
-                depth_prefix = f"{var_name}_"
                 for lev in range(n_levels):
                     depth_vars[f"{depth_prefix}{lev}"] = (
                         ["time", "lat", "lon"],
                         reconstructed[:, lev, :, :],
                     )
-
-                logger.info(
-                    f"  {var_name}: {n_components} PCs -> {n_levels} depth levels"
-                )
 
             # Write output zarr
             ds_depth = xr.Dataset(depth_vars, coords=ds.coords, attrs=ds.attrs)

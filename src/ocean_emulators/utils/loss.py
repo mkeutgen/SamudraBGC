@@ -80,7 +80,7 @@ class MseDynamic:
     This uses a rolling estimate of the loss of each channel to scale each
     channel's loss, discouraging the model from focusing on only a few channels.
 
-    See: https://openathena.slack.com/archives/C08CYM42DT3/p1752275713570969
+    See internal discussion for background.
     """
 
     N_WINDOW = 25

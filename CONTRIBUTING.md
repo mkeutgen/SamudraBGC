@@ -1,10 +1,10 @@
 # Contributing Guide
 
-Everyone can contribute to Ocean Emulator, and we value everyone's contributions. There are several ways to help,
+Everyone can contribute to SamudraBGC, and we value everyone's contributions. There are several ways to help,
 including:
 
-* Reporting bugs or feature requests in our [issue tracker](https://github.com/Open-Athena/Ocean_Emulator/issues).
-* Contributing PRs to our [code base](https://github.com/Open-Athena/Ocean_Emulator).
+* Reporting bugs or feature requests in our [issue tracker](https://github.com/PLACEHOLDER/SamudraBGC/issues).
+* Contributing PRs to our [code base](https://github.com/PLACEHOLDER/SamudraBGC).
 * Writing or editing documentation. (Yes, typo fixes are welcome!)
 
 This project follows the [M2LInES _Code of Conduct_](https://m2lines.github.io/pages/code-of-conduct/).
@@ -15,8 +15,8 @@ This project follows the [M2LInES _Code of Conduct_](https://m2lines.github.io/p
 <summary><strong>TL;DR</strong></summary>
 
 ```shell
-git clone git@github.com:Open-Athena/Ocean_Emulator.git
-cd Ocean_Emulator
+git clone git@github.com:PLACEHOLDER/SamudraBGC.git
+cd SamudraBGC
 uv sync --dev
 source .venv/bin/activate
 uvx pre-commit install
@@ -38,19 +38,19 @@ git push --force-with-lease
 </details>
 
 1. (If you're not a core maintainer), please fork the repository by clicking the **Fork**
-   button on [the repository page](https://github.com/Open-Athena/Ocean_Emulator).
+   button on [the repository page](https://github.com/PLACEHOLDER/SamudraBGC).
 
 2. Clone the repository (via [`ssh` recommended](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account)!) and change into the root directory.
    ```shell
    # if you're using a fork, make sure to clone your fork's repo
-   git clone https://github.com/Open-Athena/Ocean_Emulator.git
+   git clone https://github.com/PLACEHOLDER/SamudraBGC.git
    # preferred method, but requires setting up an ssh key with Github.
-   git clone git@github.com:Open-Athena/Ocean_Emulator.git
+   git clone git@github.com:PLACEHOLDER/SamudraBGC.git
    # or, using the Github CLI
-   gh repo clone Open-Athena/Ocean_Emulator
+   gh repo clone PLACEHOLDER/SamudraBGC
 
    # then, change directory
-   cd Ocean_Emulator
+   cd SamudraBGC
    ```
 
 3. Install developer dependencies using [`uv`](https://docs.astral.sh/uv/getting-started/):
@@ -65,9 +65,9 @@ git push --force-with-lease
 4. (If forked) Add the original repository as an upstream remote, so you can sync your changes.
    ```shell
    # via http
-   git remote add upstream https://github.com/Open-Athena/Ocean_Emulator.git
+   git remote add upstream https://github.com/PLACEHOLDER/SamudraBGC.git
    # via ssh
-   git remote add upstream git@github.com:Open-Athena/Ocean_Emulator.git
+   git remote add upstream git@github.com:PLACEHOLDER/SamudraBGC.git
    ```
 
 5. Check out feature branches where you will develop from:
@@ -156,9 +156,9 @@ git push --force-with-lease
    git rebase -i <starting-commit>
    ```
 
-10. Celebrating submitting your patch to Ocean Emulator — well done!
+10. Celebrating submitting your patch to SamudraBGC — well done!
 
-## Running Oceans Emulator
+## Running SamudraBGC
 
 ### Training the model
 
@@ -306,7 +306,7 @@ you'll want to configure it to use pyproject.toml, which you can do with a `.vsc
 }
 ```
 
-## Testing Oceans Emulator
+## Testing SamudraBGC
 
 <details>
 <summary><strong>TL;DR</strong></summary>

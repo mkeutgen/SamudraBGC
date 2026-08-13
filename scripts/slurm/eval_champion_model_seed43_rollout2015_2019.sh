@@ -2,8 +2,8 @@
 # 5-year rollout (2015-2019, test holdout) for champion_model_seed43 (70 epochs)
 
 #SBATCH --job-name=eval_s43
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1

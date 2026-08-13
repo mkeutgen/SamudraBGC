@@ -54,8 +54,8 @@ _n_workers = int(os.environ.get("DASK_NUM_WORKERS", os.cpu_count() or 8))
 # =============================================================================
 # CONFIG
 # =============================================================================
-GT_PATH        = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/bgc_data.zarr")
-PCA_PARAMS_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "MOM6_CobaltDG_JRA_FULL_POC_Helmholtz/pca_params.npz")
+GT_PATH        = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr")
+PCA_PARAMS_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "pca_params.npz")
 
 ML_ENSEMBLE_DIR   = Path("outputs/champion_model_eval_ensemble100_halfbgc_v2_2015")
 NUMERICAL_BASE_DIR = Path(os.environ.get("MOM6_NUMERICAL_PATH", "."))

@@ -1,4 +1,4 @@
-name: /scratch/cimes/maximek/envs/ocean-emulator
+name: ocean-emulator
 channels:
   - conda-forge
   - https://repo.anaconda.com/pkgs/main
@@ -132,7 +132,6 @@ dependencies:
       - nvidia-nccl-cu12==2.27.3
       - nvidia-nvjitlink-cu12==12.8.93
       - nvidia-nvtx-cu12==12.8.90
-      - ocean-emulators==1.0
       - packaging==25.0
       - pandas==2.3.3
       - parso==0.8.5
@@ -226,4 +225,3 @@ dependencies:
       - yarl==1.22.0
       - zarr==2.18.7
       - zipp==3.23.0
-prefix: /scratch/cimes/maximek/envs/ocean-emulator

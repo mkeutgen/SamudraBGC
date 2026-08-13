@@ -2,8 +2,8 @@
 # Phase 5: PCA evaluation + depth-level reconstruction metrics (k=5)
 
 #SBATCH --job-name=eval_phase5_pca5
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1

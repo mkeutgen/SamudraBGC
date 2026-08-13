@@ -3,8 +3,8 @@
 # Validation period 2010-2014
 
 #SBATCH --job-name=phase2_grad010_ens
-#SBATCH --partition=cimes
-#SBATCH --account=cimes3
+#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=YOUR_ACCOUNT
 #SBATCH --gres=gpu:h200:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
