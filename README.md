@@ -19,14 +19,6 @@ If you use this code, please cite our preprint:
 }
 ```
 
-## Model
-
-> **SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry**  
-> Maxime Keutgen De Greef, Laure Resplandy, Bianca Champenois, Mathieu Poupon, Weidong Li, Pedram Hassanzadeh, and Laure Zanna (2026).  
-> *Geophysical Research Letters*.  
-> DOI: [10.1029/PLACEHOLDER](https://doi.org/10.1029/PLACEHOLDER)
-
-See [CITATION.cff](CITATION.cff) for BibTeX and other citation formats.
 
 ## Highlights
 
