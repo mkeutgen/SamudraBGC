@@ -4,9 +4,12 @@ The scripts in this folder draw the figures that changed in the revision of
 "SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry" and
 compute the numbers the revised text quotes from them. The figures that did not change come
 from `code_paper/` (see `code_paper/README.md`). One of them, the circulation and energetics
-figure (Figure S4 of the revised SI, S12 of the submitted one), was drawn by
-`code_paper/figS_energetics_dynamics_m8.py`, which the public-release cleanup removed from
-`main`; it is in the history at commit `bfb1460d2`.
+figure (Figure S4 of the revised SI, S12 of the submitted one), was drawn by a version of
+`code_paper/figS_energetics_dynamics_m8.py` that read the SamudraBGC test rollout. The
+script, which the public-release cleanup removed from `main`, is in the history at commit
+`bfb1460d2`, where it reads the validation rollout of model #7 instead. `spectra.py`
+recomputes the figure's spectra from the test rollout and `plot_spectra.py` checks them
+against its cache (they agree to within 10⁻⁵).
 
 Every comparison pairs the dynamical model with SamudraBGC by date
 (`common.gt_indices_for`, `common.date_index`). Some of the submitted figure scripts paired
