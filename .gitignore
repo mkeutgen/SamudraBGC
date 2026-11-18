@@ -76,6 +76,7 @@ notebooks/
 outputs/
 outputs/Maxime_Manuscript_BGC_Emulator/
 output/
+revision_figures/
 *.zarr/
 *.zarr
 *.nc
