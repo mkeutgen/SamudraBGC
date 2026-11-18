@@ -34,7 +34,7 @@ import numpy as np
 from scipy.stats import ks_2samp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import DATA_DIR, OUT_DIR, TEST_PRED, date_index, layer_mean, open_gt, open_pred, wet_mask
+from common import DATA_DIR, OUT_DIR, date_index, layer_mean, open_gt, test_times, wet_mask
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "code_paper"))
 import fig02  # noqa: E402  (the submitted figures' plotters)
@@ -101,7 +101,7 @@ def main():
     gt_ds = open_gt()
     wet = wet_mask(gt_ds)
     lat = gt_ds.lat.values
-    pred_times = open_pred(TEST_PRED).time.values
+    pred_times = test_times()
     gt_times = gt_ds.time.values
     i0 = date_index(gt_times, 2015, 1, 1)
     assert gt_times[i0 + 2] == pred_times[0], (gt_times[i0 + 2], pred_times[0])

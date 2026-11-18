@@ -6,17 +6,24 @@ revision numbers are comparable with the published ones:
 - layer slices and depth weights: code_paper/fig02.py (DEPTH_RANGES, FINE_DEPTH_RANGES,
   _depth_avg) with DEPTH_THICKNESS from src/ocean_emulators/constants.py;
 - wet mask: the 2-D ``mask`` field of the training store (> 0.5), as in fig02.py,
-  fig04.py and figS_energetics_dynamics*.py;
+  fig04.py and figS_energetics_dynamics_m8.py;
 - domain mean: cos(latitude)-weighted mean over wet cells (fig02.py ``precompute``);
 - display units: mol/kg -> umol/kg (x 1e6), ug/kg -> mg/m3 (x RHO_0/1000), fig02.py ``to_display``;
-- tracer spectra: code_paper/fig04.py ``_azimuthal_spectrum`` (9 km grid, Hann window);
+- tracer spectra: code_paper/fig04.py ``_azimuthal_spectrum`` (9 km grid, Hann window; the
+  same computation is in code_paper/figure04_combined/fig04_combined.py);
 - velocity from (psi, phi): code_paper/figS_energetics_dynamics_m8.py ``reconstruct_uv``.
+code_paper/fig04.py and code_paper/figS_energetics_dynamics_m8.py were removed from main in
+the public-release cleanup; they are in the history at commit bfb1460d2.
 
 Paths follow code_paper/: the dynamical model's store is $OCEAN_EMU_DATA_ROOT/bgc_data.zarr,
 the rollouts are under $OCEAN_EMU_OUTPUTS_PCA (default outputs/), and the ensemble caches are
 the ones code_paper/fig05.py writes. Outputs go to revision_figures/ at the repository root.
+Both store paths are resolved to their targets: on some parallel file systems, many parallel
+reads through a symbolic link fail now and then with "file not found", which zarr reads as a
+missing chunk and fills silently.
 """
 
+import datetime
 import os
 import sys
 from pathlib import Path
@@ -29,8 +36,8 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "src"))
 from ocean_emulators.constants import DEPTH_LEVELS, DEPTH_THICKNESS  # noqa: E402
 
-GT_PATH = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr")
-PCA_OUT = os.environ.get("OCEAN_EMU_OUTPUTS_PCA", "outputs")
+GT_PATH = os.path.realpath(os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr"))
+PCA_OUT = os.path.realpath(os.environ.get("OCEAN_EMU_OUTPUTS_PCA", "outputs"))
 # SamudraBGC (#11 retrained on 1960-2014), free rollout over the test years
 TEST_PRED = f"{PCA_OUT}/champion_model_eval_rollout2015_2019/predictions_depth.zarr"
 # #11 (20 components, trained on 1960-2009), free rollout over the validation years
@@ -99,6 +106,13 @@ def open_gt():
 
 def open_pred(path):
     return xr.open_zarr(path, consolidated=False)
+
+
+def test_times():
+    """The test rollout's dates (12:00 noleap), from the copy prep_test_fields.py saved."""
+    days = np.load(DATA_DIR / "times_test.npy")  # columns: day of year, year
+    return np.array([cftime.DatetimeNoLeap(int(y), 1, 1, 12) + datetime.timedelta(days=int(d) - 1)
+                     for d, y in days])
 
 
 def wet_mask(gt_ds):
@@ -173,7 +187,7 @@ R_EARTH = 6371e3
 
 
 def grid_spacing_m(lat, lon):
-    """As figS_energetics_dynamics_m8.py: scalar dy, latitude-dependent dx column."""
+    """As code_paper/figS_energetics_dynamics_m8.py: scalar dy, latitude-dependent dx column."""
     dy = R_EARTH * np.deg2rad(np.abs(np.diff(lat).mean()))
     dx = R_EARTH * np.cos(np.deg2rad(lat))[:, None] * np.deg2rad(np.abs(np.diff(lon).mean()))
     return dx, dy

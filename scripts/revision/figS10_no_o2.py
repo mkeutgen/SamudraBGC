@@ -440,6 +440,7 @@ def main():
         # Save cache
         print(f"\n[cache] Writing {CACHE_FILE}...")
         t0 = time.time()
+        CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(CACHE_FILE, "wb") as f:
             pickle.dump({
                 "gt_arrays": gt_arrays, "pred_arrays": pred_arrays,

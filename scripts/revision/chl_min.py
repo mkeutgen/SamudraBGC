@@ -1,7 +1,7 @@
 """Smallest chlorophyll value of the dynamical model, per level, over 1960-2019 (all 21,900 days)."""
 import json, os, sys, numpy as np, zarr
 from concurrent.futures import ProcessPoolExecutor
-ROOT = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr")
+ROOT = os.path.realpath(os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr"))  # see common.py
 NT, CH = 21900, 10
 
 def chunk_min(args):

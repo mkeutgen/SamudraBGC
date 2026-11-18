@@ -49,7 +49,7 @@ import cftime
 from scipy.stats import pearsonr, ks_2samp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import DATA_DIR, DEPTH_LEVELS, OUT_DIR, TEST_PRED, open_gt, open_pred
+from common import DATA_DIR, DEPTH_LEVELS, OUT_DIR, open_gt, test_times
 
 try:
     import cmocean
@@ -421,7 +421,7 @@ def main():
     gt_ds = open_gt()
     lat, lon = gt_ds.lat.values, gt_ds.lon.values
     wet = np.load(DATA_DIR / "wet.npy")
-    pred_times = open_pred(TEST_PRED).time.values
+    pred_times = test_times()
 
     gt_arrays, pred_arrays = {}, {}
     for key, *_ in SERIES:

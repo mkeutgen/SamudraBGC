@@ -46,8 +46,9 @@ mpl.rcParams.update({
 # instead of 5 mg m-3; the ground truth is paired with the rollout by date (fig02_ter.py took it from
 # 2015-01-01 and cut it by position, two days early). The corrected figure
 # goes to revision_figures/fixed/, leaving the earlier one in place.
-GT_PATH   = os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr")
-PRED_PATH = os.path.join(os.environ.get("OCEAN_EMU_OUTPUTS_PCA", "outputs"),
+# Resolved to their targets, as in common.py (parallel reads through a symbolic link)
+GT_PATH   = os.path.realpath(os.path.join(os.environ.get("OCEAN_EMU_DATA_ROOT", "."), "bgc_data.zarr"))
+PRED_PATH = os.path.join(os.path.realpath(os.environ.get("OCEAN_EMU_OUTPUTS_PCA", "outputs")),
                          "champion_model_eval_rollout2015_2019/predictions_depth.zarr")
 OUTPUT_DIR = Path(__file__).resolve().parents[2] / "revision_figures"
 FIG_DIR = OUTPUT_DIR / "fixed"
@@ -397,6 +398,7 @@ def main():
     )
 
     # Arrays behind the panels, for the numbers quoted in the text (figS05_numbers.py)
+    HOV_NPZ.parent.mkdir(parents=True, exist_ok=True)
     np.savez(HOV_NPZ, lat=lat, chl_gt=chl_gt, chl_pred=chl_pred, mld_gt=mld_gt, mld_pred=mld_pred)
 
     # Compute metrics

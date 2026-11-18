@@ -66,6 +66,7 @@ def main():
                     out[f"{period}_{var}_gt_{wname}"][:, k] = gs[j]
                     out[f"{period}_{var}_emu_{wname}"][:, k] = es[j]
                 print(f"  {period} {var}_{k} ({time.time() - t0:.0f}s)", flush=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     np.savez(DATA_DIR / "drift_levels.npz", **out)
     print(f"saved ({time.time() - t0:.0f}s)")
 

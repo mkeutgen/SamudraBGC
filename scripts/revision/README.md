@@ -3,7 +3,10 @@
 The scripts in this folder draw the figures that changed in the revision of
 "SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry" and
 compute the numbers the revised text quotes from them. The figures that did not change come
-from `code_paper/` (see `code_paper/README.md`).
+from `code_paper/` (see `code_paper/README.md`). One of them, the circulation and energetics
+figure (Figure S4 of the revised SI, S12 of the submitted one), was drawn by
+`code_paper/figS_energetics_dynamics_m8.py`, which the public-release cleanup removed from
+`main`; it is in the history at commit `bfb1460d2`.
 
 Every comparison pairs the dynamical model with SamudraBGC by date
 (`common.gt_indices_for`, `common.date_index`). Some of the submitted figure scripts paired
@@ -46,7 +49,7 @@ Numbers quoted in the text:
 |---|---|---|
 | Dynamical model store | `$OCEAN_EMU_DATA_ROOT/bgc_data.zarr` | all |
 | PCA basis | `$OCEAN_EMU_DATA_ROOT/pca_params.npz` | `figS_ensemble_snapshots.py` |
-| Test rollout, 2015–2019 | `$OCEAN_EMU_OUTPUTS_PCA/champion_model_eval_rollout2015_2019/predictions_depth.zarr`, from `configs/eval/champion_model_eval_rollout2015_2019.yaml` | `prep_test_fields.py`, `drift_series.py`, `spectra.py`, `figS05_chl_capped.py`, `figS10_no_o2.py`, and the time axis in `fig02_minor_fixes.py` and `figS01_04_by_date.py` |
+| Test rollout, 2015–2019 | `$OCEAN_EMU_OUTPUTS_PCA/champion_model_eval_rollout2015_2019/predictions_depth.zarr`, from `configs/eval/champion_model_eval_rollout2015_2019.yaml` | `prep_test_fields.py`, `drift_series.py`, `spectra.py`, `figS05_chl_capped.py`, `figS10_no_o2.py` |
 | Validation rollout, 2010–2014 | `$OCEAN_EMU_OUTPUTS_PCA/phase5_pca20_helmholtz_grad010_eval_rollout2010_2014/predictions_depth.zarr`, from the config of the same name | `drift_series.py` |
 | 50-member ensemble, 2015 | `$OCEAN_EMU_OUTPUTS_PCA/champion_model_eval_ensemble50_tsonly_std05_2015/`, from the config of the same name | `figS_ensemble_snapshots.py` |
 | Dynamical model ensemble, surface chlorophyll | `code_paper/figures/fig05/_cache_chl_surface.pkl`, written by `code_paper/fig05.py` | `figS_ensemble_snapshots.py` |
@@ -60,8 +63,9 @@ which `run_figS05.sh` takes from a conda environment named `preprocess_env`, as
 ## Run order
 
 Submit from the repository root after setting `YOUR_PARTITION` and `YOUR_ACCOUNT` in the
-wrappers. The first four jobs read the zarr stores and can run in parallel; everything
-after them reads only the arrays they cache in `revision_figures/data/`.
+wrappers. The jobs of the first group read the rollouts and can run in parallel; the
+second group reads the arrays they cache in `revision_figures/data/`, plus the grid and mask
+of the dynamical model store (and, for the positional comparison, its first two days of 2015).
 
 ```bash
 mkdir -p logs

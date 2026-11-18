@@ -5,7 +5,9 @@
    Figure 3b method (code_paper/fig04.py: full 362x362 domain, land -> 0, Hann window,
    9 km grid), averaged over weekly snapshots through 2019 of the test rollout. KE is
    0.5 (E_u + E_v) with u, v rebuilt from surface psi, phi by the SI Fig S12 operator.
-2. Surface KE with the SI Fig S12 method itself (figS_energetics_dynamics*.py: open-ocean
+   (SI Fig S12 of the submitted version is S4 of the revised SI; fig04.py and
+   figS_energetics_dynamics_m8.py are in the history at commit bfb1460d2.)
+2. Surface KE with the SI Fig S12 method itself (code_paper/figS_energetics_dynamics_m8.py: open-ocean
    box 33-45N, 48-33W, spectrum of psi and phi times k^2, every 5th day of 2015-2019),
    plus that figure's domain-mean EKE and time-mean streamfunction correlation, to
    check which model the published S12 shows.
@@ -131,6 +133,7 @@ def main():
         print(f"  KE {src} done ({nfft} box snapshots, {time.time() - t0:.0f}s)", flush=True)
     out["wet_int"] = wet_int
     out["lat"] = lat
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     np.savez(DATA_DIR / "spectra.npz", **out)
     print(f"saved ({time.time() - t0:.0f}s)")
 
