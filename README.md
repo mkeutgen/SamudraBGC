@@ -6,7 +6,7 @@ A machine learning emulator for mesoscale ocean physics and biogeochemistry. Sam
 
 If you use this code, please cite our preprint:
 
-> Keutgen, M., Resplandy, L., Champenois, B., Poupon, M., Li, W., Hassanzadeh, P., & Zanna, L. (2026). SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry. *ESS Open Archive*. https://doi.org/10.22541/essoar.15006794
+> Keutgen, M., Resplandy, L., Champenois, B., Poupon, M., Li, W., Hassanzadeh, P., & Zanna, L. (2026). SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry. *ESS Open Archive*. https://doi.org/10.22541/essoar.15006794/v2
 
 ```bibtex
 @article{keutgen2026samudrabgc,
@@ -14,8 +14,8 @@ If you use this code, please cite our preprint:
   author={Keutgen, Maxime and Resplandy, Laure and Champenois, Bianca and Poupon, Mathieu and Li, Weidong and Hassanzadeh, Pedram and Zanna, Laure},
   journal={ESS Open Archive},
   year={2026},
-  doi={10.22541/essoar.15006794},
-  url={https://essopenarchive.org/doi/abs/10.22541/essoar.15006794/v1}
+  doi={10.22541/essoar.15006794/v2},
+  url={https://essopenarchive.org/doi/abs/10.22541/essoar.15006794/v2}
 }
 ```
 
