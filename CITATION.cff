@@ -9,7 +9,7 @@ message: >-
 type: software
 authors:
   - given-names: Maxime
-    family-names: "Keutgen De Greef"
+    family-names: "Keutgen"
   - given-names: Laure
     family-names: Resplandy
   - given-names: Bianca
@@ -50,7 +50,7 @@ preferred-citation:
   title: "SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry"
   authors:
     - given-names: Maxime
-      family-names: "Keutgen De Greef"
+      family-names: "Keutgen"
     - given-names: Laure
       family-names: Resplandy
     - given-names: Bianca
