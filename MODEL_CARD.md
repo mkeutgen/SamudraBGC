@@ -114,7 +114,7 @@ If you use this model, please cite:
 ```bibtex
 @article{samudrabgc2026,
   title={SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry},
-  author={Keutgen De Greef, Maxime and Resplandy, Laure and Champenois, Bianca and Poupon, Mathieu and Li, Weidong and Hassanzadeh, Pedram and Zanna, Laure},
+  author={Keutgen, Maxime and Resplandy, Laure and Champenois, Bianca and Poupon, Mathieu and Li, Weidong and Hassanzadeh, Pedram and Zanna, Laure},
   journal={Geophysical Research Letters},
   year={2026},
   doi={10.1029/PLACEHOLDER}

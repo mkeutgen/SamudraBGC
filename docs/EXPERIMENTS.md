@@ -206,7 +206,7 @@ If you use this code, please cite:
 ```bibtex
 @article{keutgen_samudrabgc_2026,
   title={SamudraBGC: Machine Learning Emulation of Regional Mesoscale Ocean Biogeochemistry},
-  author={Keutgen De Greef, Maxime and Resplandy, Laure and Champenois, Bianca and Poupon, Mathieu and Li, Weidong and Hassanzadeh, Pedram and Zanna, Laure},
+  author={Keutgen, Maxime and Resplandy, Laure and Champenois, Bianca and Poupon, Mathieu and Li, Weidong and Hassanzadeh, Pedram and Zanna, Laure},
   journal={Geophysical Research Letters},
   year={2026}
 }
